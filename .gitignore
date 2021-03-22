@@ -1,0 +1,33 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# codecov
+coverage.txt
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+vendor/
+# config/*.toml
+
+.DS_Store
+.idea/*
+
+# Descrypted by sops
+docker-compose.env.dec
+
+# Decrypted by helm-secrets
+*.dec
+
+# Dump
+database/sqls/andpad_db/import/dump.sql
+
+# GoLand(?)が作る一時的なバイナリ・ログ置き場
+tmp
