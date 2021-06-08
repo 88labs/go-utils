@@ -1,4 +1,4 @@
-package aerrors
+package cerrors
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ const (
 	UnknownErr
 )
 
-type AndpadError struct {
+type CommonError struct {
 	Code    ErrorCode
 	summary string
 	detail  string
@@ -46,7 +46,7 @@ func toSummary(code ErrorCode) string {
 }
 
 func New(code ErrorCode, cause error, detail string) error {
-	return &AndpadError{
+	return &CommonError{
 		Code:    code,
 		summary: toSummary(code),
 		detail:  detail,
@@ -56,7 +56,7 @@ func New(code ErrorCode, cause error, detail string) error {
 }
 
 func Newf(code ErrorCode, cause error, detail string, args ...interface{}) error {
-	return &AndpadError{
+	return &CommonError{
 		Code:    code,
 		summary: toSummary(code),
 		detail:  fmt.Sprintf(detail, args...),
@@ -65,7 +65,7 @@ func Newf(code ErrorCode, cause error, detail string, args ...interface{}) error
 	}
 }
 
-func (err *AndpadError) Error() string {
+func (err *CommonError) Error() string {
 	if err.detail == "" {
 		return err.summary
 	} else {
@@ -73,11 +73,11 @@ func (err *AndpadError) Error() string {
 	}
 }
 
-func (err *AndpadError) Unwrap() error { return err.cause }
+func (err *CommonError) Unwrap() error { return err.cause }
 
-func (e *AndpadError) Format(s fmt.State, v rune) { xerrors.FormatError(e, s, v) }
+func (e *CommonError) Format(s fmt.State, v rune) { xerrors.FormatError(e, s, v) }
 
-func (e *AndpadError) FormatError(p xerrors.Printer) (next error) {
+func (e *CommonError) FormatError(p xerrors.Printer) (next error) {
 	p.Print(e.Error())
 	e.frame.Format(p)
 	return e.cause
