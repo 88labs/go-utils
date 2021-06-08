@@ -1,6 +1,6 @@
 ## cerrors
 
-ANDPADの標準的なエラー型です。xerrorsを使っています。
+よく使いそうなエラー種類を定義しました。xerrorsを使っています。
 
 ### Usage
 

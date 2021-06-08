@@ -44,17 +44,17 @@ func TestNew(t *testing.T) {
 				t.Errorf("cannot get err")
 			}
 
-			andpadError, ok := err.(*CommonError)
+			commonError, ok := err.(*CommonError)
 			if !ok {
 				t.Errorf("cannot get CommonError. err: %v", err)
 			}
 
-			actualErrString := andpadError.Error()
+			actualErrString := commonError.Error()
 			if actualErrString != tt.wantErrString {
 				t.Errorf("error string is invalid. actual: %s, expected:%s", actualErrString, tt.wantErrString)
 			}
 
-			actualCause := andpadError.Unwrap()
+			actualCause := commonError.Unwrap()
 			if actualCause != tt.args.cause {
 				t.Errorf("error cause is invalid. actual: %s, expected:%s", actualCause, tt.args.cause)
 			}
@@ -102,17 +102,17 @@ func TestNewf(t *testing.T) {
 				t.Errorf("cannot get err")
 			}
 
-			andpadError, ok := err.(*CommonError)
+			commonError, ok := err.(*CommonError)
 			if !ok {
 				t.Errorf("cannot get CommonError. err: %v", err)
 			}
 
-			actualErrString := andpadError.Error()
+			actualErrString := commonError.Error()
 			if actualErrString != tt.wantErrString {
 				t.Errorf("error string is invalid. actual: %s, expected:%s", actualErrString, tt.wantErrString)
 			}
 
-			actualCause := andpadError.Unwrap()
+			actualCause := commonError.Unwrap()
 			if actualCause != tt.args.cause {
 				t.Errorf("error cause is invalid. actual: %s, expected:%s", actualCause, tt.args.cause)
 			}
@@ -188,7 +188,7 @@ func Test_toSummary(t *testing.T) {
 	}
 }
 
-func TestAndpadError_Format(t *testing.T) {
+func TestcommonError_Format(t *testing.T) {
 	type fields struct {
 		Code    ErrorCode
 		summary string
