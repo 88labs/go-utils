@@ -1,4 +1,4 @@
-package aerrors
+package cerrors
 
 import (
 	"errors"
@@ -44,9 +44,9 @@ func TestNew(t *testing.T) {
 				t.Errorf("cannot get err")
 			}
 
-			andpadError, ok := err.(*AndpadError)
+			andpadError, ok := err.(*CommonError)
 			if !ok {
-				t.Errorf("cannot get AndpadError. err: %v", err)
+				t.Errorf("cannot get CommonError. err: %v", err)
 			}
 
 			actualErrString := andpadError.Error()
@@ -102,9 +102,9 @@ func TestNewf(t *testing.T) {
 				t.Errorf("cannot get err")
 			}
 
-			andpadError, ok := err.(*AndpadError)
+			andpadError, ok := err.(*CommonError)
 			if !ok {
-				t.Errorf("cannot get AndpadError. err: %v", err)
+				t.Errorf("cannot get CommonError. err: %v", err)
 			}
 
 			actualErrString := andpadError.Error()
