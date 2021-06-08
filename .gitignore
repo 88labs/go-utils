@@ -26,8 +26,5 @@ docker-compose.env.dec
 # Decrypted by helm-secrets
 *.dec
 
-# Dump
-database/sqls/andpad_db/import/dump.sql
-
 # GoLand(?)が作る一時的なバイナリ・ログ置き場
 tmp
