@@ -8,11 +8,11 @@ import (
 	"net/http/httptest"
 	"time"
 
-	mock_protocol "github.com/88labs/andpad-approval-bff/auth/protocol/mock"
+	mock_protocol "github.com/88labs/go-utils/auth/protocol/mock"
 
-	config2 "github.com/88labs/andpad-approval-bff/auth/config"
-	"github.com/88labs/andpad-approval-bff/auth/protocol"
-	"github.com/88labs/andpad-approval-bff/auth/session"
+	config2 "github.com/88labs/go-utils/auth/config"
+	"github.com/88labs/go-utils/auth/protocol"
+	"github.com/88labs/go-utils/auth/session"
 
 	"github.com/coreos/go-oidc"
 

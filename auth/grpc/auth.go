@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/88labs/andpad-approval-bff/auth/protocol"
-	session2 "github.com/88labs/andpad-approval-bff/auth/session"
+	"github.com/88labs/go-utils/auth/protocol"
+	session2 "github.com/88labs/go-utils/auth/session"
 
 	"github.com/88labs/go-utils/cerrors"
 

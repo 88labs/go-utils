@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/88labs/andpad-approval-bff/auth/protocol"
+	"github.com/88labs/go-utils/auth/protocol"
 
 	"golang.org/x/oauth2"
 )

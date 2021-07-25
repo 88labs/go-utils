@@ -8,7 +8,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/88labs/andpad-approval-bff/auth/session"
+	"github.com/88labs/go-utils/auth/session"
 
 	"github.com/aws/aws-sdk-go/aws/request"
 

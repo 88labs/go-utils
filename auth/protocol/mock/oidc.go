@@ -9,7 +9,7 @@ import (
 	http "net/http"
 	reflect "reflect"
 
-	protocol "github.com/88labs/andpad-approval-bff/auth/protocol"
+	protocol "github.com/88labs/go-utils/auth/protocol"
 	oidc "github.com/coreos/go-oidc"
 	gomock "github.com/golang/mock/gomock"
 	oauth2 "golang.org/x/oauth2"
