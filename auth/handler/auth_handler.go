@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/88labs/andpad-approval-bff/auth/config"
-	"github.com/88labs/andpad-approval-bff/auth/protocol"
-	"github.com/88labs/andpad-approval-bff/auth/session"
+	"github.com/88labs/go-utils/auth/config"
+	"github.com/88labs/go-utils/auth/protocol"
+	"github.com/88labs/go-utils/auth/session"
 
 	"github.com/coreos/go-oidc"
 	"github.com/go-chi/chi/v5"

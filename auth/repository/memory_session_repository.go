@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	session2 "github.com/88labs/andpad-approval-bff/auth/session"
+	session2 "github.com/88labs/go-utils/auth/session"
 
 	"github.com/88labs/go-utils/cerrors"
 

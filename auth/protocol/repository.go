@@ -5,7 +5,7 @@ package protocol
 import (
 	"context"
 
-	session2 "github.com/88labs/andpad-approval-bff/auth/session"
+	session2 "github.com/88labs/go-utils/auth/session"
 )
 
 type SessionRepository interface {

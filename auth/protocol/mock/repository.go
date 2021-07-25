@@ -8,7 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	session "github.com/88labs/andpad-approval-bff/auth/session"
+	session "github.com/88labs/go-utils/auth/session"
 	gomock "github.com/golang/mock/gomock"
 )
 

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	grpc2 "github.com/88labs/andpad-approval-bff/auth/grpc"
-	"github.com/88labs/andpad-approval-bff/auth/protocol"
-	repository2 "github.com/88labs/andpad-approval-bff/auth/repository"
-	session2 "github.com/88labs/andpad-approval-bff/auth/session"
+	grpc2 "github.com/88labs/go-utils/auth/grpc"
+	"github.com/88labs/go-utils/auth/protocol"
+	repository2 "github.com/88labs/go-utils/auth/repository"
+	session2 "github.com/88labs/go-utils/auth/session"
 
 	"golang.org/x/oauth2"
 

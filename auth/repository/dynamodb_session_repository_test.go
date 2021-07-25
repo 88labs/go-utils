@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/88labs/andpad-approval-bff/auth/session"
+	"github.com/88labs/go-utils/auth/session"
 	"github.com/bxcodec/faker/v3"
 	"golang.org/x/oauth2"
 

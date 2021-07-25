@@ -3,8 +3,8 @@ module github.com/88labs/go-utils/auth
 go 1.16
 
 require (
-	github.com/88labs/andpad-approval-bff/auth v0.0.0-20210725165407-22c940278758
 	github.com/88labs/go-utils/cerrors v0.1.0
+	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/TaylorOno/golandreporter v1.0.1
 	github.com/aws/aws-dax-go v1.2.8
 	github.com/aws/aws-sdk-go v1.38.68
@@ -18,7 +18,10 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/onsi/ginkgo v1.16.2
 	github.com/onsi/gomega v1.12.0
+	github.com/philhofer/fwd v1.1.1 // indirect
+	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	google.golang.org/grpc v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.31.1
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )
