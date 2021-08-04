@@ -138,7 +138,7 @@ func (m *DynamoDBSessionRepository) CreateSession(ctx context.Context, s *sessio
 
 	_, err := m.client.PutItemWithContext(ctx, input)
 	if err != nil {
-		return "", cerrors.New(cerrors.UnknownErr, err, "")
+		return "", cerrors.New(cerrors.UnknownErr, err, err.Error())
 	}
 
 	return id, nil
