@@ -46,6 +46,8 @@ type DynamoDBConfig struct {
 	Endpoint string `envconfig:"DYNAMO_ENDPOINT" default:"http://localhost:8005"`
 	// セッション管理用のTable
 	SessionTable string `envconfig:"DYNAMO_SESSION_TABLE" default:"approval_session_local"`
+	// Debugログ有効化
+	Debug bool `envconfig:"DYNAMO_DEBUG" default:"false"`
 }
 
 // DynamoDBSessionRepository セッション管理のDynamoDB実装。
@@ -170,11 +172,18 @@ func dynamoDBClient(config *DynamoDBConfig) itemClient {
 		endpoint = aws.String(config.Endpoint)
 	}
 
+	var level *aws.LogLevelType
+	if config.Debug {
+		lv := aws.LogDebug | 0x001F
+		level = &lv
+	}
+
 	awsConfig := &aws.Config{
 		Region:      aws.String(config.Region),
 		Endpoint:    endpoint,
 		DisableSSL:  aws.Bool(false),
 		Credentials: cred,
+		LogLevel:    level,
 	}
 
 	awsSession, err := aws_session.NewSession(awsConfig)
@@ -186,8 +195,14 @@ func dynamoDBClient(config *DynamoDBConfig) itemClient {
 }
 
 func daxClient(config *DynamoDBConfig) itemClient {
+	var level *aws.LogLevelType
+	if config.Debug {
+		lv := aws.LogDebug | 0x001F
+		level = &lv
+	}
 	awsConfig := &aws.Config{
-		Region: aws.String(config.Region),
+		Region:   aws.String(config.Region),
+		LogLevel: level,
 	}
 	awsSession, err := aws_session.NewSession(awsConfig)
 	if err != nil {
