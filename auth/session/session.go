@@ -24,7 +24,7 @@ func New(userId int32,
 		userId:    userId,
 		clientId:  clientId,
 		token:     token,
-		expiredAt: time.Now().Add(7 * 24 * time.Hour).Unix(),
+		expiredAt: time.Now().Add(1 * 24 * time.Hour).Unix(),
 	}
 }
 

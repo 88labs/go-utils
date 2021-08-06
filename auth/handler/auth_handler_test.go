@@ -480,7 +480,7 @@ func makeMockCookie(name, value string) *http.Cookie {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		Expires:  time.Now().Add(1 * 24 * time.Hour),
 	}
 }
 

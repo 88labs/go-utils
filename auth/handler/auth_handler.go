@@ -140,7 +140,7 @@ func Callback(h *AuthHandler) http.HandlerFunc {
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteLaxMode,
-			Expires:  time.Now().Add(7 * 24 * time.Hour), // 値は再考する
+			Expires:  time.Now().Add(1 * 24 * time.Hour),
 		})
 
 		http.Redirect(w, r, h.config.AppUrl, http.StatusFound)
