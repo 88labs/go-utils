@@ -20,6 +20,7 @@ type AuthHandler struct {
 	config            config.AuthConfig
 	oAuth2Config      protocol.OAuth2Config
 	stateManager      protocol.StateManager
+	director          protocol.Director
 	verifier          protocol.IDTokenVerifier
 	userInfoProvider  protocol.UserInfoProvider
 }
@@ -59,6 +60,7 @@ func NewAuthHandler(config config.AuthConfig,
 		stateManager:      sm,
 		verifier:          verifier,
 		userInfoProvider:  uip,
+		director:          newCookieDirector(config.AppUrl, "redirect_url", []byte(config.CookieSignKey), []byte(config.CookieEncryptionKey)),
 	}
 }
 
@@ -78,17 +80,28 @@ func Logout(h *AuthHandler) http.HandlerFunc {
 
 func Login(h *AuthHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		redirectUrl := h.director.GetUrlFromParams(r)
+
+		// ログイン済みならログイン後のURLにリダイレクトして終了
 		if h.isAlreadyLoggedIn(r) {
-			http.Redirect(w, r, h.config.AppUrl, http.StatusFound)
+			http.Redirect(w, r, redirectUrl, http.StatusFound)
 			return
 		}
 
+		// リダイレクトURLを記憶する
+		_ = h.director.SetUrl(w, r, redirectUrl)
+
+		// OAuth2のstateを発行
 		state, err := h.stateManager.Issue(w, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// 認可コードを発行
 		authUrl := h.oAuth2Config.AuthCodeURL(state)
+
+		// OIDCの認証/認可画面にリダイレクト
 		http.Redirect(w, r, authUrl, http.StatusFound)
 	}
 }
@@ -143,7 +156,7 @@ func Callback(h *AuthHandler) http.HandlerFunc {
 			Expires:  time.Now().Add(1 * 24 * time.Hour),
 		})
 
-		http.Redirect(w, r, h.config.AppUrl, http.StatusFound)
+		http.Redirect(w, r, h.director.GetUrl(w, r), http.StatusFound)
 	}
 }
 
