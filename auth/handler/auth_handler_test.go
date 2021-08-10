@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	url2 "net/url"
 	"time"
 
 	mock_protocol "github.com/88labs/go-utils/auth/protocol/mock"
@@ -36,6 +37,7 @@ var _ = Describe("AuthHandler", func() {
 		mockVerifier          *mock_protocol.MockIDTokenVerifier
 		mockUserInfoProvider  *mock_protocol.MockUserInfoProvider
 		sm                    *gorillaStateManager
+		director              *cookieDirector
 	)
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
@@ -52,6 +54,7 @@ var _ = Describe("AuthHandler", func() {
 			AppUnauthenticatedUrl: "https://mock/unauthenticated",
 		}
 		sm = newCookieStateManager([]byte("authkey123"), []byte("enckey12341234567890123456789012"))
+		director = newCookieDirector(conf.AppUrl, "redirect_url", []byte("authkey123"), []byte("enckey12341234567890123456789012"))
 
 		authHandler = &AuthHandler{
 			sessionRepository: mockSessionRepository,
@@ -60,6 +63,7 @@ var _ = Describe("AuthHandler", func() {
 			stateManager:      sm,
 			verifier:          mockVerifier,
 			userInfoProvider:  mockUserInfoProvider,
+			director:          director,
 		}
 
 		mux = authHandler.RouteHttpServer()
@@ -81,11 +85,16 @@ var _ = Describe("AuthHandler", func() {
 	Describe("Login", func() {
 		Context("ログイン済みでない + ステート生成成功", func() {
 			var (
-				authCodeUrl = "https://oidc/auth"
-				actualState string
+				authCodeUrl  = "https://oidc/auth"
+				actualState  string
+				mockDirector *mock_protocol.MockDirector
+				redirectUrl  = "https://approval.andpad.jp/applications/1"
 			)
 
 			BeforeEach(func() {
+				mockDirector = mock_protocol.NewMockDirector(ctrl)
+				authHandler.director = mockDirector
+
 				mockOAuth2Config.EXPECT().
 					AuthCodeURL(gomock.Any()).
 					Do(func(state string) {
@@ -93,10 +102,22 @@ var _ = Describe("AuthHandler", func() {
 					}).
 					Return(authCodeUrl).
 					Times(1)
+
+				mockDirector.EXPECT().
+					GetUrlFromParams(gomock.Any()).
+					Return(redirectUrl).
+					Times(1)
+
+				mockDirector.EXPECT().
+					SetUrl(gomock.Any(), gomock.Any(), redirectUrl).
+					Return(nil).
+					Times(1)
 			})
 
 			It("OIDCのURLにリダイレクトされ、stateがCookieに設定されること", func() {
-				request, _ := http.NewRequest("GET", "/auth/login", nil)
+				request, _ := http.NewRequest("GET",
+					"/auth/login?redirect_url="+url2.QueryEscape(redirectUrl),
+					nil)
 				mux.ServeHTTP(writer, request)
 
 				// 所定のURLにリダイレクトされること
@@ -104,13 +125,13 @@ var _ = Describe("AuthHandler", func() {
 				Expect(writer.Header().Get("Location")).Should(Equal(authCodeUrl))
 
 				// stateをCookieに保持しようとすること
-				setCookie := getCookie(writer.Header().Get("Set-Cookie"), stateCookieName)
-				Expect(setCookie.Name).Should(Equal(stateCookieName))
-				Expect(setCookie.Value).ShouldNot(BeEmpty())
+				stateCookie := findCookie(writer, stateCookieName)
+				Expect(stateCookie.Name).Should(Equal(stateCookieName))
+				Expect(stateCookie.Value).ShouldNot(BeEmpty())
 
 				// URLのstateとCookieのstateが一致していること
 				h := http.Header{}
-				h.Add("Cookie", setCookie.String())
+				h.Add("Cookie", stateCookie.String())
 				r := &http.Request{Header: h}
 				s, _ := sm.store.Get(r, stateCookieName)
 				Expect(actualState).Should(Equal(s.Values[stateValueKey]))
@@ -121,12 +142,22 @@ var _ = Describe("AuthHandler", func() {
 			var (
 				request          *http.Request
 				requestSessionId = "SessionId"
+				mockDirector     *mock_protocol.MockDirector
+				redirectUrl      = "https://approval.andpad.jp/applications/1"
 			)
 
 			BeforeEach(func() {
+				mockDirector = mock_protocol.NewMockDirector(ctrl)
+				authHandler.director = mockDirector
+
 				mockSessionRepository.EXPECT().
 					GetSession(gomock.Any(), requestSessionId).
 					Return(&session.Session{}, nil).
+					Times(1)
+
+				mockDirector.EXPECT().
+					GetUrlFromParams(gomock.Any()).
+					Return(redirectUrl).
 					Times(1)
 
 				request, _ = http.NewRequest("GET", "/auth/login", nil)
@@ -138,7 +169,7 @@ var _ = Describe("AuthHandler", func() {
 				mux.ServeHTTP(writer, request)
 				// 認証成功後のURLにリダイレクトされること
 				Expect(writer.Code).Should(Equal(http.StatusFound))
-				Expect(writer.Header().Get("Location")).Should(Equal(conf.AppUrl))
+				Expect(writer.Header().Get("Location")).Should(Equal(redirectUrl))
 			})
 		})
 
@@ -172,7 +203,9 @@ var _ = Describe("AuthHandler", func() {
 					Id int32 `json:"id"`
 				}{Id: 2},
 			}
-			sessionId = "session-id"
+			sessionId    = "session-id"
+			mockDirector *mock_protocol.MockDirector
+			redirectUrl  = "https://approval.andpad.jp/applications/1"
 		)
 
 		Context("正常系", func() {
@@ -205,12 +238,20 @@ var _ = Describe("AuthHandler", func() {
 					CreateSession(gomock.Any(), session.New(int32(userInfo.ID), userInfo.Client.Id, token)).
 					Return(sessionId, nil).
 					Times(1)
+
+				mockDirector = mock_protocol.NewMockDirector(ctrl)
+				authHandler.director = mockDirector
+
+				mockDirector.EXPECT().
+					GetUrl(gomock.Any(), gomock.Any()).
+					Return(redirectUrl).
+					Times(1)
 			})
 
 			It("認証成功後のURLにリダイレクト + セッションCookieの設定", func() {
 				mux.ServeHTTP(writer, request)
 				Expect(writer.Code).Should(Equal(http.StatusFound))
-				Expect(writer.Header().Get("Location")).Should(Equal(conf.AppUrl))
+				Expect(writer.Header().Get("Location")).Should(Equal(redirectUrl))
 
 				// CookieのStateが消えるのは、stateManagerのUnitTestで担保
 				// CookieのセッションIDが設定されるかのみ検証
@@ -490,6 +531,16 @@ func getCookie(rawCookie, name string) *http.Cookie {
 	request := http.Request{Header: header}
 	c, _ := request.Cookie(name)
 	return c
+}
+
+func findCookie(w http.ResponseWriter, name string) *http.Cookie {
+	for _, rawCookie := range w.Header().Values("Set-Cookie") {
+		c := getCookie(rawCookie, name)
+		if c != nil {
+			return c
+		}
+	}
+	return nil
 }
 
 func buildCallbackHttpRequest(authHandler *AuthHandler, code string, urlState *string) *http.Request {
