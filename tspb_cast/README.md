@@ -1,4 +1,4 @@
 ## tspb_cast
 
-timestamppb.Timestampとtime.Timeを変換するモジュールです。
+This module converts between timestamppb.Timestamp and time.
 
