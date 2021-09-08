@@ -1,11 +1,5 @@
 # auth
 
-ANDPAD OIDCを使った認証とセッション管理を実現するモジュールです。
-
-OIDC = Open ID Connect
-OP = OIDCの認証/認可サーバ。builderpad
-RP = OIDCのクライアント。このモジュールを組み込もうとしているサービス。
-
 ## Feature
 
 - OIDCによる認証
@@ -19,7 +13,7 @@ In-Memory、stagingの場合で説明します。
 あくまで試用向けです。
 サービスのプロセスが複数ある場合にはセッション情報が共有されませんし、プロセスが終了するとセッション情報は揮発します。
 
-### 1.OPにRPの情報を登録する
+### 1.OIDCのAuthサーバに、認可後のコールバックの情報を登録する
 
 https://andpad-dev.esa.io/posts/356
 
