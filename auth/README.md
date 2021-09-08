@@ -15,8 +15,6 @@ In-Memory、stagingの場合で説明します。
 
 ### 1.OIDCのAuthサーバに、認可後のコールバックの情報を登録する
 
-https://andpad-dev.esa.io/posts/356
-
 Callback URLには、https://example.com/auth/callback というような値を設定すること(詳細は後述)。
 
 ### 2.環境変数にモジュールの設定をする
