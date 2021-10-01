@@ -15,6 +15,7 @@ const (
 	ParameterErr
 	UnimplementedErr
 	UnknownErr
+	FailedPreconditionErr
 )
 
 type CommonError struct {
@@ -40,6 +41,8 @@ func toSummary(code ErrorCode) string {
 		return "UnknownErr"
 	case UnimplementedErr:
 		return "UnimplementedErr"
+	case FailedPreconditionErr:
+		return "FailedPreconditionErr"
 	default:
 		return "UnknownErr"
 	}
