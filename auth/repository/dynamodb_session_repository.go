@@ -75,11 +75,11 @@ func (m *DynamoDBSessionRepository) GetSession(ctx context.Context, id string) (
 
 	output, err := m.client.GetItemWithContext(ctx, input)
 	if err != nil {
-		return nil, cerrors.New(cerrors.UnknownErr, err, "")
+		return nil, cerrors.New(cerrors.UnknownErr, err, "Dynamo DBのItemの取得ができませんでした")
 	}
 
 	if output.Item == nil {
-		return nil, cerrors.New(cerrors.NotFoundErr, nil, "")
+		return nil, cerrors.New(cerrors.NotFoundErr, nil, "Dynamo DBのItemの取得ができませんでした")
 	}
 
 	userId, err := strconv.Atoi(*output.Item["UserId"].N)
@@ -140,7 +140,7 @@ func (m *DynamoDBSessionRepository) CreateSession(ctx context.Context, s *sessio
 
 	_, err := m.client.PutItemWithContext(ctx, input)
 	if err != nil {
-		return "", cerrors.New(cerrors.UnknownErr, err, err.Error())
+		return "", cerrors.New(cerrors.UnknownErr, err, "Dynamo DBへのItemの保存に失敗しました")
 	}
 
 	return id, nil
