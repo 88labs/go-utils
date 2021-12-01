@@ -172,6 +172,20 @@ func Test_toSummary(t *testing.T) {
 			want: "UnknownErr",
 		},
 		{
+			name: "UnavailableErr",
+			args: args{
+				code: UnavailableErr,
+			},
+			want: "UnavailableErr",
+		},
+		{
+			name: "ResourceExhaustedErr",
+			args: args{
+				code: ResourceExhaustedErr,
+			},
+			want: "ResourceExhaustedErr",
+		},
+		{
 			name: "不正値",
 			args: args{
 				code: ErrorCode(-1),
@@ -188,7 +202,7 @@ func Test_toSummary(t *testing.T) {
 	}
 }
 
-func TestcommonError_Format(t *testing.T) {
+func Test_Format(t *testing.T) {
 	type fields struct {
 		Code    ErrorCode
 		summary string

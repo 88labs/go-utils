@@ -16,6 +16,8 @@ const (
 	UnimplementedErr
 	UnknownErr
 	FailedPreconditionErr
+	UnavailableErr
+	ResourceExhaustedErr
 )
 
 type CommonError struct {
@@ -43,6 +45,10 @@ func toSummary(code ErrorCode) string {
 		return "UnimplementedErr"
 	case FailedPreconditionErr:
 		return "FailedPreconditionErr"
+	case UnavailableErr:
+		return "UnavailableErr"
+	case ResourceExhaustedErr:
+		return "ResourceExhaustedErr"
 	default:
 		return "UnknownErr"
 	}
@@ -68,20 +74,20 @@ func Newf(code ErrorCode, cause error, detail string, args ...interface{}) error
 	}
 }
 
-func (err *CommonError) Error() string {
-	if err.detail == "" {
-		return err.summary
+func (c *CommonError) Error() string {
+	if c.detail == "" {
+		return c.summary
 	} else {
-		return err.summary + ": " + err.detail
+		return c.summary + ": " + c.detail
 	}
 }
 
-func (err *CommonError) Unwrap() error { return err.cause }
+func (c *CommonError) Unwrap() error { return c.cause }
 
-func (e *CommonError) Format(s fmt.State, v rune) { xerrors.FormatError(e, s, v) }
+func (c *CommonError) Format(s fmt.State, v rune) { xerrors.FormatError(c, s, v) }
 
-func (e *CommonError) FormatError(p xerrors.Printer) (next error) {
-	p.Print(e.Error())
-	e.frame.Format(p)
-	return e.cause
+func (c *CommonError) FormatError(p xerrors.Printer) (next error) {
+	p.Print(c.Error())
+	c.frame.Format(p)
+	return c.cause
 }
