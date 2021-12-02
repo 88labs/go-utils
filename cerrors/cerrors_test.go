@@ -186,6 +186,13 @@ func Test_toSummary(t *testing.T) {
 			want: "ResourceExhaustedErr",
 		},
 		{
+			name: "FailedPreconditionErr",
+			args: args{
+				code: FailedPreconditionErr,
+			},
+			want: "FailedPreconditionErr",
+		},
+		{
 			name: "不正値",
 			args: args{
 				code: ErrorCode(-1),
@@ -202,7 +209,7 @@ func Test_toSummary(t *testing.T) {
 	}
 }
 
-func Test_Format(t *testing.T) {
+func TestcommonError_Format(t *testing.T) {
 	type fields struct {
 		Code    ErrorCode
 		summary string
@@ -239,6 +246,182 @@ func Test_Format(t *testing.T) {
 			e := New(tt.fields.Code, tt.fields.cause, "")
 			// 期待動作はxerrorsに依存するので、深く踏み込まない
 			_ = fmt.Sprintf("%+v", e)
+		})
+	}
+}
+
+func TestNewOp(t *testing.T) {
+	type args struct {
+		code ErrorCode
+		opts []Option
+	}
+	type wants struct {
+		level     ErrorLevel
+		cause     error
+		errString string
+	}
+
+	cause := errors.New("cause")
+	tests := []struct {
+		name  string
+		args  args
+		wants wants
+	}{
+		{
+			name: "WithOptions",
+			args: args{
+				code: PermissionErr,
+				opts: []Option{
+					Cause(cause),
+					Detail("detail"),
+					Level(ErrorLevelError),
+				},
+			},
+			wants: wants{
+				level:     ErrorLevelError,
+				cause:     cause,
+				errString: "PermissionErr: detail",
+			},
+		},
+		{
+			name: "WithOptions(Detailf)",
+			args: args{
+				code: PermissionErr,
+				opts: []Option{
+					Cause(cause),
+					Detail("detail:%d", 1),
+					Level(ErrorLevelError),
+				},
+			},
+			wants: wants{
+				level:     ErrorLevelError,
+				cause:     cause,
+				errString: "PermissionErr: detail:1",
+			},
+		},
+		{
+			name: "Default",
+			args: args{
+				code: PermissionErr,
+				opts: []Option{},
+			},
+			wants: wants{
+				level:     ErrorLevelWarn,
+				cause:     nil,
+				errString: "PermissionErr",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := NewOp(tt.args.code, tt.args.opts...)
+			if err == nil {
+				t.Errorf("cannot get err")
+			}
+
+			commonError, ok := err.(*CommonError)
+			if !ok {
+				t.Errorf("cannot get CommonError. err: %v", err)
+			}
+
+			actualErrString := commonError.Error()
+			if actualErrString != tt.wants.errString {
+				t.Errorf("error string is invalid. actual: %s, expected:%s", actualErrString, tt.wants.errString)
+			}
+
+			actualCause := commonError.Unwrap()
+			if actualCause != tt.wants.cause {
+				t.Errorf("error cause is invalid. actual: %s, expected:%s", actualCause, tt.wants.cause)
+			}
+		})
+	}
+}
+
+func Test_defaultErrorLevel(t *testing.T) {
+	type args struct {
+		code ErrorCode
+	}
+	tests := []struct {
+		name string
+		args args
+		want ErrorLevel
+	}{
+		{
+			name: "PermissionErr",
+			args: args{
+				code: PermissionErr,
+			},
+			want: ErrorLevelWarn,
+		},
+		{
+			name: "UnauthenticatedErr",
+			args: args{
+				code: UnauthenticatedErr,
+			},
+			want: ErrorLevelWarn,
+		},
+		{
+			name: "NotFoundErr",
+			args: args{
+				code: NotFoundErr,
+			},
+			want: ErrorLevelWarn,
+		},
+		{
+			name: "ParameterErr",
+			args: args{
+				code: ParameterErr,
+			},
+			want: ErrorLevelWarn,
+		},
+		{
+			name: "UnimplementedErr",
+			args: args{
+				code: UnimplementedErr,
+			},
+			want: ErrorLevelError,
+		},
+		{
+			name: "UnknownErr",
+			args: args{
+				code: UnknownErr,
+			},
+			want: ErrorLevelError,
+		},
+		{
+			name: "UnavailableErr",
+			args: args{
+				code: UnavailableErr,
+			},
+			want: ErrorLevelError,
+		},
+		{
+			name: "ResourceExhaustedErr",
+			args: args{
+				code: ResourceExhaustedErr,
+			},
+			want: ErrorLevelWarn,
+		},
+		{
+			name: "FailedPreconditionErr",
+			args: args{
+				code: FailedPreconditionErr,
+			},
+			want: ErrorLevelWarn,
+		},
+		{
+			name: "不正値",
+			args: args{
+				code: ErrorCode(-1),
+			},
+			want: ErrorLevelError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := defaultErrorLevel(tt.args.code); got != tt.want {
+				t.Errorf("defaultErrorLevel() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
