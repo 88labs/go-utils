@@ -20,10 +20,19 @@ const (
 	ResourceExhaustedErr
 )
 
+type ErrorLevel int
+
+const (
+	ErrorLevelFatal ErrorLevel = 1
+	ErrorLevelError ErrorLevel = 2
+	ErrorLevelWarn  ErrorLevel = 3
+)
+
 type CommonError struct {
 	Code    ErrorCode
 	summary string
 	detail  string
+	Level   ErrorLevel
 	cause   error
 	frame   xerrors.Frame
 }
@@ -52,6 +61,66 @@ func toSummary(code ErrorCode) string {
 	default:
 		return "UnknownErr"
 	}
+}
+
+func defaultErrorLevel(code ErrorCode) ErrorLevel {
+	switch code {
+	case PermissionErr,
+		UnauthenticatedErr,
+		NotFoundErr,
+		ParameterErr,
+		ResourceExhaustedErr,
+		FailedPreconditionErr:
+		return ErrorLevelWarn
+	case UnknownErr,
+		UnimplementedErr,
+		UnavailableErr:
+		return ErrorLevelError
+	default:
+		return ErrorLevelError
+	}
+}
+
+type Option func(commonError *CommonError)
+
+func Cause(cause error) Option {
+	return func(c *CommonError) {
+		c.cause = cause
+	}
+}
+
+func Detail(detail string, args ...interface{}) Option {
+	if len(args) == 0 {
+		return func(c *CommonError) {
+			c.detail = detail
+		}
+	} else {
+		return func(c *CommonError) {
+			c.detail = fmt.Sprintf(detail, args...)
+		}
+	}
+}
+
+func Level(level ErrorLevel) Option {
+	return func(c *CommonError) {
+		c.Level = level
+	}
+}
+
+func NewOp(code ErrorCode, opts ...Option) error {
+	c := &CommonError{
+		Code:    code,
+		summary: toSummary(code),
+		detail:  "",
+		Level:   defaultErrorLevel(code),
+		frame:   xerrors.Caller(1),
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 func New(code ErrorCode, cause error, detail string) error {
