@@ -18,15 +18,27 @@ func TestNew(t *testing.T) {
 		name          string
 		args          args
 		wantErrString string
+		wantErrLevel  ErrorLevel
 	}{
 		{
-			name: "一般的なケース",
+			name: "不具合とは限らないエラー",
 			args: args{
 				code:   NotFoundErr,
 				cause:  errors.New("cause"),
 				detail: "detail",
 			},
 			wantErrString: "NotFoundErr: detail",
+			wantErrLevel:  ErrorLevelWarn,
+		},
+		{
+			name: "不具合を表すエラー",
+			args: args{
+				code:   UnimplementedErr,
+				cause:  errors.New("cause"),
+				detail: "detail",
+			},
+			wantErrString: "UnimplementedErr: detail",
+			wantErrLevel:  ErrorLevelError,
 		},
 		{
 			name: "error codeだけ",
@@ -34,6 +46,7 @@ func TestNew(t *testing.T) {
 				code: NotFoundErr,
 			},
 			wantErrString: "NotFoundErr",
+			wantErrLevel:  ErrorLevelWarn,
 		},
 	}
 
@@ -52,6 +65,11 @@ func TestNew(t *testing.T) {
 			actualErrString := commonError.Error()
 			if actualErrString != tt.wantErrString {
 				t.Errorf("error string is invalid. actual: %s, expected:%s", actualErrString, tt.wantErrString)
+			}
+
+			actualErrLevel := commonError.Level
+			if commonError.Level != tt.wantErrLevel {
+				t.Errorf("error string is invalid. actual: %d, expected:%d", actualErrLevel, tt.wantErrLevel)
 			}
 
 			actualCause := commonError.Unwrap()
@@ -73,9 +91,10 @@ func TestNewf(t *testing.T) {
 		name          string
 		args          args
 		wantErrString string
+		wantErrLevel  ErrorLevel
 	}{
 		{
-			name: "一般的なケース",
+			name: "不具合とは限らないエラー",
 			args: args{
 				code:       NotFoundErr,
 				cause:      errors.New("cause"),
@@ -83,6 +102,18 @@ func TestNewf(t *testing.T) {
 				detailArgs: []interface{}{"test"},
 			},
 			wantErrString: "NotFoundErr: detail test",
+			wantErrLevel:  ErrorLevelWarn,
+		},
+		{
+			name: "不具合を表すエラー",
+			args: args{
+				code:       UnimplementedErr,
+				cause:      errors.New("cause"),
+				detail:     "detail %s",
+				detailArgs: []interface{}{"test"},
+			},
+			wantErrString: "UnimplementedErr: detail test",
+			wantErrLevel:  ErrorLevelError,
 		},
 		{
 			name: "causeなし",
@@ -92,6 +123,7 @@ func TestNewf(t *testing.T) {
 				detailArgs: []interface{}{"test"},
 			},
 			wantErrString: "NotFoundErr: detail test",
+			wantErrLevel:  ErrorLevelWarn,
 		},
 	}
 
@@ -110,6 +142,11 @@ func TestNewf(t *testing.T) {
 			actualErrString := commonError.Error()
 			if actualErrString != tt.wantErrString {
 				t.Errorf("error string is invalid. actual: %s, expected:%s", actualErrString, tt.wantErrString)
+			}
+
+			actualErrLevel := commonError.Level
+			if commonError.Level != tt.wantErrLevel {
+				t.Errorf("error string is invalid. actual: %d, expected:%d", actualErrLevel, tt.wantErrLevel)
 			}
 
 			actualCause := commonError.Unwrap()
