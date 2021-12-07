@@ -129,6 +129,7 @@ func New(code ErrorCode, cause error, detail string) error {
 		summary: toSummary(code),
 		detail:  detail,
 		cause:   cause,
+		Level:   defaultErrorLevel(code),
 		frame:   xerrors.Caller(1),
 	}
 }
@@ -139,6 +140,7 @@ func Newf(code ErrorCode, cause error, detail string, args ...interface{}) error
 		summary: toSummary(code),
 		detail:  fmt.Sprintf(detail, args...),
 		cause:   cause,
+		Level:   defaultErrorLevel(code),
 		frame:   xerrors.Caller(1),
 	}
 }
