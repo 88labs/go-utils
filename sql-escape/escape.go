@@ -17,9 +17,7 @@ func EscapeLikeWithChar(s string, c rune) string {
 	for i, r := range s {
 		switch r {
 		case c, '%', '_':
-			if start < i {
-				b.WriteString(s[start:i])
-			}
+			b.WriteString(s[start:i])
 			b.WriteRune(c)
 			b.WriteRune(r)
 			start = i + 1
