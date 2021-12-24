@@ -79,6 +79,7 @@ func TestEscapeLikeWithChar(t *testing.T) {
 			name: "no-escape",
 			args: args{
 				s: "t",
+				c: '!',
 			},
 			want: "t",
 		},
@@ -86,6 +87,7 @@ func TestEscapeLikeWithChar(t *testing.T) {
 			name: "empty",
 			args: args{
 				s: "",
+				c: '!',
 			},
 			want: "",
 		},
