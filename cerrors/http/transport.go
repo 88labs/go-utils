@@ -16,7 +16,7 @@ func ToCommonErrorCode(statusCode int) cerrors.ErrorCode {
 		return cerrors.NotFoundErr
 	case http.StatusNotImplemented:
 		return cerrors.UnimplementedErr
-	case http.StatusBadRequest:
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
 		return cerrors.ParameterErr
 	case http.StatusServiceUnavailable:
 		return cerrors.UnavailableErr

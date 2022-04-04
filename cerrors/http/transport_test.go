@@ -52,6 +52,13 @@ func TestToCommonErrorCode(t *testing.T) {
 			want: cerrors.ParameterErr,
 		},
 		{
+			name: "StatusUnprocessableEntity",
+			args: args{
+				http.StatusUnprocessableEntity,
+			},
+			want: cerrors.ParameterErr,
+		},
+		{
 			name: "StatusServiceUnavailable",
 			args: args{
 				http.StatusServiceUnavailable,
