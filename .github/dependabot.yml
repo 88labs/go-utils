@@ -1,0 +1,30 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: "/cerrors"
+  schedule:
+    interval: daily
+    time: "12:00"
+    timezone: Asia/Tokyo
+  open-pull-requests-limit: 10
+- package-ecosystem: gomod
+  directory: "/osext"
+  schedule:
+    interval: daily
+    time: "12:00"
+    timezone: Asia/Tokyo
+  open-pull-requests-limit: 10
+- package-ecosystem: gomod
+  directory: "/sql-escape"
+  schedule:
+    interval: daily
+    time: "12:00"
+    timezone: Asia/Tokyo
+  open-pull-requests-limit: 10
+- package-ecosystem: gomod
+  directory: "/tspb_cast"
+  schedule:
+    interval: daily
+    time: "12:00"
+    timezone: Asia/Tokyo
+  open-pull-requests-limit: 10
