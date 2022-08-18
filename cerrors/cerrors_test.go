@@ -462,3 +462,50 @@ func Test_defaultErrorLevel(t *testing.T) {
 		})
 	}
 }
+
+func TestCode(t *testing.T) {
+	type args struct {
+		err error
+	}
+	tests := []struct {
+		name string
+		args args
+		want ErrorCode
+	}{
+		{
+			name: "CommonErrorが指定されたらそのエラーコードを返すこと",
+			args: args{
+				err: New(NotFoundErr, nil, ""),
+			},
+			want: NotFoundErr,
+		},
+		{
+			name: "エラーでないならOKを返すこと",
+			args: args{
+				err: nil,
+			},
+			want: OK,
+		},
+		{
+			name: "CommonErrorでないエラーが指定されたらUnknownErrを返すこと",
+			args: args{
+				err: errors.New("unknown"),
+			},
+			want: UnknownErr,
+		},
+		{
+			name: "CommonErrorをWrapしたエラーは、WrapされたCommonErrorのエラーコードを返すこと",
+			args: args{
+				err: xerrors.Errorf(": %w", New(ParameterErr, nil, "")),
+			},
+			want: ParameterErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Code(tt.args.err); got != tt.want {
+				t.Errorf("Code() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

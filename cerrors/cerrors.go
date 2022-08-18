@@ -1,6 +1,7 @@
 package cerrors
 
 import (
+	"errors"
 	"fmt"
 
 	"golang.org/x/xerrors"
@@ -9,7 +10,8 @@ import (
 type ErrorCode int32
 
 const (
-	PermissionErr ErrorCode = iota
+	OK ErrorCode = iota
+	PermissionErr
 	UnauthenticatedErr
 	NotFoundErr
 	ParameterErr
@@ -161,4 +163,17 @@ func (c *CommonError) FormatError(p xerrors.Printer) (next error) {
 	p.Print(c.Error())
 	c.frame.Format(p)
 	return c.cause
+}
+
+func Code(err error) ErrorCode {
+	if err == nil {
+		return OK
+	}
+
+	var e *CommonError
+	if errors.As(err, &e) {
+		return e.Code
+	} else {
+		return UnknownErr
+	}
 }
