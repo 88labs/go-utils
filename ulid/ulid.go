@@ -61,6 +61,18 @@ func Parse(s string) (ULID, error) {
 	return u, nil
 }
 
+// ParseStrict parses an encoded ULID, returning an error in case of failure.
+//
+// It is like Parse, but additionally validates that the parsed ULID consists
+// only of valid base32 characters. It is slightly slower than Parse.
+func ParseStrict(id string) (ULID, error) {
+	okid, err := oklogulid.ParseStrict(id)
+	if err != nil {
+		return ULID{}, err
+	}
+	return ULID(okid), nil
+}
+
 func (u ULID) String() string {
 	return oklogulid.ULID(u).String()
 }
