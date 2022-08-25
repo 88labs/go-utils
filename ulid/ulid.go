@@ -61,7 +61,7 @@ func Parse(s string) (ULID, error) {
 	return u, nil
 }
 
-func (u ULID) ToString() string {
+func (u ULID) String() string {
 	return oklogulid.ULID(u).String()
 }
 
