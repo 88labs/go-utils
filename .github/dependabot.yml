@@ -28,3 +28,10 @@ updates:
     time: "12:00"
     timezone: Asia/Tokyo
   open-pull-requests-limit: 10
+- package-ecosystem: gomod
+  directory: "/ulid"
+  schedule:
+    interval: daily
+    time: "12:00"
+    timezone: Asia/Tokyo
+  open-pull-requests-limit: 10
