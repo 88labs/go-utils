@@ -22,11 +22,6 @@ import (
 	"github.com/88labs/go-utils/ulid"
 )
 
-const (
-	DefaultPresignExpires = 15 * time.Minute
-	DefaultS3Expires      = 24 * time.Hour
-)
-
 type BucketName string
 
 func (k BucketName) String() string {
@@ -72,10 +67,7 @@ func PutObject(ctx context.Context, region awsconfig.Region, bucketName BucketNa
 		Body:    body,
 		Bucket:  aws.String(bucketName.String()),
 		Key:     aws.String(key.String()),
-		Expires: aws.Time(time.Now().Add(DefaultS3Expires)),
-	}
-	if c.S3Expires != nil {
-		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
+		Expires: aws.Time(time.Now().Add(c.S3Expires)),
 	}
 	return client.PutObject(ctx, input)
 }
@@ -92,10 +84,7 @@ func UploadManager(ctx context.Context, region awsconfig.Region, bucketName Buck
 		Body:    body,
 		Bucket:  aws.String(bucketName.String()),
 		Key:     aws.String(key.String()),
-		Expires: aws.Time(time.Now().Add(DefaultS3Expires)),
-	}
-	if c.S3Expires != nil {
-		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
+		Expires: aws.Time(time.Now().Add(c.S3Expires)),
 	}
 	return uploader.Upload(ctx, input)
 }
@@ -206,11 +195,7 @@ func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName
 	}
 	ps := s3.NewPresignClient(client)
 	resp, err := ps.PresignGetObject(ctx, input, func(o *s3.PresignOptions) {
-		if c.PresignExpires != nil {
-			o.Expires = *c.PresignExpires
-		} else {
-			o.Expires = DefaultPresignExpires
-		}
+		o.Expires = c.PresignExpires
 	})
 	if err != nil {
 		return "", err
@@ -223,7 +208,8 @@ func ResponseContentDisposition(fileName string) string {
 }
 
 // Copy copies an Amazon S3 object from one bucket to same.
-func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey Key, destKey Key) error {
+func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey Key, destKey Key, opts ...s3upload.OptionS3Upload) error {
+	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
@@ -232,7 +218,7 @@ func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, s
 		Bucket:            aws.String(bucketName.String()),
 		CopySource:        aws.String(fmt.Sprintf("%s/%s", bucketName, srcKey)),
 		Key:               aws.String(destKey.String()),
-		Expires:           aws.Time(time.Now().Add(DefaultS3Expires)),
+		Expires:           aws.Time(time.Now().Add(c.S3Expires)),
 		MetadataDirective: types.MetadataDirectiveReplace,
 	}); err2 != nil {
 		return err2

@@ -10,7 +10,19 @@ type OptionS3Presigned interface {
 
 type confS3Presigned struct {
 	PresignFileName string
-	PresignExpires  *time.Duration
+	PresignExpires  time.Duration
+}
+
+// nolint:revive
+func GetS3PresignedConf(opts ...OptionS3Presigned) confS3Presigned {
+	// default options
+	c := confS3Presigned{
+		PresignExpires: 15 * time.Minute,
+	}
+	for _, opt := range opts {
+		opt.Apply(&c)
+	}
+	return c
 }
 
 type OptionPresignFileName string
@@ -26,19 +38,9 @@ func WithPresignFileName(fileName string) OptionPresignFileName {
 type OptionPresignExpires time.Duration
 
 func (o OptionPresignExpires) Apply(c *confS3Presigned) {
-	d := time.Duration(o)
-	c.PresignExpires = &d
+	c.PresignExpires = time.Duration(o)
 }
 
 func WithPresignExpires(presignExpires time.Duration) OptionPresignExpires {
 	return OptionPresignExpires(presignExpires)
-}
-
-// nolint:revive
-func GetS3PresignedConf(opts ...OptionS3Presigned) confS3Presigned {
-	var c confS3Presigned
-	for _, opt := range opts {
-		opt.Apply(&c)
-	}
-	return c
 }
