@@ -1,4 +1,4 @@
-# aws-sdk-go v3 wrapper library
+# aws-sdk-go v2 wrapper library
 
 ## required
 - aws-sdk-go v2
