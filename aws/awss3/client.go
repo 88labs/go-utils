@@ -17,6 +17,9 @@ import (
 var s3Client *s3.Client
 var once sync.Once
 
+// GetClient
+// Get s3 client for aws-sdk-go v2.
+// Using ctxawslocal.WithContext, you can make requests for local mocks
 func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
 		return getClientLocal(ctx, *localProfile)
