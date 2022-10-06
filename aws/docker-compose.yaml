@@ -1,0 +1,18 @@
+version: '3'
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: go_utils_localstack
+    ports:
+      - "4566:4566" # Status
+    environment:
+      - AWS_ACCESS_KEY_ID=DUMMYACCESSKEYEXAMPLE
+      - AWS_SECRET_ACCESS_KEY=DUMMYSECRETKEYEXAMPLE
+      - DEFAULT_REGION=ap-northeast-1
+      - SERVICES=s3
+      - DATA_DIR=/tmp/localstack/data
+      - DISABLE_CORS_CHECKS=1
+      - EDGE_BIND_HOST=0.0.0.0
+    volumes:
+      - ./docker/localstack/init:/docker-entrypoint-initaws.d
+      - ./docker/localstack/.data:/tmp/localstack/
