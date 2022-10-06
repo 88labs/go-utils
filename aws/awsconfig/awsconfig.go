@@ -31,7 +31,7 @@ const (
 	RegionSaoPaulo      Region = "sa-east-1"
 )
 
-func (r Region) Value() string {
+func (r Region) String() string {
 	if r == "" {
 		return string(RegionTokyo)
 	}

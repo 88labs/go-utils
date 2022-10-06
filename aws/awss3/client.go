@@ -24,18 +24,12 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error)
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
 		return getClientLocal(ctx, *localProfile)
 	}
-	var responseError error
-	once.Do(func() {
-		// S3 Client
-		awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.Value()))
-		if err != nil {
-			responseError = fmt.Errorf("unable to load SDK config, %w", err)
-		} else {
-			responseError = nil
-		}
-		s3Client = s3.NewFromConfig(awsCfg)
-	})
-	return s3Client, responseError
+	// S3 Client
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %w", err)
+	}
+	return s3.NewFromConfig(awsCfg), nil
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client, error) {
@@ -83,7 +77,7 @@ type LocalProfile struct {
 func getLocalEndpoint(ctx context.Context) (*LocalProfile, bool) {
 	if c, ok := ctxawslocal.GetConf(ctx); ok {
 		p := new(LocalProfile)
-		p.Endpoint = fmt.Sprintf("%s:%d", c.Endpoint, c.S3Port)
+		p.Endpoint = c.S3Endpoint
 		p.AccessKey = c.AccessKey
 		p.SecretAccessKey = c.SecretAccessKey
 		return p, true
