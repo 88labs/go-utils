@@ -2,7 +2,6 @@
 
 ## required
 - aws-sdk-go v2
-- ulid
 
 ## Development
 
