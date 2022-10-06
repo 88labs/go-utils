@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,15 +27,6 @@ const (
 	TestBucket = "test"
 	TestRegion = awsconfig.RegionTokyo
 )
-
-func makeTestDir(t *testing.T) string {
-	workPath := path.Join(os.TempDir(), ulid.MustNew().String())
-	if err := os.Mkdir(workPath, os.ModePerm); err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	return workPath
-}
 
 func TestHeadObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
@@ -133,9 +123,7 @@ func TestDownloadFiles(t *testing.T) {
 	}
 
 	t.Run("no option", func(t *testing.T) {
-		testdir := makeTestDir(t)
-		defer os.RemoveAll(testdir)
-		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, testdir)
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir())
 		assert.NoError(t, err)
 		if assert.Len(t, filePaths, len(keys)) {
 			for i, v := range filePaths {
@@ -147,9 +135,7 @@ func TestDownloadFiles(t *testing.T) {
 		}
 	})
 	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
-		testdir := makeTestDir(t)
-		defer os.RemoveAll(testdir)
-		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, testdir,
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir(),
 			s3donwload.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "add_" + baseFileName
 			}),
@@ -165,9 +151,7 @@ func TestDownloadFiles(t *testing.T) {
 		}
 	})
 	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
-		testdir := makeTestDir(t)
-		defer os.RemoveAll(testdir)
-		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, testdir,
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir(),
 			s3donwload.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "fixname.txt"
 			}),
@@ -200,9 +184,7 @@ func TestPutObject(t *testing.T) {
 		body := faker.Sentence()
 		_, err := awss3.PutObject(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body))
 		assert.NoError(t, err)
-		testdir := makeTestDir(t)
-		defer os.RemoveAll(testdir)
-		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), testdir)
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), t.TempDir())
 		assert.NoError(t, err)
 		assert.Len(t, filePaths, 1)
 		fileBody, err := os.ReadFile(filePaths[0])
@@ -223,9 +205,7 @@ func TestUploadManager(t *testing.T) {
 		body := faker.Sentence()
 		_, err := awss3.UploadManager(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body))
 		assert.NoError(t, err)
-		testdir := makeTestDir(t)
-		defer os.RemoveAll(testdir)
-		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), testdir)
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), t.TempDir())
 		assert.NoError(t, err)
 		assert.Len(t, filePaths, 1)
 		fileBody, err := os.ReadFile(filePaths[0])
@@ -243,8 +223,7 @@ func TestPresign(t *testing.T) {
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 	uploader := manager.NewUploader(s3Client)
@@ -278,8 +257,7 @@ func TestCopy(t *testing.T) {
 	createFixture := func(ctx context.Context) awss3.Key {
 		s3Client, err := awss3.GetClient(ctx, TestRegion)
 		if err != nil {
-			t.Error(err)
-			t.FailNow()
+			t.Fatal(err)
 		}
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		uploader := manager.NewUploader(s3Client)

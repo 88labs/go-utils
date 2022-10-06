@@ -31,26 +31,23 @@ func TestGetConf(t *testing.T) {
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
 		assert.Equal(t, &ctxawslocal.ConfMock{
-			AccessKey:       "test",             //localstack default AccessKey
-			SecretAccessKey: "test",             // localstack default SecretAccessKey
-			Endpoint:        "http://127.0.0.1", // localhost
-			S3Port:          4566,               // localstack default s3 port
+			AccessKey:       "test",                  //localstack default AccessKey
+			SecretAccessKey: "test",                  // localstack default SecretAccessKey
+			S3Endpoint:      "http://127.0.0.1:4566", // localhost
 		}, c)
 	})
 	t.Run("set config", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(context.Background(),
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithEndpoint("http://localhost"),
-			ctxawslocal.WithS3Port(14572),
+			ctxawslocal.WithS3Endpoint("http://localhost:14572"),
 		)
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
 		assert.Equal(t, &ctxawslocal.ConfMock{
 			AccessKey:       "DUMMYACCESSKEYEXAMPLE",
 			SecretAccessKey: "DUMMYACCESSKEYEXAMPLE",
-			Endpoint:        "http://localhost",
-			S3Port:          14572,
+			S3Endpoint:      "http://localhost:14572",
 		}, c)
 	})
 }

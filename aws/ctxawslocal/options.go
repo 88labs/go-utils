@@ -7,18 +7,16 @@ type OptionMock interface {
 type ConfMock struct {
 	AccessKey       string
 	SecretAccessKey string
-	Endpoint        string
-	S3Port          int
+	S3Endpoint      string
 }
 
 // nolint:revive
 func getConf(opts ...OptionMock) ConfMock {
 	// default options
 	c := ConfMock{
-		AccessKey:       "test", // localstack default AccessKey
-		SecretAccessKey: "test", // localstack default SecretAccessKey
-		Endpoint:        "http://127.0.0.1",
-		S3Port:          4566, // localstack default port
+		AccessKey:       "test",                  // localstack default AccessKey
+		SecretAccessKey: "test",                  // localstack default SecretAccessKey
+		S3Endpoint:      "http://127.0.0.1:4566", // localstack default endpoint
 	}
 	for _, opt := range opts {
 		opt.Apply(&c)
@@ -46,22 +44,12 @@ func WithSecretAccessKey(secretAccessKey string) OptionSecretAccessKey {
 	return OptionSecretAccessKey(secretAccessKey)
 }
 
-type OptionEndpoint string
+type OptionS3Endpoint string
 
-func (o OptionEndpoint) Apply(c *ConfMock) {
-	c.Endpoint = string(o)
+func (o OptionS3Endpoint) Apply(c *ConfMock) {
+	c.S3Endpoint = string(o)
 }
 
-func WithEndpoint(endpoint string) OptionEndpoint {
-	return OptionEndpoint(endpoint)
-}
-
-type OptionS3Port int
-
-func (o OptionS3Port) Apply(c *ConfMock) {
-	c.S3Port = int(o)
-}
-
-func WithS3Port(port int) OptionS3Port {
-	return OptionS3Port(port)
+func WithS3Endpoint(endpoint string) OptionS3Endpoint {
+	return OptionS3Endpoint(endpoint)
 }

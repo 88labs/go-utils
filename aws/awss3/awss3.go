@@ -28,10 +28,22 @@ func (k BucketName) String() string {
 	return string(k)
 }
 
+func (k BucketName) AWSString() *string {
+	return aws.String(string(k))
+}
+
 type Key string
 
 func (k Key) String() string {
 	return string(k)
+}
+
+func (k Key) AWSString() *string {
+	return aws.String(string(k))
+}
+
+func (k Key) BucketJoinAWSString(bucketName BucketName) *string {
+	return aws.String(path.Join(bucketName.String(), k.String()))
 }
 
 type Keys []Key
@@ -76,8 +88,8 @@ func PutObject(ctx context.Context, region awsconfig.Region, bucketName BucketNa
 	}
 	input := &s3.PutObjectInput{
 		Body:   body,
-		Bucket: aws.String(bucketName.String()),
-		Key:    aws.String(key.String()),
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
 	}
 	if c.S3Expires != nil {
 		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
@@ -99,8 +111,8 @@ func UploadManager(ctx context.Context, region awsconfig.Region, bucketName Buck
 	}
 	input := &s3.PutObjectInput{
 		Body:   body,
-		Bucket: aws.String(bucketName.String()),
-		Key:    aws.String(key.String()),
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
 	}
 	if c.S3Expires != nil {
 		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
@@ -120,8 +132,8 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 	return client.HeadObject(
 		ctx,
 		&s3.HeadObjectInput{
-			Bucket: aws.String(bucketName.String()),
-			Key:    aws.String(key.String()),
+			Bucket: bucketName.AWSString(),
+			Key:    key.AWSString(),
 		})
 }
 
@@ -135,8 +147,8 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 		return err
 	}
 	resp, err := client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(bucketName.String()),
-		Key:    aws.String(key.String()),
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
 	})
 	if err != nil {
 		return err
@@ -195,8 +207,8 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 			return nil, err
 		}
 		if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
-			Bucket: aws.String(bucketName.String()),
-			Key:    aws.String(s3Key.String()),
+			Bucket: bucketName.AWSString(),
+			Key:    s3Key.AWSString(),
 		}); err != nil {
 			return nil, err
 		}
@@ -216,8 +228,8 @@ func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName
 		return "", err
 	}
 	input := &s3.GetObjectInput{
-		Bucket: aws.String(bucketName.String()),
-		Key:    aws.String(key.String()),
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
 	}
 	if c.PresignFileName != "" {
 		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.PresignFileName))
@@ -241,16 +253,16 @@ func ResponseContentDisposition(fileName string) string {
 // Copy copies an Amazon S3 object from one bucket to same.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey Key, destKey Key, opts ...s3upload.OptionS3Upload) error {
+func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey, destKey Key, opts ...s3upload.OptionS3Upload) error {
 	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
 	}
 	req := &s3.CopyObjectInput{
-		Bucket:            aws.String(bucketName.String()),
-		CopySource:        aws.String(fmt.Sprintf("%s/%s", bucketName, srcKey)),
-		Key:               aws.String(destKey.String()),
+		Bucket:            bucketName.AWSString(),
+		CopySource:        srcKey.BucketJoinAWSString(bucketName),
+		Key:               destKey.AWSString(),
 		MetadataDirective: types.MetadataDirectiveReplace,
 	}
 	if c.S3Expires != nil {
@@ -258,13 +270,6 @@ func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, s
 	}
 	if _, err := client.CopyObject(ctx, req); err != nil {
 		return err
-	}
-	const maxWait = 10 * time.Second
-	waiter := s3.NewBucketExistsWaiter(client)
-	if err2 := waiter.Wait(ctx, &s3.HeadBucketInput{
-		Bucket: aws.String(bucketName.String()),
-	}, maxWait); err2 != nil {
-		return err2
 	}
 	return nil
 }
