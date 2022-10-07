@@ -3,12 +3,19 @@ package awss3_test
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/88labs/go-utils/utf8bom"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+
+	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -300,5 +307,166 @@ func TestCopy(t *testing.T) {
 		)
 		key := createFixture(ctx)
 		assert.NoError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key))
+	})
+}
+
+func TestSelectCSVAll(t *testing.T) {
+	type TestCSV string
+	const (
+		TestCSVHeader TestCSV = `id,name,detail
+1,hoge,あ髙社🍣
+2,fuga,い髙社🍣
+3,piyo,う髙社🍣
+`
+		TestCSVWithLineBreak TestCSV = `id,name,detail
+1,hoge,"あ髙
+社🍣"
+2,fuga,"い髙
+社🍣"
+3,piyo,"う髙
+社🍣"
+`
+		TestCSVNoHeader TestCSV = `1,hoge,あ髙社🍣
+2,fuga,い髙社🍣
+3,piyo,う髙社🍣
+`
+	)
+	var (
+		WantCSV = [][]string{
+			{"1", "hoge", "あ髙社🍣"},
+			{"2", "fuga", "い髙社🍣"},
+			{"3", "piyo", "う髙社🍣"},
+		}
+		WantCSVWithLineBreak = [][]string{
+			{"1", "hoge", "あ髙\n社🍣"},
+			{"2", "fuga", "い髙\n社🍣"},
+			{"3", "piyo", "う髙\n社🍣"},
+		}
+	)
+
+	createFixture := func(ctx context.Context, body TestCSV) awss3.Key {
+		s3Client, err := awss3.GetClient(ctx, TestRegion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader(string(body)),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			t.Fatal(err)
+		}
+		waiter := s3.NewObjectExistsWaiter(s3Client)
+		if err := waiter.Wait(ctx,
+			&s3.HeadObjectInput{Bucket: aws.String(TestBucket), Key: aws.String(key)},
+			time.Second,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return awss3.Key(key)
+	}
+
+	t.Run("CSV With Header", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		src := TestCSVHeader
+		key := createFixture(ctx, src)
+		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
+		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		records, err := r.ReadAll()
+		assert.NoError(t, err)
+		assert.Equal(t, WantCSV, records)
+	})
+	t.Run("CSV With LineBreak", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		src := TestCSVWithLineBreak
+		key := createFixture(ctx, src)
+		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
+		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		records, err := r.ReadAll()
+		assert.NoError(t, err)
+		assert.Equal(t, WantCSVWithLineBreak, records)
+	})
+	t.Run("CSV No Header", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		src := TestCSVNoHeader
+		key := createFixture(ctx, src)
+		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery,
+			s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone),
+		)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
+		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		records, err := r.ReadAll()
+		assert.NoError(t, err)
+		assert.Equal(t, WantCSV, records)
+	})
+	t.Run("CSV With UTF-8 BOM", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		src := TestCSV(utf8bom.AddBOM([]byte(TestCSVHeader)))
+		key := createFixture(ctx, src)
+		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
+		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		records, err := r.ReadAll()
+		assert.NoError(t, err)
+		assert.Equal(t, WantCSV, records)
+	})
+	t.Run("CSV 300000 records", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		src := TestCSV(strings.Repeat(string(TestCSVNoHeader), 100000))
+		key := createFixture(ctx, src)
+		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery,
+			s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone),
+		)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
+		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		records, err := r.ReadAll()
+		assert.NoError(t, err)
+		assert.Equal(t, 300000, len(records))
 	})
 }
