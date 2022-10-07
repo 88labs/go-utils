@@ -1,7 +1,9 @@
 package awss3
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"net/url"
@@ -337,4 +339,22 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 		}
 	}
 	return &res, nil
+}
+
+// SelectCSVHeaders
+// Get CSV headers
+// Valid options: CompressionType
+func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3selectcsv.OptionS3SelectCSV) ([]string, error) {
+	opts = append(opts, s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone))
+	opts = append(opts, s3selectcsv.WithSkipByteSize(0))
+	res, err := SelectCSVAll(ctx, region, bucketName, key, "SELECT * FROM S3Object", opts...)
+	if err != nil {
+		return nil, err
+	}
+	r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+	headers, err := r.Read()
+	if err != nil {
+		return nil, err
+	}
+	return headers, nil
 }

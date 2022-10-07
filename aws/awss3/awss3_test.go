@@ -470,3 +470,70 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, 300000, len(records))
 	})
 }
+
+func TestSelectCSVHeaders(t *testing.T) {
+	type TestCSV string
+	const (
+		TestCSVHeader TestCSV = `id,name,detail
+1,hoge,あ髙社🍣
+2,fuga,い髙社🍣
+3,piyo,う髙社🍣
+`
+	)
+	var (
+		WantCSVHeaders = []string{"id", "name", "detail"}
+	)
+
+	createFixture := func(ctx context.Context, body TestCSV) awss3.Key {
+		s3Client, err := awss3.GetClient(ctx, TestRegion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader(string(body)),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			t.Fatal(err)
+		}
+		waiter := s3.NewObjectExistsWaiter(s3Client)
+		if err := waiter.Wait(ctx,
+			&s3.HeadObjectInput{Bucket: aws.String(TestBucket), Key: aws.String(key)},
+			time.Second,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return awss3.Key(key)
+	}
+
+	t.Run("CSV With Header", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		src := TestCSVHeader
+		key := createFixture(ctx, src)
+		got, err := awss3.SelectCSVHeaders(ctx, TestRegion, TestBucket, key)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, WantCSVHeaders, got)
+	})
+	t.Run("Empty CSV", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		key := createFixture(ctx, "")
+		_, err := awss3.SelectCSVHeaders(ctx, TestRegion, TestBucket, key)
+		assert.Error(t, err)
+	})
+}
