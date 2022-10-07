@@ -11,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
+
+	"github.com/aws/smithy-go"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -272,4 +276,65 @@ func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, s
 		return err
 	}
 	return nil
+}
+
+const SelectCSVAllQuery = "SELECT * FROM S3Object"
+
+type SelectCSVAllResponse struct {
+	BytePrecessed int64
+	CSVBytes      []byte
+}
+
+// SelectCSVAll
+// SQL Reference : https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html
+func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, opts ...s3selectcsv.OptionS3SelectCSV) (*SelectCSVAllResponse, error) {
+	c := s3selectcsv.GetS3SelectCSVConf(opts...)
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+
+	req := &s3.SelectObjectContentInput{
+		Bucket:         bucketName.AWSString(),
+		Key:            key.AWSString(),
+		ExpressionType: types.ExpressionTypeSql,
+		Expression:     aws.String(query),
+		InputSerialization: &types.InputSerialization{
+			CSV: &types.CSVInput{
+				FileHeaderInfo: c.FileHeaderInfo,
+			},
+			CompressionType: c.CompressionType,
+		},
+		OutputSerialization: &types.OutputSerialization{
+			CSV: &types.CSVOutput{},
+		},
+	}
+	if c.SkipByteSize > 0 {
+		req.ScanRange = &types.ScanRange{Start: c.SkipByteSize}
+	}
+	resp, err := client.SelectObjectContent(ctx, req)
+	if err != nil {
+		if awsErr, ok := err.(*smithy.OperationError); ok {
+			// 最終行まで取得してしまった場合レコードが0件になってしまうのでInvalidRange errorが発生する
+			if awsErr.OperationName == "InvalidRange" {
+				return &SelectCSVAllResponse{}, nil
+			}
+		}
+		return nil, err
+	}
+	var res SelectCSVAllResponse
+	defer resp.GetStream().Close()
+	for event := range resp.GetStream().Events() {
+		switch v := event.(type) {
+		case *types.SelectObjectContentEventStreamMemberRecords:
+			// buffer毎にcall
+			res.CSVBytes = append(res.CSVBytes, v.Value.Payload...)
+		case *types.SelectObjectContentEventStreamMemberStats:
+			// 終了時1回のみ呼ばれる
+			res.BytePrecessed = v.Value.Details.BytesProcessed
+		case *types.SelectObjectContentEventStreamMemberEnd:
+			// SelectObjectContent completed
+		}
+	}
+	return &res, nil
 }

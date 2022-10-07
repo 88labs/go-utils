@@ -1,0 +1,6 @@
+# Localstack Data
+.data/
+
+# Minio Data
+docker/minio/config
+docker/minio/data

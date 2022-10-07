@@ -29,7 +29,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup LocalStack
+      - name: Setup Docker
         working-directory: ${{ env.testdir }}
         run: docker-compose up -d
 
