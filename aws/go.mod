@@ -13,6 +13,8 @@ require (
 	github.com/aws/smithy-go v1.13.3
 	github.com/bxcodec/faker/v3 v3.8.0
 	github.com/stretchr/testify v1.8.0
+	github.com/tomtwinkle/utfbomremover v0.1.0
+	golang.org/x/text v0.3.7
 )
 
 require (
