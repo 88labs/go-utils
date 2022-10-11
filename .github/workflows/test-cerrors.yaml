@@ -14,7 +14,7 @@ on:
     paths:
       - "cerrors/**"
 env:
-  testdir : ./cerrors/**
+  testdir : ./cerrors
 
 jobs:
   test:
