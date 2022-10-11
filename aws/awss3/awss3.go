@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tomtwinkle/utfbomremover"
+	"golang.org/x/text/transform"
+
 	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
 
 	"github.com/aws/smithy-go"
@@ -280,20 +283,18 @@ func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, s
 	return nil
 }
 
-const SelectCSVAllQuery = "SELECT * FROM S3Object"
-
-type SelectCSVAllResponse struct {
-	BytePrecessed int64
-	CSVBytes      []byte
-}
+const (
+	SelectCSVAllQuery    = "SELECT * FROM S3Object"
+	SelectCSVLimit1Query = "SELECT * FROM S3Object LIMIT 1"
+)
 
 // SelectCSVAll
 // SQL Reference : https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html
-func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, opts ...s3selectcsv.OptionS3SelectCSV) (*SelectCSVAllResponse, error) {
+func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, w io.Writer, opts ...s3selectcsv.OptionS3SelectCSV) error {
 	c := s3selectcsv.GetS3SelectCSVConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	req := &s3.SelectObjectContentInput{
@@ -319,26 +320,30 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 		if awsErr, ok := err.(*smithy.OperationError); ok {
 			// 最終行まで取得してしまった場合レコードが0件になってしまうのでInvalidRange errorが発生する
 			if awsErr.OperationName == "InvalidRange" {
-				return &SelectCSVAllResponse{}, nil
+				return nil
 			}
 		}
-		return nil, err
+		return err
 	}
-	var res SelectCSVAllResponse
-	defer resp.GetStream().Close()
+	t := transform.NewWriter(w, utfbomremover.NewTransformer())
 	for event := range resp.GetStream().Events() {
 		switch v := event.(type) {
 		case *types.SelectObjectContentEventStreamMemberRecords:
 			// buffer毎にcall
-			res.CSVBytes = append(res.CSVBytes, v.Value.Payload...)
+			if _, err := t.Write(v.Value.Payload); err != nil {
+				return err
+			}
 		case *types.SelectObjectContentEventStreamMemberStats:
 			// 終了時1回のみ呼ばれる
-			res.BytePrecessed = v.Value.Details.BytesProcessed
+			// v.Value.Details
 		case *types.SelectObjectContentEventStreamMemberEnd:
 			// SelectObjectContent completed
 		}
 	}
-	return &res, nil
+	if err := resp.GetStream().Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // SelectCSVHeaders
@@ -347,11 +352,11 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3selectcsv.OptionS3SelectCSV) ([]string, error) {
 	opts = append(opts, s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone))
 	opts = append(opts, s3selectcsv.WithSkipByteSize(0))
-	res, err := SelectCSVAll(ctx, region, bucketName, key, "SELECT * FROM S3Object", opts...)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := SelectCSVAll(ctx, region, bucketName, key, SelectCSVLimit1Query, &buf, opts...); err != nil {
 		return nil, err
 	}
-	r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+	r := csv.NewReader(&buf)
 	headers, err := r.Read()
 	if err != nil {
 		return nil, err

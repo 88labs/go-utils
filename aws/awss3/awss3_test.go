@@ -379,12 +379,12 @@ func TestSelectCSVAll(t *testing.T) {
 		)
 		src := TestCSVHeader
 		key := createFixture(ctx, src)
-		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery)
+		var buf bytes.Buffer
+		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf)
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
-		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		r := csv.NewReader(&buf)
 		records, err := r.ReadAll()
 		assert.NoError(t, err)
 		assert.Equal(t, WantCSV, records)
@@ -398,12 +398,12 @@ func TestSelectCSVAll(t *testing.T) {
 		)
 		src := TestCSVWithLineBreak
 		key := createFixture(ctx, src)
-		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery)
+		var buf bytes.Buffer
+		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf)
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
-		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		r := csv.NewReader(&buf)
 		records, err := r.ReadAll()
 		assert.NoError(t, err)
 		assert.Equal(t, WantCSVWithLineBreak, records)
@@ -417,14 +417,14 @@ func TestSelectCSVAll(t *testing.T) {
 		)
 		src := TestCSVNoHeader
 		key := createFixture(ctx, src)
-		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery,
+		var buf bytes.Buffer
+		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone),
 		)
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
-		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		r := csv.NewReader(&buf)
 		records, err := r.ReadAll()
 		assert.NoError(t, err)
 		assert.Equal(t, WantCSV, records)
@@ -438,12 +438,12 @@ func TestSelectCSVAll(t *testing.T) {
 		)
 		src := TestCSV(utf8bom.AddBOM([]byte(TestCSVHeader)))
 		key := createFixture(ctx, src)
-		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery)
+		var buf bytes.Buffer
+		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf)
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
-		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		r := csv.NewReader(&buf)
 		records, err := r.ReadAll()
 		assert.NoError(t, err)
 		assert.Equal(t, WantCSV, records)
@@ -457,14 +457,15 @@ func TestSelectCSVAll(t *testing.T) {
 		)
 		src := TestCSV(strings.Repeat(string(TestCSVNoHeader), 100000))
 		key := createFixture(ctx, src)
-		res, err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery,
+
+		var buf bytes.Buffer
+		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone),
 		)
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, int64(len([]byte(src))), res.BytePrecessed)
-		r := csv.NewReader(bytes.NewReader(res.CSVBytes))
+		r := csv.NewReader(&buf)
 		records, err := r.ReadAll()
 		assert.NoError(t, err)
 		assert.Equal(t, 300000, len(records))
