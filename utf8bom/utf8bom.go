@@ -8,6 +8,7 @@ func AddBOM(in []byte) []byte {
 	return append(BOM, in...)
 }
 
+// RemoveBOM hoge
 func RemoveBOM(in []byte) []byte {
 	if len(in) < 3 {
 		return in
