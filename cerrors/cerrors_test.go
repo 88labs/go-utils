@@ -157,7 +157,7 @@ func TestNewf(t *testing.T) {
 	}
 }
 
-func Test_toSummary(t *testing.T) {
+func Test_ErrorCode_String(t *testing.T) {
 	type args struct {
 		code ErrorCode
 	}
@@ -230,6 +230,13 @@ func Test_toSummary(t *testing.T) {
 			want: "FailedPreconditionErr",
 		},
 		{
+			name: "Canceled",
+			args: args{
+				code: Canceled,
+			},
+			want: "Canceled",
+		},
+		{
 			name: "不正値",
 			args: args{
 				code: ErrorCode(-1),
@@ -239,14 +246,14 @@ func Test_toSummary(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := toSummary(tt.args.code); got != tt.want {
-				t.Errorf("toSummary() = %v, want %v", got, tt.want)
+			if got := tt.args.code.String(); got != tt.want {
+				t.Errorf("ErrorCode.String() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestcommonError_Format(t *testing.T) {
+func Test_CommonError_Format(t *testing.T) {
 	type fields struct {
 		Code    ErrorCode
 		summary string

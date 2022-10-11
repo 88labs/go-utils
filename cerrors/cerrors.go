@@ -20,28 +20,11 @@ const (
 	FailedPreconditionErr
 	UnavailableErr
 	ResourceExhaustedErr
+	Canceled
 )
 
-type ErrorLevel int
-
-const (
-	ErrorLevelFatal ErrorLevel = 1
-	ErrorLevelError ErrorLevel = 2
-	ErrorLevelWarn  ErrorLevel = 3
-)
-
-type CommonError struct {
-	Code    ErrorCode
-	summary string
-	detail  string
-	Level   ErrorLevel
-	cause   error
-	frame   xerrors.Frame
-}
-
-func toSummary(code ErrorCode) string {
-	// Reflect使うか?
-	switch code {
+func (e ErrorCode) String() string {
+	switch e {
 	case PermissionErr:
 		return "PermissionErr"
 	case UnauthenticatedErr:
@@ -60,9 +43,28 @@ func toSummary(code ErrorCode) string {
 		return "UnavailableErr"
 	case ResourceExhaustedErr:
 		return "ResourceExhaustedErr"
+	case Canceled:
+		return "Canceled"
 	default:
 		return "UnknownErr"
 	}
+}
+
+type ErrorLevel int
+
+const (
+	ErrorLevelFatal ErrorLevel = 1
+	ErrorLevelError ErrorLevel = 2
+	ErrorLevelWarn  ErrorLevel = 3
+)
+
+type CommonError struct {
+	Code    ErrorCode
+	summary string
+	detail  string
+	Level   ErrorLevel
+	cause   error
+	frame   xerrors.Frame
 }
 
 func defaultErrorLevel(code ErrorCode) ErrorLevel {
@@ -72,7 +74,8 @@ func defaultErrorLevel(code ErrorCode) ErrorLevel {
 		NotFoundErr,
 		ParameterErr,
 		ResourceExhaustedErr,
-		FailedPreconditionErr:
+		FailedPreconditionErr,
+		Canceled:
 		return ErrorLevelWarn
 	case UnknownErr,
 		UnimplementedErr,
@@ -112,7 +115,7 @@ func Level(level ErrorLevel) Option {
 func NewOp(code ErrorCode, opts ...Option) error {
 	c := &CommonError{
 		Code:    code,
-		summary: toSummary(code),
+		summary: code.String(),
 		detail:  "",
 		Level:   defaultErrorLevel(code),
 		frame:   xerrors.Caller(1),
@@ -128,7 +131,7 @@ func NewOp(code ErrorCode, opts ...Option) error {
 func New(code ErrorCode, cause error, detail string) error {
 	return &CommonError{
 		Code:    code,
-		summary: toSummary(code),
+		summary: code.String(),
 		detail:  detail,
 		cause:   cause,
 		Level:   defaultErrorLevel(code),
@@ -139,7 +142,7 @@ func New(code ErrorCode, cause error, detail string) error {
 func Newf(code ErrorCode, cause error, detail string, args ...interface{}) error {
 	return &CommonError{
 		Code:    code,
-		summary: toSummary(code),
+		summary: code.String(),
 		detail:  fmt.Sprintf(detail, args...),
 		cause:   cause,
 		Level:   defaultErrorLevel(code),
