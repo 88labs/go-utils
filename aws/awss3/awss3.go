@@ -309,7 +309,13 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 			CompressionType: c.CompressionType,
 		},
 		OutputSerialization: &types.OutputSerialization{
-			CSV: &types.CSVOutput{},
+			CSV: &types.CSVOutput{
+				FieldDelimiter:       c.CSVOutput.FieldDelimiter,
+				QuoteCharacter:       c.CSVOutput.QuoteCharacter,
+				QuoteEscapeCharacter: c.CSVOutput.QuoteEscapeCharacter,
+				QuoteFields:          c.CSVOutput.QuoteFields,
+				RecordDelimiter:      c.CSVOutput.RecordDelimiter,
+			},
 		},
 	}
 	if c.SkipByteSize > 0 {

@@ -10,6 +10,7 @@ type confS3SelectCSV struct {
 	SkipByteSize    int64
 	FileHeaderInfo  types.FileHeaderInfo
 	CompressionType types.CompressionType
+	CSVOutput       types.CSVOutput
 }
 
 // nolint:revive
@@ -70,4 +71,17 @@ func (o OptionCompressionType) Apply(c *confS3SelectCSV) {
 // Value: NONE.
 func WithCompressionType(compressionType types.CompressionType) OptionCompressionType {
 	return OptionCompressionType(compressionType)
+}
+
+type OptionCSVOutput types.CSVOutput
+
+func (o OptionCSVOutput) Apply(c *confS3SelectCSV) {
+	c.CSVOutput = types.CSVOutput(o)
+}
+
+// WithCSVOutput
+// Describes how uncompressed comma-separated values (CSV)-formatted results are
+// formatted.
+func WithCSVOutput(csvOutput types.CSVOutput) OptionCSVOutput {
+	return OptionCSVOutput(csvOutput)
 }
