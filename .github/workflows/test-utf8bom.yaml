@@ -4,11 +4,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "utf8bom/**"
   pull_request:
     types:
       - opened
       - synchronize
       - reopened
+    paths:
+      - "utf8bom/**"
 env:
   testdir : ./utf8bom
 
