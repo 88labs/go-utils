@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/88labs/go-utils/aws/awsconfig"
 )
 
 func LookUpString(env string, required bool) string {
@@ -37,4 +39,13 @@ func LookUpTime(env string) time.Time {
 		}
 	}
 	panic(fmt.Errorf("environment variable is not set to %s", env))
+}
+
+func LookUpRegion(env string) awsconfig.Region {
+	v := LookUpString(env, true)
+	region, err := awsconfig.ParseRegion(v)
+	if err != nil {
+		panic(err)
+	}
+	return region
 }
