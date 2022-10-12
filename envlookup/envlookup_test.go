@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/envlookup"
 	"github.com/bxcodec/faker/v3"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -250,6 +250,73 @@ func TestLookUpTime(t *testing.T) {
 				return
 			}
 			got := envlookup.LookUpTime(p.Key)
+			assert.Equal(t, want.Val, got)
+		})
+	}
+}
+
+func TestLookUpRegion(t *testing.T) {
+	type Param struct {
+		Key string
+	}
+	type Want struct {
+		Val awsconfig.Region
+		Err bool
+	}
+	tests := map[string]struct {
+		SetEnv func(t *testing.T) (Param, Want)
+	}{
+		"key exists:Region": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := awsconfig.RegionOhio
+				t.Setenv(key, val.String())
+				return Param{
+						Key: key,
+					}, Want{
+						Val: val,
+						Err: false,
+					}
+			},
+		},
+		"key exists:not Region": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "hoge"
+				t.Setenv(key, val)
+				return Param{
+						Key: key,
+					}, Want{
+						Err: true,
+					}
+			},
+		},
+		"key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := awsconfig.RegionOhio
+				t.Setenv(key, val.String())
+				return Param{
+						Key: "NOT_EXIST",
+					}, Want{
+						Err: true,
+					}
+			},
+		},
+	}
+
+	for n, v := range tests {
+		name := n
+		tt := v
+		t.Run(name, func(t *testing.T) {
+			p, want := tt.SetEnv(t)
+			if want.Err {
+				assert.Panics(t, func() {
+					envlookup.LookUpRegion(p.Key)
+				})
+				return
+			}
+			got := envlookup.LookUpRegion(p.Key)
 			assert.Equal(t, want.Val, got)
 		})
 	}
