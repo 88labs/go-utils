@@ -9,7 +9,7 @@ services:
       - AWS_ACCESS_KEY_ID=DUMMYACCESSKEYEXAMPLE
       - AWS_SECRET_ACCESS_KEY=DUMMYSECRETKEYEXAMPLE
       - DEFAULT_REGION=ap-northeast-1
-      - SERVICES=s3
+      - SERVICES=s3,sqs
       - DATA_DIR=/tmp/localstack/data
       - DISABLE_CORS_CHECKS=1
       - EDGE_BIND_HOST=0.0.0.0
