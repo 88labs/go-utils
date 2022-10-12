@@ -304,7 +304,13 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 		Expression:     aws.String(query),
 		InputSerialization: &types.InputSerialization{
 			CSV: &types.CSVInput{
-				FileHeaderInfo: c.FileHeaderInfo,
+				AllowQuotedRecordDelimiter: c.CSVInput.AllowQuotedRecordDelimiter,
+				Comments:                   c.CSVInput.Comments,
+				FieldDelimiter:             c.CSVInput.FieldDelimiter,
+				FileHeaderInfo:             c.CSVInput.FileHeaderInfo,
+				QuoteCharacter:             c.CSVInput.QuoteCharacter,
+				QuoteEscapeCharacter:       c.CSVInput.QuoteEscapeCharacter,
+				RecordDelimiter:            c.CSVInput.RecordDelimiter,
 			},
 			CompressionType: c.CompressionType,
 		},
@@ -356,7 +362,7 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 // Get CSV headers
 // Valid options: CompressionType
 func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3selectcsv.OptionS3SelectCSV) ([]string, error) {
-	opts = append(opts, s3selectcsv.WithFileHeaderInfo(types.FileHeaderInfoNone))
+	opts = append(opts, s3selectcsv.WithCSVInput(types.CSVInput{FileHeaderInfo: types.FileHeaderInfoNone}))
 	opts = append(opts, s3selectcsv.WithSkipByteSize(0))
 	var buf bytes.Buffer
 	if err := SelectCSVAll(ctx, region, bucketName, key, SelectCSVLimit1Query, &buf, opts...); err != nil {

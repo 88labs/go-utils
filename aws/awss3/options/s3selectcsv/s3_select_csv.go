@@ -8,7 +8,7 @@ type OptionS3SelectCSV interface {
 
 type confS3SelectCSV struct {
 	SkipByteSize    int64
-	FileHeaderInfo  types.FileHeaderInfo
+	CSVInput        types.CSVInput
 	CompressionType types.CompressionType
 	CSVOutput       types.CSVOutput
 }
@@ -17,7 +17,6 @@ type confS3SelectCSV struct {
 func GetS3SelectCSVConf(opts ...OptionS3SelectCSV) confS3SelectCSV {
 	// default options
 	c := confS3SelectCSV{
-		FileHeaderInfo:  types.FileHeaderInfoUse,
 		CompressionType: types.CompressionTypeNone,
 	}
 	for _, opt := range opts {
@@ -39,25 +38,18 @@ func WithSkipByteSize(skipByteSize int64) OptionSkipByteSize {
 	return OptionSkipByteSize(skipByteSize)
 }
 
-type OptionFileHeaderInfo types.FileHeaderInfo
+type OptionCSVInput types.CSVInput
 
-func (o OptionFileHeaderInfo) Apply(c *confS3SelectCSV) {
-	c.FileHeaderInfo = types.FileHeaderInfo(o)
+func (o OptionCSVInput) Apply(c *confS3SelectCSV) {
+	c.CSVInput = types.CSVInput(o)
 }
 
-// WithFileHeaderInfo
-// Describes the first line of input. Valid values are:
-//
-// * NONE: First line is not a header.
-//
-// * IGNORE: First line is a header, but you can't use the header values
-// to indicate the column in an expression. You can use column position (such as
-// _1, _2, …) to indicate the column (SELECT s._1 FROM OBJECT s).
-//
-// * Use: Default. First line is a header, and you can use the header value to identify a column in an
-// expression (SELECT "name" FROM S3Object).
-func WithFileHeaderInfo(headerInfo types.FileHeaderInfo) OptionFileHeaderInfo {
-	return OptionFileHeaderInfo(headerInfo)
+// WithCSVInput
+// Describes how an uncompressed comma-separated values (CSV)-formatted input object is
+// formatted.
+// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3/types#CSVInput
+func WithCSVInput(csvInput types.CSVInput) OptionCSVInput {
+	return OptionCSVInput(csvInput)
 }
 
 type OptionCompressionType types.CompressionType
@@ -82,6 +74,7 @@ func (o OptionCSVOutput) Apply(c *confS3SelectCSV) {
 // WithCSVOutput
 // Describes how uncompressed comma-separated values (CSV)-formatted results are
 // formatted.
+// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3/types#CSVOutput
 func WithCSVOutput(csvOutput types.CSVOutput) OptionCSVOutput {
 	return OptionCSVOutput(csvOutput)
 }
