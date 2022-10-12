@@ -23,7 +23,12 @@ const (
 )
 
 func Cleanup() {
-	ctx := ctxawslocal.WithContext(context.Background())
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
+	)
 	res, err := awssqs.ReceiveMessage(ctx, TestRegion, TestQueue,
 		sqsreceive.WithWaitTimeSeconds(0),
 		sqsreceive.WithMaxNumberOfMessages(10))
@@ -47,7 +52,7 @@ func TestSentMessage(t *testing.T) {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
 	)
 
 	t.Cleanup(Cleanup)
@@ -92,7 +97,7 @@ func TestRetrieveAndDeleteMessage(t *testing.T) {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
 	)
 
 	t.Cleanup(Cleanup)

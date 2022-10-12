@@ -67,7 +67,7 @@ type LocalProfile struct {
 func getLocalEndpoint(ctx context.Context) (*LocalProfile, bool) {
 	if c, ok := ctxawslocal.GetConf(ctx); ok {
 		p := new(LocalProfile)
-		p.Endpoint = c.S3Endpoint
+		p.Endpoint = c.SQSEndpoint
 		p.AccessKey = c.AccessKey
 		p.SecretAccessKey = c.SecretAccessKey
 		return p, true
