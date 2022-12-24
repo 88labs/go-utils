@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
-	"github.com/88labs/go-utils/aws/awss3/options/s3donwload"
+	"github.com/88labs/go-utils/aws/awss3/options/s3download"
 	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
 	"github.com/88labs/go-utils/aws/awss3/options/s3upload"
 )
@@ -173,8 +173,8 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 // If the file name is duplicated, add a sequential number to the suffix and save
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3donwload.OptionS3Download) ([]string, error) {
-	c := s3donwload.GetS3DownloadConf(opts...)
+func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3download.OptionS3Download) ([]string, error) {
+	c := s3download.GetS3DownloadConf(opts...)
 
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {

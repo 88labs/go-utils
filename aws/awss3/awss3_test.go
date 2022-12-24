@@ -25,7 +25,7 @@ import (
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3"
-	"github.com/88labs/go-utils/aws/awss3/options/s3donwload"
+	"github.com/88labs/go-utils/aws/awss3/options/s3download"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 	"github.com/88labs/go-utils/ulid"
 )
@@ -143,7 +143,7 @@ func TestDownloadFiles(t *testing.T) {
 	})
 	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir(),
-			s3donwload.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
+			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "add_" + baseFileName
 			}),
 		)
@@ -159,7 +159,7 @@ func TestDownloadFiles(t *testing.T) {
 	})
 	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir(),
-			s3donwload.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
+			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "fixname.txt"
 			}),
 		)

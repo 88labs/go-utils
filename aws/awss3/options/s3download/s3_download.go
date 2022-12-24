@@ -1,4 +1,4 @@
-package s3donwload
+package s3download
 
 type OptionS3Download interface {
 	Apply(*confS3Download)
