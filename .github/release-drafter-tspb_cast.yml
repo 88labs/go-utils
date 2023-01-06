@@ -1,0 +1,105 @@
+name-template: 'tspb_cast/v$RESOLVED_VERSION'
+tag-template: 'tspb_cast/v$RESOLVED_VERSION'
+tag-prefix: tspb_cast/
+
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+  - title: '💪 Enhancement'
+    labels:
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+  - title: '🧰 Maintenance'
+    label: 'chore'
+  - title: '🔧 Refactoring'
+    label: 'refactor'
+  - title: '📖 Documentation'
+    label: 'documentation'
+  - title: '⛓️ Dependency update'
+    label: 'dependencies'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: minor
+
+template: |
+  ## Changes
+  $CHANGES
+autolabeler:
+  - label: feature
+    branch:
+      - '/^feat(ure)?[/-].+/'
+  - label: bug
+    branch:
+      - '/^fix[/-].+/'
+      - '/^hotfix[/-].+/'
+  - label: chore
+    branch:
+      - '/^chore[/-].+/'
+  - label: refactor
+    branch:
+      - '/(refactor|refactoring)[/-].+/'
+  - label: documentation
+    branch:
+      - '/doc(umentation)[/-].+/'
+    files:
+      - '*.md'
+  - label: enhancement
+    branch:
+      - '/(enhancement|improve)[/-].+/'
+  - label: docker
+    files:
+      - 'docker/**/*'
+      - 'docker-compose.yaml'
+      - 'Dockerfile'
+      - '.dockerignore'
+  - label: github
+    files:
+      - '.github/**/*'
+  - label: lib:aws
+    files:
+      - 'aws/**/*'
+  - label: lib:cerrors
+    files:
+      - 'cerrors/**/*'
+  - label: lib:envlookup
+    files:
+      - 'envlookup/**/*'
+  - label: lib:errgroup
+    files:
+      - 'errgroup/**/*'
+  - label: lib:osext
+    files:
+      - 'osext/**/*'
+  - label: lib:sql-escape
+    files:
+      - 'sql-escape/**/*'
+  - label: lib:sql-escape
+    files:
+      - 'sql-escape/**/*'
+  - label: lib:tspb_cast
+    files:
+      - 'tspb_cast/**/*'
+  - label: lib:ulid
+    files:
+      - 'ulid/**/*'
+  - label: lib:utf8bom
+    files:
+      - 'utf8bom/**/*'
