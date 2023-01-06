@@ -9,8 +9,6 @@ on:
       - opened
       - synchronize
       - reopened
-    branches-ignore:
-      - main
 
 jobs:
   update_release_draft:
