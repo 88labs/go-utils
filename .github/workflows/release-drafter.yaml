@@ -46,54 +46,54 @@ jobs:
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.aws == 'true'
         with:
-          tag-prefix: aws
+          tag-prefix: aws/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.cerrors == 'true'
         with:
-          tag-prefix: cerrors
+          tag-prefix: cerrors/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.envlookup == 'true'
         with:
-          tag-prefix: envlookup
+          tag-prefix: envlookup/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.errgroup == 'true'
         with:
-          tag-prefix: errgroup
+          tag-prefix: errgroup/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.osext == 'true'
         with:
-          tag-prefix: osext
+          tag-prefix: osext/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.sql-escape == 'true'
         with:
-          tag-prefix: sql-escape
+          tag-prefix: sql-escape/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.tspb_cast == 'true'
         with:
-          tag-prefix: tspb_cast
+          tag-prefix: tspb_cast/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.ulid == 'true'
         with:
-          tag-prefix: ulid
+          tag-prefix: ulid/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.utf8bom == 'true'
         with:
-          tag-prefix: utf8bom
+          tag-prefix: utf8bom/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
