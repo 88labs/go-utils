@@ -46,54 +46,63 @@ jobs:
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.aws == 'true'
         with:
-          tag-prefix: aws/
+          name: aws/v$RESOLVED_VERSION
+          tag: aws/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.cerrors == 'true'
         with:
-          tag-prefix: cerrors/
+          name: cerrors/v$RESOLVED_VERSION
+          tag: cerrors/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.envlookup == 'true'
         with:
-          tag-prefix: envlookup/
+          name: envlookup/v$RESOLVED_VERSION
+          tag: envlookup/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.errgroup == 'true'
         with:
-          tag-prefix: errgroup/
+          name: errgroup/v$RESOLVED_VERSION
+          tag: errgroup/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.osext == 'true'
         with:
-          tag-prefix: osext/
+          name: osext/v$RESOLVED_VERSION
+          tag: osext/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.sql-escape == 'true'
         with:
-          tag-prefix: sql-escape/
+          name: sql-escape/v$RESOLVED_VERSION
+          tag: sql-escape/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.tspb_cast == 'true'
         with:
-          tag-prefix: tspb_cast/
+          name: tspb_cast/v$RESOLVED_VERSION
+          tag: tspb_cast/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.ulid == 'true'
         with:
-          tag-prefix: ulid/
+          name: ulid/v$RESOLVED_VERSION
+          tag: ulid/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
         if: steps.changes.outputs.utf8bom == 'true'
         with:
-          tag-prefix: utf8bom/
+          name: utf8bom/v$RESOLVED_VERSION
+          tag: utf8bom/v$RESOLVED_VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

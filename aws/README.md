@@ -8,6 +8,7 @@
 ### required for development
 - docker-compose v2
 - localstack
+- minio
 
 ### testing
 
