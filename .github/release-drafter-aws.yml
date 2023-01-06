@@ -1,6 +1,8 @@
 name-template: 'aws/v$RESOLVED_VERSION'
 tag-template: 'aws/v$RESOLVED_VERSION'
 tag-prefix: aws/
+include-paths:
+  - "aws"
 
 categories:
   - title: '🚀 Features'

@@ -1,6 +1,8 @@
 name-template: 'errgroup/v$RESOLVED_VERSION'
 tag-template: 'errgroup/v$RESOLVED_VERSION'
 tag-prefix: errgroup/
+include-paths:
+  - "errgroup"
 
 categories:
   - title: '🚀 Features'

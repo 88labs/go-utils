@@ -1,6 +1,8 @@
 name-template: 'utf8bom/v$RESOLVED_VERSION'
 tag-template: 'utf8bom/v$RESOLVED_VERSION'
 tag-prefix: utf8bom/
+include-paths:
+  - "utf8bom"
 
 categories:
   - title: '🚀 Features'

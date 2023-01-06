@@ -1,6 +1,8 @@
 name-template: 'envlookup/v$RESOLVED_VERSION'
 tag-template: 'envlookup/v$RESOLVED_VERSION'
 tag-prefix: envlookup/
+include-paths:
+  - "envlookup"
 
 categories:
   - title: '🚀 Features'

@@ -1,6 +1,8 @@
 name-template: 'tspb_cast/v$RESOLVED_VERSION'
 tag-template: 'tspb_cast/v$RESOLVED_VERSION'
 tag-prefix: tspb_cast/
+include-paths:
+  - "tspb_cast"
 
 categories:
   - title: '🚀 Features'

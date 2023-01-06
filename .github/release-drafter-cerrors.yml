@@ -1,6 +1,8 @@
 name-template: 'cerrors/v$RESOLVED_VERSION'
 tag-template: 'cerrors/v$RESOLVED_VERSION'
 tag-prefix: cerrors/
+include-paths:
+  - "cerrors"
 
 categories:
   - title: '🚀 Features'
