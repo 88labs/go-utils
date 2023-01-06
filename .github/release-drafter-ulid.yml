@@ -1,6 +1,8 @@
 name-template: 'ulid/v$RESOLVED_VERSION'
 tag-template: 'ulid/v$RESOLVED_VERSION'
 tag-prefix: ulid/
+include-paths:
+  - "ulid"
 
 categories:
   - title: '🚀 Features'

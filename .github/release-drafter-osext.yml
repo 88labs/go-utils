@@ -1,6 +1,8 @@
 name-template: 'osext/v$RESOLVED_VERSION'
 tag-template: 'osext/v$RESOLVED_VERSION'
 tag-prefix: osext/
+include-paths:
+  - "osext"
 
 categories:
   - title: '🚀 Features'

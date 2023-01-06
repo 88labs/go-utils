@@ -1,6 +1,8 @@
 name-template: 'sql-escape/v$RESOLVED_VERSION'
 tag-template: 'sql-escape/v$RESOLVED_VERSION'
 tag-prefix: sql-escape/
+include-paths:
+  - "sql-escape"
 
 categories:
   - title: '🚀 Features'
