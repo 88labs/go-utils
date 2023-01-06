@@ -1,5 +1,6 @@
-name-template: 'v$RESOLVED_VERSION'
-tag-template: 'v$RESOLVED_VERSION'
+name-template: 'osext/v$RESOLVED_VERSION'
+tag-template: 'osext/v$RESOLVED_VERSION'
+tag-prefix: osext/
 
 categories:
   - title: '🚀 Features'
