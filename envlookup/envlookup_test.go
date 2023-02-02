@@ -321,3 +321,185 @@ func TestLookUpRegion(t *testing.T) {
 		})
 	}
 }
+
+func TestLookUpBool(t *testing.T) {
+	type Param struct {
+		Key      string
+		Required bool
+	}
+	type Want struct {
+		Val bool
+		Err bool
+	}
+	tests := map[string]struct {
+		SetEnv func(t *testing.T) (Param, Want)
+	}{
+		"required:parse true": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "true"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: true,
+						Err: false,
+					}
+			},
+		},
+		"required:parse false": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "false"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: false,
+						Err: false,
+					}
+			},
+		},
+		"required:parse 1": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "1"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: true,
+						Err: false,
+					}
+			},
+		},
+		"required:parse 0": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "0"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: false,
+						Err: false,
+					}
+			},
+		},
+		"required:parse error empty": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := ""
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Err: true,
+					}
+			},
+		},
+		"required:key exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "true"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: true,
+						Err: false,
+					}
+			},
+		},
+		"required:key exists but parse error": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "aaa"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Err: true,
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "true"
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: true,
+					}, Want{
+						Err: true,
+					}
+			},
+		},
+		"not required:key exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "true"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: false,
+					}, Want{
+						Val: true,
+						Err: false,
+					}
+			},
+		},
+		"not required:key exists but parse error": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "aaa"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: false,
+					}, Want{
+						Val: false,
+						Err: false,
+					}
+			},
+		},
+		"not required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "true"
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: false,
+					}, Want{
+						Val: false,
+						Err: false,
+					}
+			},
+		},
+	}
+
+	for n, v := range tests {
+		name := n
+		tt := v
+		t.Run(name, func(t *testing.T) {
+			p, want := tt.SetEnv(t)
+			if want.Err {
+				assert.Panics(t, func() {
+					envlookup.LookUpBool(p.Key, p.Required)
+				})
+				return
+			}
+			got := envlookup.LookUpBool(p.Key, p.Required)
+			assert.Equal(t, want.Val, got)
+		})
+	}
+}

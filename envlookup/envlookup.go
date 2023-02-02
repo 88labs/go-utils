@@ -49,3 +49,20 @@ func LookUpRegion(env string) awsconfig.Region {
 	}
 	return region
 }
+
+func LookUpBool(env string, required bool) bool {
+	if v, ok := os.LookupEnv(env); ok {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			if required {
+				panic(fmt.Errorf("environment variable is not set to %s %s", env, err.Error()))
+			}
+			return false
+		}
+		return b
+	}
+	if required {
+		panic(fmt.Errorf("environment variable is not set to %s", env))
+	}
+	return false
+}
