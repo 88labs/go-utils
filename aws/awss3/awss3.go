@@ -168,6 +168,21 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 	return nil
 }
 
+// DeleteObject
+// aws-sdk-go v2 DeleteObject
+// Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
+func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key) (*s3.DeleteObjectOutput, error) {
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+	input := &s3.DeleteObjectInput{
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
+	}
+	return client.DeleteObject(ctx, input)
+}
+
 // DownloadFiles
 // Batch download objects on s3 and save to directory
 // If the file name is duplicated, add a sequential number to the suffix and save
