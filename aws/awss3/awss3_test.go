@@ -103,6 +103,39 @@ func TestGetObject(t *testing.T) {
 	})
 }
 
+func TestDeleteObject(t *testing.T) {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NoError(t, err)
+
+	createFixture := func() awss3.Key {
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader("test"),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			assert.NoError(t, err)
+		}
+		return awss3.Key(key)
+	}
+
+	t.Run("DeleteObject", func(t *testing.T) {
+		key := createFixture()
+		_, err := awss3.DeleteObject(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		_, err = awss3.HeadObject(ctx, TestRegion, TestBucket, key)
+		assert.Error(t, err)
+	})
+}
+
 func TestDownloadFiles(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
