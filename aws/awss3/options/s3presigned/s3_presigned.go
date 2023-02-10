@@ -10,7 +10,19 @@ type OptionS3Presigned interface {
 
 type confS3Presigned struct {
 	PresignFileName string
+	PresignFileType *ContentDispositionType // inline or attachment
 	PresignExpires  time.Duration
+}
+
+type ContentDispositionType string
+
+const (
+	PresignFileTypeInline     ContentDispositionType = "inline"
+	PresignFileTypeAttachment ContentDispositionType = "attachment"
+)
+
+func (o *ContentDispositionType) String() string {
+	return string(*o)
 }
 
 // nolint:revive
@@ -43,4 +55,15 @@ func (o OptionPresignExpires) Apply(c *confS3Presigned) {
 
 func WithPresignExpires(presignExpires time.Duration) OptionPresignExpires {
 	return OptionPresignExpires(presignExpires)
+}
+
+type OptionContentDispositionType ContentDispositionType
+
+func (o OptionContentDispositionType) Apply(c *confS3Presigned) {
+	cdtype := ContentDispositionType(o)
+	c.PresignFileType = &cdtype
+}
+
+func WithContentDispositionType(tp ContentDispositionType) OptionContentDispositionType {
+	return OptionContentDispositionType(tp)
 }
