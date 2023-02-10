@@ -26,6 +26,7 @@ import (
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3"
 	"github.com/88labs/go-utils/aws/awss3/options/s3download"
+	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 	"github.com/88labs/go-utils/ulid"
 )
@@ -291,6 +292,50 @@ func TestResponseContentDisposition(t *testing.T) {
 		actual := awss3.ResponseContentDisposition(fileName)
 		assert.NotEmpty(t, actual)
 	})
+}
+
+func TestResponseContentDispositionMulti(t *testing.T) {
+	const fileName = ",あいうえお　牡蠣喰家来 サシスセソ@+$_-^|+{}"
+
+	cases := map[string]struct {
+		tp       s3presigned.ContentDispositionType
+		fileName string
+		emptyFLG bool
+	}{
+		"inline": {
+			fileName: "",
+			tp:       s3presigned.PresignFileTypeInline,
+		},
+		"inline&filename": {
+			tp:       s3presigned.PresignFileTypeInline,
+			fileName: fileName,
+		},
+		"attachment": {
+			tp:       s3presigned.PresignFileTypeAttachment,
+			fileName: "",
+		},
+		"attachment&filename": {
+			tp:       s3presigned.PresignFileTypeAttachment,
+			fileName: fileName,
+		},
+		"empty": {
+			tp:       "",
+			fileName: "",
+			emptyFLG: true,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			actual := awss3.ResponseContentDispositionMulti(c.tp, c.fileName)
+			switch c.emptyFLG {
+			case true:
+				assert.Empty(t, actual)
+			default:
+				assert.NotEmpty(t, actual)
+			}
+		})
+	}
 }
 
 func TestCopy(t *testing.T) {
