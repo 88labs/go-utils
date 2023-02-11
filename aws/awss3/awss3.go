@@ -257,11 +257,7 @@ func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName
 		Key:    key.AWSString(),
 	}
 	if c.PresignFileName != "" {
-		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.PresignFileName))
-		// memo: If type is specified, it is overridden as the behavior in the new version.
-		if c.PresignFileType != nil {
-			input.ResponseContentType = aws.String(ResponseContentDispositionMulti(*c.PresignFileType, c.PresignFileName))
-		}
+		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.ContentDispositionType, c.PresignFileName))
 	}
 	ps := s3.NewPresignClient(client)
 	resp, err := ps.PresignGetObject(ctx, input, func(o *s3.PresignOptions) {
@@ -273,26 +269,15 @@ func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName
 	return resp.URL, nil
 }
 
-// ResponseContentDisposition
-// Setting ResponseContentDisposition to support file names with multibyte characters
-func ResponseContentDisposition(fileName string) string {
-	return fmt.Sprintf(`attachment; filename*=UTF-8''%s`, url.PathEscape(fileName))
-}
-
-// ResponseContentDispositionMulti
-// Setting ResponseContentDisposition to support file names with multibyte characters
-func ResponseContentDispositionMulti(tp s3presigned.ContentDispositionType, fileName string) string {
-	switch {
-	case tp == s3presigned.PresignFileTypeInline && fileName == "":
-		return string(s3presigned.PresignFileTypeInline)
-	case tp == s3presigned.PresignFileTypeInline && fileName != "":
-		return fmt.Sprintf(`inline; filename*=UTF-8''%s`, url.PathEscape(fileName))
-	case tp == s3presigned.PresignFileTypeAttachment && fileName == "":
-		return string(s3presigned.PresignFileTypeAttachment)
-	case tp == s3presigned.PresignFileTypeAttachment && fileName != "":
-		return fmt.Sprintf(`attachment; filename*=UTF-8''%s`, url.PathEscape(fileName))
+func ResponseContentDisposition(tp s3presigned.ContentDispositionType, fileName string) string {
+	var dispositionType string
+	switch tp {
+	case s3presigned.ContentDispositionTypeAttachment:
+		dispositionType = "attachment"
+	case s3presigned.ContentDispositionTypeInline:
+		dispositionType = "inline"
 	}
-	return ""
+	return fmt.Sprintf(`%s; filename*=UTF-8''%s`, dispositionType, url.PathEscape(fileName))
 }
 
 // Copy copies an Amazon S3 object from one bucket to same.
