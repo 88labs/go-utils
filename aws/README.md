@@ -6,7 +6,7 @@
 ## Development
 
 ### required for development
-- docker-compose v2
+- docker compose v2
 - localstack
 - minio
 
