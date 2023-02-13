@@ -49,6 +49,7 @@ jobs:
           config-name: release-drafter-aws.yml
           name: aws/v$RESOLVED_VERSION
           tag: aws/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -57,6 +58,7 @@ jobs:
           config-name: release-drafter-cerrors.yml
           name: cerrors/v$RESOLVED_VERSION
           tag: cerrors/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -65,6 +67,7 @@ jobs:
           config-name: release-drafter-envlookup.yml
           name: envlookup/v$RESOLVED_VERSION
           tag: envlookup/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -73,6 +76,7 @@ jobs:
           config-name: release-drafter-errgroup.yml
           name: errgroup/v$RESOLVED_VERSION
           tag: errgroup/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -81,6 +85,7 @@ jobs:
           config-name: release-drafter-osext.yml
           name: osext/v$RESOLVED_VERSION
           tag: osext/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -89,6 +94,7 @@ jobs:
           config-name: release-drafter-sql-escape.yml
           name: sql-escape/v$RESOLVED_VERSION
           tag: sql-escape/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -97,6 +103,7 @@ jobs:
           config-name: release-drafter-tspb_cast.yml
           name: tspb_cast/v$RESOLVED_VERSION
           tag: tspb_cast/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -105,6 +112,7 @@ jobs:
           config-name: release-drafter-ulid.yml
           name: ulid/v$RESOLVED_VERSION
           tag: ulid/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: release-drafter/release-drafter@v5
@@ -113,5 +121,6 @@ jobs:
           config-name: release-drafter-utf8bom.yml
           name: utf8bom/v$RESOLVED_VERSION
           tag: utf8bom/v$RESOLVED_VERSION
+          publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
