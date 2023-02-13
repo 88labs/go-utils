@@ -1,3 +1,3 @@
 module github.com/88labs/go-utils/sql-escape
 
-go 1.18
+go 1.20

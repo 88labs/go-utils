@@ -1,0 +1,88 @@
+version: '3'
+
+dotenv: ['.env', '{{.ENV}}/.env.', '{{.HOME}}/.env']
+
+tasks:
+  test:
+    deps: [test-aws,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tspb_cast,test-ulid,test-utf8bom]
+  test-aws:
+    dir: aws
+    cmds:
+      - docker compose up -d
+      - defer: docker compose down
+      - sleep 5
+      - go test ./...
+  test-cerrors:
+    dir: cerrors
+    cmds:
+      - go test ./...
+  test-envlookup:
+    dir: envlookup
+    cmds:
+      - go test ./...
+  test-errgroup:
+    dir: errgroup
+    cmds:
+      - go test ./...
+  test-osext:
+    dir: osext
+    cmds:
+      - go test ./...
+  test-sql-escape:
+    dir: sql-escape
+    cmds:
+      - go test ./...
+  test-tspb_cast:
+    dir: tspb_cast
+    cmds:
+      - go test ./...
+  test-ulid:
+    dir: ulid
+    cmds:
+      - go test ./...
+  test-utf8bom:
+    dir: utf8bom
+    cmds:
+      - go test ./...
+
+  go-mod-tidy:
+    deps: [
+      go-mod-tidy-aws,go-mod-tidy-cerrors,go-mod-tidy-envlookup,go-mod-tidy-errgroup,go-mod-tidy-osext,
+      go-mod-tidy-sql-escape,go-mod-tidy-tspb_cast,go-mod-tidy-ulid,go-mod-tidy-utf8bom,
+    ]
+  go-mod-tidy-aws:
+    dir: aws
+    cmds:
+      - go mod tidy
+  go-mod-tidy-cerrors:
+    dir: cerrors
+    cmds:
+      - go mod tidy
+  go-mod-tidy-envlookup:
+    dir: envlookup
+    cmds:
+      - go mod tidy
+  go-mod-tidy-errgroup:
+    dir: errgroup
+    cmds:
+      - go mod tidy
+  go-mod-tidy-osext:
+    dir: osext
+    cmds:
+      - go mod tidy
+  go-mod-tidy-sql-escape:
+    dir: sql-escape
+    cmds:
+      - go mod tidy
+  go-mod-tidy-tspb_cast:
+    dir: tspb_cast
+    cmds:
+      - go mod tidy
+  go-mod-tidy-ulid:
+    dir: ulid
+    cmds:
+      - go mod tidy
+  go-mod-tidy-utf8bom:
+    dir: utf8bom
+    cmds:
+      - go mod tidy
