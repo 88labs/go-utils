@@ -26,6 +26,7 @@ import (
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3"
 	"github.com/88labs/go-utils/aws/awss3/options/s3download"
+	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 	"github.com/88labs/go-utils/ulid"
 )
@@ -288,7 +289,7 @@ func TestPresign(t *testing.T) {
 func TestResponseContentDisposition(t *testing.T) {
 	const fileName = ",あいうえお　牡蠣喰家来 サシスセソ@+$_-^|+{}"
 	t.Run("success", func(t *testing.T) {
-		actual := awss3.ResponseContentDisposition(fileName)
+		actual := awss3.ResponseContentDisposition(s3presigned.ContentDispositionTypeAttachment, fileName)
 		assert.NotEmpty(t, actual)
 	})
 }
