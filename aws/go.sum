@@ -1,5 +1,5 @@
-github.com/88labs/go-utils/ulid v0.1.1 h1:2VZ+SM5xRcs5YpcWJ+MdG2OM133LLDjN28ZVZQJZPvM=
-github.com/88labs/go-utils/ulid v0.1.1/go.mod h1:CdXMFnfOBJ4nNAeePpiTmNvEONQWSEjlQNhhtgOrEl8=
+github.com/88labs/go-utils/ulid v0.2.0 h1:F4CNoXZirrzgvNNf1dxQAoPGX6AdoC9a/nZ/yk8E3w4=
+github.com/88labs/go-utils/ulid v0.2.0/go.mod h1:7RT6ypL2s+Z+T/rSA0sJ7fLu3rK5LXE9VnBI3EeZsnI=
 github.com/88labs/go-utils/utf8bom v0.2.0 h1:w/5X+l2aNEipgS2K7FG4Z8CBToV4XTc1Aunr6I2DqaM=
 github.com/88labs/go-utils/utf8bom v0.2.0/go.mod h1:r7Lk2ou05qj/bk2tM5mEDMUU3gnWcThEp10jvw0xCi0=
 github.com/aws/aws-sdk-go-v2 v1.17.4 h1:wyC6p9Yfq6V2y98wfDsj6OnNQa4w2BLGCLIxzNhwOGY=
