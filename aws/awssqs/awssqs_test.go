@@ -47,7 +47,7 @@ func Cleanup() {
 	}
 }
 
-func TestSentMessage(t *testing.T) {
+func TestSendMessage(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
@@ -65,7 +65,7 @@ func TestSentMessage(t *testing.T) {
 			ID:   1,
 			Name: faker.Name(),
 		}
-		res, err := awssqs.SentMessage(ctx, TestRegion, TestQueue, message)
+		res, err := awssqs.SendMessage(ctx, TestRegion, TestQueue, message)
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -78,7 +78,7 @@ func TestSentMessage(t *testing.T) {
 		}
 		uniq := make(map[string]struct{})
 		for i := 0; i < 3; i++ {
-			res, err := awssqs.SentMessage(ctx, TestRegion, TestQueue, message)
+			res, err := awssqs.SendMessage(ctx, TestRegion, TestQueue, message)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -112,7 +112,7 @@ func TestRetrieveAndDeleteMessage(t *testing.T) {
 			ID:   count,
 			Name: faker.Name(),
 		}
-		_, err := awssqs.SentMessage(ctx, TestRegion, TestQueue, message)
+		_, err := awssqs.SendMessage(ctx, TestRegion, TestQueue, message)
 		assert.NoError(t, err)
 	}
 

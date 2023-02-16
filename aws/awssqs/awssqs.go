@@ -24,13 +24,13 @@ func (q QueueURL) AWSString() *string {
 	return aws.String(string(q))
 }
 
-// SentMessage
+// SendMessage
 // aws-sdk-go v2 sqs SentMessage
 // convert message to json and send to sqs.
 // default DelaySeconds=0
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func SentMessage(ctx context.Context, region awsconfig.Region, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption) (*sqs.SendMessageOutput, error) {
+func SendMessage(ctx context.Context, region awsconfig.Region, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption) (*sqs.SendMessageOutput, error) {
 	c := sqssend.GetConf(opts...)
 	client, err := GetClient(ctx, region)
 	if err != nil {
