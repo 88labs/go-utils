@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -13,23 +15,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tomtwinkle/utfbomremover"
-	"golang.org/x/text/transform"
-
-	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
-
-	"github.com/aws/smithy-go"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	awshttp "github.com/aws/smithy-go/transport/http"
+	"github.com/tomtwinkle/utfbomremover"
+	"golang.org/x/text/transform"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3/options/s3download"
 	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
+	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
 	"github.com/88labs/go-utils/aws/awss3/options/s3upload"
 )
+
+var ErrNotFound = errors.New("NotFound")
 
 type BucketName string
 
@@ -138,12 +140,22 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 	if err != nil {
 		return nil, err
 	}
-	return client.HeadObject(
+	res, err := client.HeadObject(
 		ctx,
 		&s3.HeadObjectInput{
 			Bucket: bucketName.AWSString(),
 			Key:    key.AWSString(),
 		})
+	if err != nil {
+		var oe *smithy.GenericAPIError
+		if errors.As(err, &oe) {
+			if oe.Code == "NotFound" {
+				return nil, ErrNotFound
+			}
+		}
+		return nil, err
+	}
+	return res, nil
 }
 
 // GetObjectWriter
@@ -160,6 +172,15 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 		Key:    key.AWSString(),
 	})
 	if err != nil {
+		var oe *smithy.OperationError
+		if errors.As(err, &oe) {
+			var resErr *awshttp.ResponseError
+			if errors.As(oe.Err, &resErr) {
+				if resErr.Response.StatusCode == http.StatusNotFound {
+					return ErrNotFound
+				}
+			}
+		}
 		return err
 	}
 	if _, err := io.Copy(w, resp.Body); err != nil {
@@ -172,6 +193,10 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 // aws-sdk-go v2 DeleteObject
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key) (*s3.DeleteObjectOutput, error) {
+	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
+		return nil, err
+	}
+
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
@@ -246,11 +271,16 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3presigned.OptionS3Presigned) (string, error) {
+	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
+		return "", err
+	}
+
 	c := s3presigned.GetS3PresignedConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return "", err
 	}
+
 	// @todo: not been able to test with and without option. create a separate function for input settings.
 	input := &s3.GetObjectInput{
 		Bucket: bucketName.AWSString(),
@@ -299,6 +329,15 @@ func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, s
 		req.Expires = aws.Time(time.Now().Add(*c.S3Expires))
 	}
 	if _, err := client.CopyObject(ctx, req); err != nil {
+		var oe *smithy.OperationError
+		if errors.As(err, &oe) {
+			var resErr *awshttp.ResponseError
+			if errors.As(oe.Err, &resErr) {
+				if resErr.Response.StatusCode == http.StatusNotFound {
+					return ErrNotFound
+				}
+			}
+		}
 		return err
 	}
 	return nil

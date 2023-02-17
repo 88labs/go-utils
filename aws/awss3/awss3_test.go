@@ -67,7 +67,9 @@ func TestHeadObject(t *testing.T) {
 	})
 	t.Run("not exists object", func(t *testing.T) {
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
-		assert.Error(t, err)
+		if assert.Error(t, err) {
+			assert.ErrorIs(t, awss3.ErrNotFound, err)
+		}
 	})
 }
 
@@ -102,6 +104,14 @@ func TestGetObject(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "test", string(buf.Bytes()))
 	})
+
+	t.Run("GetObjectWriter NotFound", func(t *testing.T) {
+		var buf bytes.Buffer
+		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, "NOT_FOUND", &buf)
+		if assert.Error(t, err) {
+			assert.ErrorIs(t, awss3.ErrNotFound, err)
+		}
+	})
 }
 
 func TestDeleteObject(t *testing.T) {
@@ -134,6 +144,13 @@ func TestDeleteObject(t *testing.T) {
 		assert.NoError(t, err)
 		_, err = awss3.HeadObject(ctx, TestRegion, TestBucket, key)
 		assert.Error(t, err)
+	})
+
+	t.Run("DeleteObject NotFound", func(t *testing.T) {
+		_, err := awss3.DeleteObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
+		if assert.Error(t, err) {
+			assert.ErrorIs(t, awss3.ErrNotFound, err)
+		}
 	})
 }
 
@@ -284,6 +301,12 @@ func TestPresign(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, presign)
 	})
+	t.Run("Presign NotFound", func(t *testing.T) {
+		_, err := awss3.Presign(ctx, TestRegion, TestBucket, "NOT_FOUND")
+		if assert.Error(t, err) {
+			assert.ErrorIs(t, awss3.ErrNotFound, err)
+		}
+	})
 }
 
 func TestResponseContentDisposition(t *testing.T) {
@@ -341,6 +364,18 @@ func TestCopy(t *testing.T) {
 		)
 		key := createFixture(ctx)
 		assert.NoError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key))
+	})
+
+	t.Run("Copy:NotFound", func(t *testing.T) {
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		err := awss3.Copy(ctx, TestRegion, TestBucket, "NOT_FOUND", "NOT_FOUND")
+		if assert.Error(t, err) {
+			assert.ErrorIs(t, awss3.ErrNotFound, err)
+		}
 	})
 }
 
