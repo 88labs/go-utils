@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/88labs/go-utils/aws/awss3/options/s3head"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -135,11 +137,29 @@ func UploadManager(ctx context.Context, region awsconfig.Region, bucketName Buck
 // aws-sdk-go v2 HeadObject
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key) (*s3.HeadObjectOutput, error) {
+func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3head.OptionS3Head) (*s3.HeadObjectOutput, error) {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
+
+	c := s3head.GetS3HeadConf(opts...)
+	if c.Timeout > 0 {
+		waiter := s3.NewObjectExistsWaiter(client, func(options *s3.ObjectExistsWaiterOptions) {
+			options.MinDelay = c.MinDelay
+			options.MaxDelay = c.MaxDelay
+			options.LogWaitAttempts = c.LogWaitAttempts
+		})
+		err := waiter.Wait(ctx, &s3.HeadObjectInput{
+			Bucket: bucketName.AWSString(),
+			Key:    key.AWSString(),
+		}, c.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("%w:%v", ErrNotFound, err)
+		}
+		return nil, nil
+	}
+
 	res, err := client.HeadObject(
 		ctx,
 		&s3.HeadObjectInput{
@@ -163,6 +183,10 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, w io.Writer) error {
+	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
+		return err
+	}
+
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
