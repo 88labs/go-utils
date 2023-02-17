@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/88labs/go-utils/aws/awss3/options/s3head"
 
 	"github.com/88labs/go-utils/utf8bom"
 
@@ -69,6 +72,21 @@ func TestHeadObject(t *testing.T) {
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
 		if assert.Error(t, err) {
 			assert.ErrorIs(t, awss3.ErrNotFound, err)
+		}
+	})
+	t.Run("exists object use Waiter", func(t *testing.T) {
+		key := createFixture()
+		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key,
+			s3head.WithTimeout(5*time.Second),
+		)
+		assert.NoError(t, err)
+	})
+	t.Run("not exists object use Waiter", func(t *testing.T) {
+		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND",
+			s3head.WithTimeout(5*time.Second),
+		)
+		if assert.Error(t, err) {
+			assert.ErrorIs(t, awss3.ErrNotFound, errors.Unwrap(err))
 		}
 	})
 }
