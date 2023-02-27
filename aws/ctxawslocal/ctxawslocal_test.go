@@ -36,6 +36,7 @@ func TestGetConf(t *testing.T) {
 			SessionToken:    "",
 			S3Endpoint:      "http://127.0.0.1:4566", // localstack default endpoint
 			SQSEndpoint:     "http://127.0.0.1:4566", // localstack default endpoint
+			CognitoEndpoint: "",
 		}, c)
 	})
 	t.Run("set config", func(t *testing.T) {
@@ -45,6 +46,7 @@ func TestGetConf(t *testing.T) {
 			ctxawslocal.WithSessionToken("DUMMYTOKEN"),
 			ctxawslocal.WithS3Endpoint("http://localhost:14572"),
 			ctxawslocal.WithSQSEndpoint("http://localhost:24572"),
+			ctxawslocal.WithCognitoEndpoint("http://localhost:34572"),
 		)
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
@@ -54,6 +56,7 @@ func TestGetConf(t *testing.T) {
 			SessionToken:    "DUMMYTOKEN",
 			S3Endpoint:      "http://localhost:14572",
 			SQSEndpoint:     "http://localhost:24572",
+			CognitoEndpoint: "http://localhost:34572",
 		}, c)
 	})
 }
