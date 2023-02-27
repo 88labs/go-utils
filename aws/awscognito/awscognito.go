@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/88labs/go-utils/aws/ctxawslocal"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
@@ -49,4 +51,23 @@ func GetCredentialsForIdentity(ctx context.Context, region awsconfig.Region, ide
 		return nil, err
 	}
 	return res, nil
+}
+
+type LocalProfile struct {
+	Endpoint        string
+	AccessKey       string
+	SecretAccessKey string
+	SessionToken    string
+}
+
+func getLocalEndpoint(ctx context.Context) (*LocalProfile, bool) {
+	if c, ok := ctxawslocal.GetConf(ctx); ok {
+		p := new(LocalProfile)
+		p.Endpoint = c.S3Endpoint
+		p.AccessKey = c.AccessKey
+		p.SecretAccessKey = c.SecretAccessKey
+		p.SessionToken = c.SessionToken
+		return p, true
+	}
+	return nil, false
 }
