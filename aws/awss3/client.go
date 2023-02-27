@@ -48,6 +48,7 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client,
 			Value: aws.Credentials{
 				AccessKeyID:     localProfile.AccessKey,
 				SecretAccessKey: localProfile.SecretAccessKey,
+				SessionToken:    localProfile.SessionToken,
 			},
 		}),
 	)
@@ -61,6 +62,7 @@ type LocalProfile struct {
 	Endpoint        string
 	AccessKey       string
 	SecretAccessKey string
+	SessionToken    string
 }
 
 func getLocalEndpoint(ctx context.Context) (*LocalProfile, bool) {
@@ -69,6 +71,7 @@ func getLocalEndpoint(ctx context.Context) (*LocalProfile, bool) {
 		p.Endpoint = c.S3Endpoint
 		p.AccessKey = c.AccessKey
 		p.SecretAccessKey = c.SecretAccessKey
+		p.SessionToken = c.SessionToken
 		return p, true
 	}
 	return nil, false
