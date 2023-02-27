@@ -7,6 +7,7 @@ type OptionMock interface {
 type ConfMock struct {
 	AccessKey       string
 	SecretAccessKey string
+	SessionToken    string
 	S3Endpoint      string
 	SQSEndpoint     string
 }
@@ -15,8 +16,9 @@ type ConfMock struct {
 func getConf(opts ...OptionMock) ConfMock {
 	// default options
 	c := ConfMock{
-		AccessKey:       "test",                  // localstack default AccessKey
-		SecretAccessKey: "test",                  // localstack default SecretAccessKey
+		AccessKey:       "test", // localstack default AccessKey
+		SecretAccessKey: "test", // localstack default SecretAccessKey
+		SessionToken:    "",
 		S3Endpoint:      "http://127.0.0.1:4566", // localstack default endpoint
 		SQSEndpoint:     "http://127.0.0.1:4566", // localstack default endpoint
 	}
@@ -44,6 +46,16 @@ func (o OptionSecretAccessKey) Apply(c *ConfMock) {
 
 func WithSecretAccessKey(secretAccessKey string) OptionSecretAccessKey {
 	return OptionSecretAccessKey(secretAccessKey)
+}
+
+type OptionSessionToken string
+
+func (o OptionSessionToken) Apply(c *ConfMock) {
+	c.SessionToken = string(o)
+}
+
+func WithSessionToken(sessionToken string) OptionSessionToken {
+	return OptionSessionToken(sessionToken)
 }
 
 type OptionS3Endpoint string
