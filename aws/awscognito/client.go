@@ -3,6 +3,7 @@ package awscognito
 import (
 	"context"
 	"fmt"
+	"github.com/88labs/go-utils/aws/awsconfig"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -15,12 +16,12 @@ import (
 // GetClient
 // Get cognito client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks
-func GetClient(ctx context.Context) (*cognitoidentity.Client, error) {
+func GetClient(ctx context.Context, region awsconfig.Region) (*cognitoidentity.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
 		return getClientLocal(ctx, *localProfile)
 	}
 	// S3 Client
-	awsCfg, err := awsConfig.LoadDefaultConfig(ctx)
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
