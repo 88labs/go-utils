@@ -10,6 +10,7 @@ type ConfMock struct {
 	SessionToken    string
 	S3Endpoint      string
 	SQSEndpoint     string
+	CognitoEndpoint string
 }
 
 // nolint:revive
@@ -76,4 +77,14 @@ func (o OptionSQSEndpoint) Apply(c *ConfMock) {
 
 func WithSQSEndpoint(endpoint string) OptionSQSEndpoint {
 	return OptionSQSEndpoint(endpoint)
+}
+
+type OptionCognitoEndpoint string
+
+func (o OptionCognitoEndpoint) Apply(c *ConfMock) {
+	c.CognitoEndpoint = string(o)
+}
+
+func WithCognitoEndpoint(endpoint string) OptionCognitoEndpoint {
+	return OptionCognitoEndpoint(endpoint)
 }
