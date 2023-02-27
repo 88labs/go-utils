@@ -75,6 +75,9 @@ autolabeler:
   - label: github
     files:
       - '.github/**/*'
+  - label: patch
+    branch:
+      - '/^dependabot.+/'
   - label: lib:aws
     files:
       - 'aws/**/*'

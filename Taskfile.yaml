@@ -86,3 +86,47 @@ tasks:
     dir: utf8bom
     cmds:
       - go mod tidy
+
+  go-mod-updates:
+    deps: [
+      go-mod-update-aws,go-mod-update-cerrors,go-mod-update-envlookup,go-mod-update-errgroup,go-mod-update-osext,
+      go-mod-update-sql-escape,go-mod-update-tspb_cast,go-mod-update-ulid,go-mod-update-utf8bom,
+    ]
+    cmds:
+      - task go-mod-tidy
+  go-mod-update-aws:
+    dir: aws
+    cmds:
+      - go get -u ./...
+  go-mod-update-cerrors:
+    dir: cerrors
+    cmds:
+      - go get -u ./...
+  go-mod-update-envlookup:
+    dir: envlookup
+    cmds:
+      - go get -u ./...
+  go-mod-update-errgroup:
+    dir: errgroup
+    cmds:
+      - go get -u ./...
+  go-mod-update-osext:
+    dir: osext
+    cmds:
+      - go get -u ./...
+  go-mod-update-sql-escape:
+    dir: sql-escape
+    cmds:
+      - go get -u ./...
+  go-mod-update-tspb_cast:
+    dir: tspb_cast
+    cmds:
+      - go get -u ./...
+  go-mod-update-ulid:
+    dir: ulid
+    cmds:
+      - go get -u ./...
+  go-mod-update-utf8bom:
+    dir: utf8bom
+    cmds:
+      - go get -u ./...
