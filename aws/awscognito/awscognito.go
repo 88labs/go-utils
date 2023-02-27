@@ -25,6 +25,8 @@ func GetCredentialsForIdentity(ctx context.Context, region awsconfig.Region, ide
 			IdentityId:    aws.String(identityId),
 			CustomRoleArn: nil,
 			Logins:        logins,
+		}, func(options *cognitoidentity.Options) {
+			options.Region = region.String()
 		})
 	if err != nil {
 		return nil, err
