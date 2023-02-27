@@ -2,8 +2,10 @@ package awscognito
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
@@ -14,7 +16,13 @@ import (
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func GetCredentialsForIdentity(ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	localProfile, _ := getLocalEndpoint(ctx)
+	// Cognito Client
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %w", err)
+	}
+	client := cognitoidentity.NewFromConfig(awsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -27,6 +35,15 @@ func GetCredentialsForIdentity(ctx context.Context, region awsconfig.Region, ide
 			Logins:        logins,
 		}, func(options *cognitoidentity.Options) {
 			options.Region = region.String()
+			if localProfile != nil {
+				options.Credentials = aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{
+						AccessKeyID:     localProfile.AccessKey,
+						SecretAccessKey: localProfile.SecretAccessKey,
+						SessionToken:    localProfile.SessionToken,
+					}, nil
+				})
+			}
 		})
 	if err != nil {
 		return nil, err
