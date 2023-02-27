@@ -1,7 +1,7 @@
 github.com/88labs/go-utils/ulid v0.2.0 h1:F4CNoXZirrzgvNNf1dxQAoPGX6AdoC9a/nZ/yk8E3w4=
 github.com/88labs/go-utils/ulid v0.2.0/go.mod h1:7RT6ypL2s+Z+T/rSA0sJ7fLu3rK5LXE9VnBI3EeZsnI=
-github.com/88labs/go-utils/utf8bom v0.2.0 h1:w/5X+l2aNEipgS2K7FG4Z8CBToV4XTc1Aunr6I2DqaM=
-github.com/88labs/go-utils/utf8bom v0.2.0/go.mod h1:r7Lk2ou05qj/bk2tM5mEDMUU3gnWcThEp10jvw0xCi0=
+github.com/88labs/go-utils/utf8bom v0.3.0 h1:fUq25oFw+NhR4JXoVYi6FlW2edH1DhR5Hhm+acAyP4U=
+github.com/88labs/go-utils/utf8bom v0.3.0/go.mod h1:HLoOaVaqf0vGfO648KM3XUEoguVXMxt1dFTLMi5ZyxM=
 github.com/aws/aws-sdk-go-v2 v1.17.5 h1:TzCUW1Nq4H8Xscph5M/skINUitxM5UBAyvm2s7XBzL4=
 github.com/aws/aws-sdk-go-v2 v1.17.5/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 h1:dK82zF6kkPeCo8J1e+tGx4JdvDIQzj7ygIoLg8WMuGs=
