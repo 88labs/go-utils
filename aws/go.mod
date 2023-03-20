@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.58
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.15.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.6
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.4
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.5
 	github.com/aws/smithy-go v1.13.5
 	github.com/bxcodec/faker/v3 v3.8.1
 	github.com/stretchr/testify v1.8.2
