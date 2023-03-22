@@ -59,6 +59,10 @@ func (k Key) BucketJoinAWSString(bucketName BucketName) *string {
 	return aws.String(path.Join(bucketName.String(), k.String()))
 }
 
+func (k Key) Ext() string {
+	return strings.ToLower(filepath.Ext(string(k)))
+}
+
 type Keys []Key
 
 func NewKeys(keys ...string) Keys {
@@ -312,6 +316,11 @@ func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName
 	}
 	if c.PresignFileName != "" {
 		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.ContentDispositionType, c.PresignFileName))
+	}
+	// Note: Fixed a bug in which the response is returned with `Content-Type:pdf` in case of PDF.
+	// convert to Content-Type: application/pdf.
+	if key.Ext() == ".pdf" {
+		input.ResponseContentType = aws.String("application/pdf")
 	}
 	ps := s3.NewPresignClient(client)
 	resp, err := ps.PresignGetObject(ctx, input, func(o *s3.PresignOptions) {
