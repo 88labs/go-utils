@@ -297,25 +297,54 @@ func TestPresign(t *testing.T) {
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
-	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	if err != nil {
-		t.Fatal(err)
+	uploadText := func() awss3.Key {
+		s3Client, err := awss3.GetClient(ctx, TestRegion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader("test"),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			assert.NoError(t, err)
+			return ""
+		}
+		return awss3.Key(key)
 	}
-	key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-	uploader := manager.NewUploader(s3Client)
-	input := s3.PutObjectInput{
-		Body:    strings.NewReader("test"),
-		Bucket:  aws.String(TestBucket),
-		Key:     aws.String(key),
-		Expires: aws.Time(time.Now().Add(10 * time.Minute)),
-	}
-	if _, err := uploader.Upload(ctx, &input); err != nil {
-		assert.NoError(t, err)
-		return
+	uploadPDF := func() awss3.Key {
+		s3Client, err := awss3.GetClient(ctx, TestRegion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := fmt.Sprintf("awstest/%s.pdf", ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader("test"),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			assert.NoError(t, err)
+			return ""
+		}
+		return awss3.Key(key)
 	}
 
 	t.Run("Presign", func(t *testing.T) {
-		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, awss3.Key(key))
+		key := uploadText()
+		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, presign)
+	})
+	t.Run("Presign PDF", func(t *testing.T) {
+		key := uploadPDF()
+		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, presign)
 	})
