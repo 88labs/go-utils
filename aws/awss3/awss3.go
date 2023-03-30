@@ -95,7 +95,7 @@ func (o Objects) Find(key Key) (types.Object, bool) {
 		if v.Key == nil {
 			continue
 		}
-		if v.Key == key.AWSString() {
+		if *v.Key == key.String() {
 			return v, true
 		}
 	}

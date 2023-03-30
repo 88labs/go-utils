@@ -44,6 +44,7 @@ const (
 func TestHeadObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -96,6 +97,7 @@ func TestHeadObject(t *testing.T) {
 func TestListObjects(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -150,11 +152,26 @@ func TestListObjects(t *testing.T) {
 			t.Errorf("%s found", key3)
 		}
 	})
+
+	t.Run("ListObjects 1001 objects", func(t *testing.T) {
+		keys := make([]awss3.Key, 1001)
+		for i := 0; i < 1001; i++ {
+			keys[i] = createFixture("piyo")
+		}
+		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket)
+		assert.NoError(t, err)
+		for _, key := range keys {
+			if _, ok := res.Find(key); !ok {
+				t.Errorf("%s not found", key)
+			}
+		}
+	})
 }
 
 func TestGetObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -196,6 +213,7 @@ func TestGetObject(t *testing.T) {
 func TestDeleteObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -236,6 +254,7 @@ func TestDeleteObject(t *testing.T) {
 func TestDownloadFiles(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -312,6 +331,7 @@ func TestDownloadFiles(t *testing.T) {
 func TestPutObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -333,6 +353,7 @@ func TestPutObject(t *testing.T) {
 func TestUploadManager(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -355,6 +376,7 @@ func TestUploadManager(t *testing.T) {
 func TestPresign(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -457,6 +479,7 @@ func TestCopy(t *testing.T) {
 	t.Run("Copy:Same Bucket and Other Key", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -467,6 +490,7 @@ func TestCopy(t *testing.T) {
 	t.Run("Copy:Same Item", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -477,6 +501,7 @@ func TestCopy(t *testing.T) {
 	t.Run("Copy:NotFound", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
