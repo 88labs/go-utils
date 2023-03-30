@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/88labs/go-utils/aws/awss3/options/s3list"
+
 	"github.com/88labs/go-utils/aws/awss3/options/s3head"
 
 	"github.com/88labs/go-utils/utf8bom"
@@ -87,6 +89,65 @@ func TestHeadObject(t *testing.T) {
 		)
 		if assert.Error(t, err) {
 			assert.ErrorIs(t, awss3.ErrNotFound, errors.Unwrap(err))
+		}
+	})
+}
+
+func TestListObjects(t *testing.T) {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NoError(t, err)
+
+	createFixture := func(prefix string) awss3.Key {
+		key := fmt.Sprintf("%s/awstest/%s.txt", prefix, ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader("test"),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			assert.NoError(t, err)
+		}
+		return awss3.Key(key)
+	}
+
+	t.Run("ListObjects", func(t *testing.T) {
+		key1 := createFixture("hoge")
+		key2 := createFixture("hoge")
+		key3 := createFixture("hoge")
+		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket)
+		assert.NoError(t, err)
+		if _, ok := res.Find(key1); !ok {
+			t.Errorf("%s not found", key1)
+		}
+		if _, ok := res.Find(key2); !ok {
+			t.Errorf("%s not found", key2)
+		}
+		if _, ok := res.Find(key3); !ok {
+			t.Errorf("%s not found", key3)
+		}
+	})
+
+	t.Run("ListObjects OptionsPrefix", func(t *testing.T) {
+		key1 := createFixture("hoge")
+		key2 := createFixture("hoge")
+		key3 := createFixture("fuga")
+		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket, s3list.WithPrefix("hoge"))
+		assert.NoError(t, err)
+		if _, ok := res.Find(key1); !ok {
+			t.Errorf("%s not found", key1)
+		}
+		if _, ok := res.Find(key2); !ok {
+			t.Errorf("%s not found", key2)
+		}
+		if _, ok := res.Find(key3); ok {
+			t.Errorf("%s found", key3)
 		}
 	})
 }

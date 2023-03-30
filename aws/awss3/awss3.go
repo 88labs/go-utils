@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/88labs/go-utils/aws/awss3/options/s3list"
+
 	"github.com/88labs/go-utils/aws/awss3/options/s3head"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -84,6 +86,20 @@ func (ks Keys) Unique() Keys {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+type Objects []types.Object
+
+func (o Objects) Find(key Key) (types.Object, bool) {
+	for _, v := range o {
+		if v.Key == nil {
+			continue
+		}
+		if v.Key == key.AWSString() {
+			return v, true
+		}
+	}
+	return types.Object{}, false
 }
 
 // PutObject
@@ -180,6 +196,35 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 		return nil, err
 	}
 	return res, nil
+}
+
+// ListObjects
+// aws-sdk-go v2 ListObjectsV2
+//
+// Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
+func ListObjects(ctx context.Context, region awsconfig.Region, bucketName BucketName, opts ...s3list.OptionS3List) (Objects, error) {
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+	c := s3list.GetS3ListConf(opts...)
+
+	input := &s3.ListObjectsV2Input{
+		Bucket: bucketName.AWSString(),
+	}
+	if c.Prefix != nil {
+		input.Prefix = c.Prefix
+	}
+	objects := make(Objects, 0)
+	paginator := s3.NewListObjectsV2Paginator(client, input)
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, output.Contents...)
+	}
+	return objects, nil
 }
 
 // GetObjectWriter
