@@ -1,21 +1,13 @@
 version: '3'
 services:
-  localstack:
-    image: localstack/localstack:latest
-    container_name: go_utils_localstack
+  elasticmq:
+    image: softwaremill/elasticmq:latest
+    container_name: go_utils_elasticmq
     ports:
-      - "4566:4566" # Status
-    environment:
-      - AWS_ACCESS_KEY_ID=DUMMYACCESSKEYEXAMPLE
-      - AWS_SECRET_ACCESS_KEY=DUMMYSECRETKEYEXAMPLE
-      - AWS_DEFAULT_REGION=ap-northeast-1
-      - AWS_EC2_METADATA_DISABLED=true
-      - SERVICES=sqs
-      - DATA_DIR=/tmp/localstack/data
-      - DISABLE_CORS_CHECKS=1
-      - EDGE_BIND_HOST=0.0.0.0
+      - "29324:29324"
+      - "29325:29325"
     volumes:
-      - ./docker/localstack/init:/docker-entrypoint-initaws.d
+      - ./docker/sqs_elasticmq/opt/elasticmq.conf:/opt/elasticmq.conf:ro
   minio:
     image: minio/minio:latest
     container_name: go_utils_minio_ci
