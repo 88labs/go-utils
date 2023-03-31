@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/88labs/go-utils/aws/awss3/options/s3list"
+
 	"github.com/88labs/go-utils/aws/awss3/options/s3head"
 
 	"github.com/88labs/go-utils/utf8bom"
@@ -42,6 +44,7 @@ const (
 func TestHeadObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -91,9 +94,84 @@ func TestHeadObject(t *testing.T) {
 	})
 }
 
+func TestListObjects(t *testing.T) {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NoError(t, err)
+
+	createFixture := func(prefix string) awss3.Key {
+		key := fmt.Sprintf("%s/awstest/%s.txt", prefix, ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader("test"),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			assert.NoError(t, err)
+		}
+		return awss3.Key(key)
+	}
+
+	t.Run("ListObjects", func(t *testing.T) {
+		key1 := createFixture("hoge")
+		key2 := createFixture("hoge")
+		key3 := createFixture("hoge")
+		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket)
+		assert.NoError(t, err)
+		if _, ok := res.Find(key1); !ok {
+			t.Errorf("%s not found", key1)
+		}
+		if _, ok := res.Find(key2); !ok {
+			t.Errorf("%s not found", key2)
+		}
+		if _, ok := res.Find(key3); !ok {
+			t.Errorf("%s not found", key3)
+		}
+	})
+
+	t.Run("ListObjects OptionsPrefix", func(t *testing.T) {
+		key1 := createFixture("hoge")
+		key2 := createFixture("hoge")
+		key3 := createFixture("fuga")
+		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket, s3list.WithPrefix("hoge"))
+		assert.NoError(t, err)
+		if _, ok := res.Find(key1); !ok {
+			t.Errorf("%s not found", key1)
+		}
+		if _, ok := res.Find(key2); !ok {
+			t.Errorf("%s not found", key2)
+		}
+		if _, ok := res.Find(key3); ok {
+			t.Errorf("%s found", key3)
+		}
+	})
+
+	t.Run("ListObjects 1001 objects", func(t *testing.T) {
+		keys := make([]awss3.Key, 1001)
+		for i := 0; i < 1001; i++ {
+			keys[i] = createFixture("piyo")
+		}
+		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket)
+		assert.NoError(t, err)
+		for _, key := range keys {
+			if _, ok := res.Find(key); !ok {
+				t.Errorf("%s not found", key)
+			}
+		}
+	})
+}
+
 func TestGetObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -135,6 +213,7 @@ func TestGetObject(t *testing.T) {
 func TestDeleteObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -175,6 +254,7 @@ func TestDeleteObject(t *testing.T) {
 func TestDownloadFiles(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -251,6 +331,7 @@ func TestDownloadFiles(t *testing.T) {
 func TestPutObject(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -272,6 +353,7 @@ func TestPutObject(t *testing.T) {
 func TestUploadManager(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -294,6 +376,7 @@ func TestUploadManager(t *testing.T) {
 func TestPresign(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -396,6 +479,7 @@ func TestCopy(t *testing.T) {
 	t.Run("Copy:Same Bucket and Other Key", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -406,6 +490,7 @@ func TestCopy(t *testing.T) {
 	t.Run("Copy:Same Item", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -416,6 +501,7 @@ func TestCopy(t *testing.T) {
 	t.Run("Copy:NotFound", func(t *testing.T) {
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)

@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	TestQueue  = "http://127.0.0.1:4566/000000000000/test-queue"
+	TestQueue  = "http://127.0.0.1:29324/000000000000/test-queue"
+	TestQueue2 = "http://127.0.0.1:29324/000000000000/test-2-queue"
 	TestRegion = awsconfig.RegionTokyo
 )
 
@@ -27,7 +28,7 @@ func Cleanup() {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
 	)
 	res, err := awssqs.ReceiveMessage(ctx, TestRegion, TestQueue,
 		sqsreceive.WithWaitTimeSeconds(0),
@@ -52,7 +53,7 @@ func TestSendMessage(t *testing.T) {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
 	)
 
 	t.Cleanup(Cleanup)
@@ -97,7 +98,7 @@ func TestSendMessageGob(t *testing.T) {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
 	)
 
 	t.Cleanup(Cleanup)
@@ -142,7 +143,7 @@ func TestReceiveAndDeleteMessage(t *testing.T) {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
 	)
 
 	t.Cleanup(Cleanup)
@@ -159,6 +160,7 @@ func TestReceiveAndDeleteMessage(t *testing.T) {
 		}
 		_, err := awssqs.SendMessage(ctx, TestRegion, TestQueue, message)
 		assert.NoError(t, err)
+		time.Sleep(5 * time.Second)
 	}
 
 	t.Run("Retrieve And DeleteMessage:1 message", func(t *testing.T) {
@@ -178,7 +180,6 @@ func TestReceiveAndDeleteMessage(t *testing.T) {
 	t.Run("Do not get the same queue during VisibilityTimeout", func(t *testing.T) {
 		createFixture(t, ctx)
 		createFixture(t, ctx)
-		time.Sleep(1 * time.Second)
 		var (
 			eg                     errgroup.Group
 			messageID1, messageID2 string
@@ -219,7 +220,7 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 		context.Background(),
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:4566"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
 	)
 
 	t.Cleanup(Cleanup)
@@ -234,13 +235,14 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 			ID:   count,
 			Name: faker.Name(),
 		}
-		_, err := awssqs.SendMessageGob(ctx, TestRegion, TestQueue, message)
+		_, err := awssqs.SendMessageGob(ctx, TestRegion, TestQueue2, message)
 		assert.NoError(t, err)
+		time.Sleep(5 * time.Second)
 	}
 
 	t.Run("Retrieve And DeleteMessage:1 message", func(t *testing.T) {
 		createFixture(t, ctx)
-		items, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue, TestMessageBody{}, sqsreceive.WithWaitTimeSeconds(0))
+		items, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue2, TestMessageBody{}, sqsreceive.WithWaitTimeSeconds(0))
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -252,7 +254,7 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 		}
 		if assert.Greater(t, len(res.Messages), 0) {
 			for _, m := range res.Messages {
-				err := awssqs.DeleteMessage(ctx, TestRegion, TestQueue, m)
+				err := awssqs.DeleteMessage(ctx, TestRegion, TestQueue2, m)
 				assert.NoError(t, err)
 			}
 		}
@@ -261,13 +263,12 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 	t.Run("Do not get the same queue during VisibilityTimeout", func(t *testing.T) {
 		createFixture(t, ctx)
 		createFixture(t, ctx)
-		time.Sleep(1 * time.Second)
 		var (
 			eg                     errgroup.Group
 			messageID1, messageID2 string
 		)
 		eg.Go(func() error {
-			_, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue, TestMessageBody{},
+			_, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue2, TestMessageBody{},
 				sqsreceive.WithWaitTimeSeconds(0),
 				sqsreceive.WithVisibilityTimeout(5),
 			)
@@ -280,7 +281,7 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 			return nil
 		})
 		eg.Go(func() error {
-			_, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue, TestMessageBody{},
+			_, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue2, TestMessageBody{},
 				sqsreceive.WithWaitTimeSeconds(0),
 				sqsreceive.WithVisibilityTimeout(5),
 			)
