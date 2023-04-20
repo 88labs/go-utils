@@ -177,9 +177,7 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 		if err != nil {
 			return nil, fmt.Errorf("%w:%v", ErrNotFound, err)
 		}
-		return nil, nil
 	}
-
 	res, err := client.HeadObject(
 		ctx,
 		&s3.HeadObjectInput{
