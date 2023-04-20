@@ -51,11 +51,11 @@ func TestHeadObject(t *testing.T) {
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
 	assert.NoError(t, err)
 
-	createFixture := func() awss3.Key {
+	createFixture := func(fileSize int) awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		uploader := manager.NewUploader(s3Client)
 		input := s3.PutObjectInput{
-			Body:    strings.NewReader("test"),
+			Body:    bytes.NewReader(bytes.Repeat([]byte{1}, fileSize)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
@@ -67,9 +67,10 @@ func TestHeadObject(t *testing.T) {
 	}
 
 	t.Run("exists object", func(t *testing.T) {
-		key := createFixture()
-		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
+		key := createFixture(100)
+		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
+		assert.Equal(t, int64(100), res.ContentLength)
 	})
 	t.Run("not exists object", func(t *testing.T) {
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
@@ -78,11 +79,12 @@ func TestHeadObject(t *testing.T) {
 		}
 	})
 	t.Run("exists object use Waiter", func(t *testing.T) {
-		key := createFixture()
-		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key,
+		key := createFixture(100)
+		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key,
 			s3head.WithTimeout(5*time.Second),
 		)
 		assert.NoError(t, err)
+		assert.Equal(t, int64(100), res.ContentLength)
 	})
 	t.Run("not exists object use Waiter", func(t *testing.T) {
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND",
