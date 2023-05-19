@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/88labs/go-utils/aws v0.26.0
 	github.com/bxcodec/faker/v3 v3.8.1
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 )
 
 require (
