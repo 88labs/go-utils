@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.8
 	github.com/aws/smithy-go v1.13.5
 	github.com/bxcodec/faker/v3 v3.8.1
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	github.com/tomtwinkle/utfbomremover v0.1.1
 	golang.org/x/sync v0.1.0
 	golang.org/x/text v0.9.0
