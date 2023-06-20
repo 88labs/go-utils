@@ -185,11 +185,9 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 			Key:    key.AWSString(),
 		})
 	if err != nil {
-		var ae smithy.APIError
-		if errors.As(err, &ae) {
-			if ae.ErrorCode() == "NotFound" {
-				return nil, ErrNotFound
-			}
+		var nond *types.NotFound
+		if errors.As(err, &nond) {
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
@@ -243,14 +241,9 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 		Key:    key.AWSString(),
 	})
 	if err != nil {
-		var oe *smithy.OperationError
-		if errors.As(err, &oe) {
-			var resErr *awshttp.ResponseError
-			if errors.As(oe.Err, &resErr) {
-				if resErr.Response.StatusCode == http.StatusNotFound {
-					return ErrNotFound
-				}
-			}
+		var nond *types.NotFound
+		if errors.As(err, &nond) {
+			return ErrNotFound
 		}
 		return err
 	}
