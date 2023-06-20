@@ -34,3 +34,19 @@ type ConfGlobalDialer struct {
 	// If negative, keep-alive probes are disabled.
 	KeepAlive time.Duration
 }
+
+func NewConfGlobalDialer() *ConfGlobalDialer {
+	return &ConfGlobalDialer{}
+}
+
+func (c *ConfGlobalDialer) WithTimeout(timeout time.Duration) {
+	c.Timeout = timeout
+}
+
+func (c *ConfGlobalDialer) WithDeadline(deadline time.Time) {
+	c.Deadline = &deadline
+}
+
+func (c *ConfGlobalDialer) WithKeepAlive(keepAlive time.Duration) {
+	c.KeepAlive = keepAlive
+}
