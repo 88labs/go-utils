@@ -185,9 +185,9 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 			Key:    key.AWSString(),
 		})
 	if err != nil {
-		var oe *smithy.GenericAPIError
-		if errors.As(err, &oe) {
-			if oe.Code == "NotFound" {
+		var ae smithy.APIError
+		if errors.As(err, &ae) {
+			if ae.ErrorCode() == "NotFound" {
 				return nil, ErrNotFound
 			}
 		}
