@@ -44,6 +44,7 @@ const (
 )
 
 func TestHeadObject(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -69,18 +70,21 @@ func TestHeadObject(t *testing.T) {
 	}
 
 	t.Run("exists object", func(t *testing.T) {
+		t.Parallel()
 		key := createFixture(100)
 		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
 		assert.Equal(t, int64(100), res.ContentLength)
 	})
 	t.Run("not exists object", func(t *testing.T) {
+		t.Parallel()
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
 		if assert.Error(t, err) {
 			assert.ErrorIs(t, awss3.ErrNotFound, err)
 		}
 	})
 	t.Run("exists object use Waiter", func(t *testing.T) {
+		t.Parallel()
 		key := createFixture(100)
 		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key,
 			s3head.WithTimeout(5*time.Second),
@@ -89,6 +93,7 @@ func TestHeadObject(t *testing.T) {
 		assert.Equal(t, int64(100), res.ContentLength)
 	})
 	t.Run("not exists object use Waiter", func(t *testing.T) {
+		t.Parallel()
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND",
 			s3head.WithTimeout(5*time.Second),
 		)
@@ -99,6 +104,7 @@ func TestHeadObject(t *testing.T) {
 }
 
 func TestListObjects(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -124,6 +130,7 @@ func TestListObjects(t *testing.T) {
 	}
 
 	t.Run("ListObjects", func(t *testing.T) {
+		t.Parallel()
 		key1 := createFixture("hoge")
 		key2 := createFixture("hoge")
 		key3 := createFixture("hoge")
@@ -141,6 +148,7 @@ func TestListObjects(t *testing.T) {
 	})
 
 	t.Run("ListObjects OptionsPrefix", func(t *testing.T) {
+		t.Parallel()
 		key1 := createFixture("hoge")
 		key2 := createFixture("hoge")
 		key3 := createFixture("fuga")
@@ -158,6 +166,7 @@ func TestListObjects(t *testing.T) {
 	})
 
 	t.Run("ListObjects 1001 objects", func(t *testing.T) {
+		t.Parallel()
 		keys := make([]awss3.Key, 1001)
 		for i := 0; i < 1001; i++ {
 			keys[i] = createFixture("piyo")
@@ -173,6 +182,7 @@ func TestListObjects(t *testing.T) {
 }
 
 func TestGetObject(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -198,6 +208,7 @@ func TestGetObject(t *testing.T) {
 	}
 
 	t.Run("GetObjectWriter", func(t *testing.T) {
+		t.Parallel()
 		key := createFixture()
 		var buf bytes.Buffer
 		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, key, &buf)
@@ -206,6 +217,7 @@ func TestGetObject(t *testing.T) {
 	})
 
 	t.Run("GetObjectWriter NotFound", func(t *testing.T) {
+		t.Parallel()
 		var buf bytes.Buffer
 		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, "NOT_FOUND", &buf)
 		if assert.Error(t, err) {
@@ -215,6 +227,7 @@ func TestGetObject(t *testing.T) {
 }
 
 func TestDeleteObject(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -240,6 +253,7 @@ func TestDeleteObject(t *testing.T) {
 	}
 
 	t.Run("DeleteObject", func(t *testing.T) {
+		t.Parallel()
 		key := createFixture()
 		_, err := awss3.DeleteObject(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
@@ -248,6 +262,7 @@ func TestDeleteObject(t *testing.T) {
 	})
 
 	t.Run("DeleteObject NotFound", func(t *testing.T) {
+		t.Parallel()
 		_, err := awss3.DeleteObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
 		if assert.Error(t, err) {
 			assert.ErrorIs(t, awss3.ErrNotFound, err)
@@ -256,6 +271,7 @@ func TestDeleteObject(t *testing.T) {
 }
 
 func TestDownloadFiles(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -283,6 +299,7 @@ func TestDownloadFiles(t *testing.T) {
 	}
 
 	t.Run("no option", func(t *testing.T) {
+		t.Parallel()
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir())
 		assert.NoError(t, err)
 		if assert.Len(t, filePaths, len(keys)) {
@@ -295,6 +312,7 @@ func TestDownloadFiles(t *testing.T) {
 		}
 	})
 	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
+		t.Parallel()
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir(),
 			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "add_" + baseFileName
@@ -311,6 +329,7 @@ func TestDownloadFiles(t *testing.T) {
 		}
 	})
 	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
+		t.Parallel()
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir(),
 			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "fixname.txt"
@@ -333,6 +352,7 @@ func TestDownloadFiles(t *testing.T) {
 }
 
 func TestPutObject(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -341,6 +361,7 @@ func TestPutObject(t *testing.T) {
 	)
 
 	t.Run("PutObject", func(t *testing.T) {
+		t.Parallel()
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		body := faker.Sentence()
 		_, err := awss3.PutObject(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body))
@@ -355,6 +376,7 @@ func TestPutObject(t *testing.T) {
 }
 
 func TestUploadManager(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -363,6 +385,7 @@ func TestUploadManager(t *testing.T) {
 	)
 
 	t.Run("UploadManager", func(t *testing.T) {
+		t.Parallel()
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		body := faker.Sentence()
 		_, err := awss3.UploadManager(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body))
@@ -378,6 +401,7 @@ func TestUploadManager(t *testing.T) {
 }
 
 func TestPresign(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -424,18 +448,21 @@ func TestPresign(t *testing.T) {
 	}
 
 	t.Run("Presign", func(t *testing.T) {
+		t.Parallel()
 		key := uploadText()
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, presign)
 	})
 	t.Run("Presign PDF", func(t *testing.T) {
+		t.Parallel()
 		key := uploadPDF()
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, presign)
 	})
 	t.Run("Presign NotFound", func(t *testing.T) {
+		t.Parallel()
 		_, err := awss3.Presign(ctx, TestRegion, TestBucket, "NOT_FOUND")
 		if assert.Error(t, err) {
 			assert.ErrorIs(t, awss3.ErrNotFound, err)
@@ -444,14 +471,17 @@ func TestPresign(t *testing.T) {
 }
 
 func TestResponseContentDisposition(t *testing.T) {
+	t.Parallel()
 	const fileName = ",あいうえお　牡蠣喰家来 サシスセソ@+$_-^|+{}"
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
 		actual := awss3.ResponseContentDisposition(s3presigned.ContentDispositionTypeAttachment, fileName)
 		assert.NotEmpty(t, actual)
 	})
 }
 
 func TestCopy(t *testing.T) {
+	t.Parallel()
 	createFixture := func(ctx context.Context) awss3.Key {
 		s3Client, err := awss3.GetClient(ctx, TestRegion)
 		if err != nil {
@@ -481,6 +511,7 @@ func TestCopy(t *testing.T) {
 	}
 
 	t.Run("Copy:Same Bucket and Other Key", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -492,6 +523,7 @@ func TestCopy(t *testing.T) {
 		assert.NoError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key2))
 	})
 	t.Run("Copy:Same Item", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -503,6 +535,7 @@ func TestCopy(t *testing.T) {
 	})
 
 	t.Run("Copy:NotFound", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -517,6 +550,7 @@ func TestCopy(t *testing.T) {
 }
 
 func TestSelectCSVAll(t *testing.T) {
+	t.Parallel()
 	type TestCSV string
 	const (
 		TestCSVHeader TestCSV = `id,name,detail
@@ -580,6 +614,7 @@ func TestSelectCSVAll(t *testing.T) {
 	}
 
 	t.Run("CSV With Header", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -599,6 +634,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSV, records)
 	})
 	t.Run("CSV With Header", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -618,6 +654,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSV, records)
 	})
 	t.Run("CSV With LineFeed File:LF, Field:LF", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -639,6 +676,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV With LineFeed File:CRLF, Field:LF", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -660,6 +698,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV With LineFeed File:LF, Field:CRLF", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -681,6 +720,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV With LineFeed File:CRLF, Field:CRLF", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -703,6 +743,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV No Header", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -724,6 +765,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantNoHeaderCSV, records)
 	})
 	t.Run("CSV With UTF-8 BOM", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -743,6 +785,7 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.Equal(t, WantCSV, records)
 	})
 	t.Run("CSV 300000 records", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -767,6 +810,7 @@ func TestSelectCSVAll(t *testing.T) {
 }
 
 func TestSelectCSVHeaders(t *testing.T) {
+	t.Parallel()
 	type TestCSV string
 	const (
 		TestCSVHeader TestCSV = `id,name,detail
@@ -806,6 +850,7 @@ func TestSelectCSVHeaders(t *testing.T) {
 	}
 
 	t.Run("CSV With Header", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
@@ -821,6 +866,7 @@ func TestSelectCSVHeaders(t *testing.T) {
 		assert.Equal(t, WantCSVHeaders, got)
 	})
 	t.Run("Empty CSV", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
 			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio

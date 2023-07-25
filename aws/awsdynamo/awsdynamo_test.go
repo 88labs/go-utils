@@ -32,6 +32,7 @@ type Test struct {
 }
 
 func TestPutItem(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
@@ -40,6 +41,7 @@ func TestPutItem(t *testing.T) {
 	)
 
 	t.Run("New", func(t *testing.T) {
+		t.Parallel()
 		item := Test{
 			ID:        ulid.MustNew().String(),
 			Name:      faker.Name(),
@@ -49,6 +51,7 @@ func TestPutItem(t *testing.T) {
 		assert.NoError(t, err)
 	})
 	t.Run("New/Update", func(t *testing.T) {
+		t.Parallel()
 		item := Test{
 			ID:        ulid.MustNew().String(),
 			Name:      faker.Name(),
@@ -63,6 +66,7 @@ func TestPutItem(t *testing.T) {
 }
 
 func TestGetItem(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
@@ -78,6 +82,7 @@ func TestGetItem(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
 		var out Test
 		err := awsdynamo.GetItem(ctx, TestRegion, TestTable, "id", testItem.ID, &out)
 		assert.NoError(t, err)
@@ -91,6 +96,7 @@ func TestGetItem(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var out Test
 		err := awsdynamo.GetItem(ctx, TestRegion, TestTable, "id", "NOT_FOUND", &out)
 		assert.Error(t, err)
@@ -99,6 +105,7 @@ func TestGetItem(t *testing.T) {
 }
 
 func TestDeleteItem(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
@@ -112,6 +119,7 @@ func TestDeleteItem(t *testing.T) {
 	}
 
 	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
 		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
 		assert.NoError(t, err)
 
@@ -128,6 +136,7 @@ func TestDeleteItem(t *testing.T) {
 	})
 
 	t.Run("Delete out param nil", func(t *testing.T) {
+		t.Parallel()
 		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
 		assert.NoError(t, err)
 
@@ -136,6 +145,7 @@ func TestDeleteItem(t *testing.T) {
 	})
 
 	t.Run("Delete NotFound", func(t *testing.T) {
+		t.Parallel()
 		err := awsdynamo.DeleteItem(ctx, TestRegion, TestTable, "id", "NOT_FOUND", nil)
 		assert.Error(t, err)
 		assert.ErrorIs(t, awsdynamo.ErrNotFound, err)
@@ -143,6 +153,7 @@ func TestDeleteItem(t *testing.T) {
 }
 
 func TestUpdateItem(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
@@ -151,6 +162,7 @@ func TestUpdateItem(t *testing.T) {
 	)
 
 	t.Run("Update", func(t *testing.T) {
+		t.Parallel()
 		testItem := Test{
 			ID:        ulid.MustNew().String(),
 			Name:      faker.Name(),
@@ -177,6 +189,7 @@ func TestUpdateItem(t *testing.T) {
 	})
 
 	t.Run("Update out param nil", func(t *testing.T) {
+		t.Parallel()
 		testItem := Test{
 			ID:        ulid.MustNew().String(),
 			Name:      faker.Name(),
@@ -196,6 +209,7 @@ func TestUpdateItem(t *testing.T) {
 }
 
 func TestBatchGetItem(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
@@ -221,6 +235,7 @@ func TestBatchGetItem(t *testing.T) {
 	}
 
 	t.Run("Get 101 items", func(t *testing.T) {
+		t.Parallel()
 		ids, testItems := makeItems(101)
 		out, err := awsdynamo.BatchGetItem(ctx, TestRegion, TestTable, "id", ids, Test{})
 		assert.NoError(t, err)
@@ -243,6 +258,7 @@ func TestBatchGetItem(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		out, err := awsdynamo.BatchGetItem(ctx, TestRegion, TestTable, "id", []string{"NOT_FOUND"}, Test{})
 		assert.NoError(t, err)
 		assert.Len(t, out, 0)
@@ -250,6 +266,7 @@ func TestBatchGetItem(t *testing.T) {
 }
 
 func TestBatchWriteItem(t *testing.T) {
+	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
@@ -273,6 +290,7 @@ func TestBatchWriteItem(t *testing.T) {
 	}
 
 	t.Run("Write 26 items", func(t *testing.T) {
+		t.Parallel()
 		ids, testItems := makeItems(26)
 		err := awsdynamo.BatchWriteItem(ctx, TestRegion, TestTable, testItems)
 		assert.NoError(t, err)

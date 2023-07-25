@@ -10,23 +10,29 @@ import (
 )
 
 func TestIsLocal(t *testing.T) {
+	t.Parallel()
 	t.Run("context.Value not exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		assert.False(t, ctxawslocal.IsLocal(ctx))
 	})
 	t.Run("context.Value exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(context.Background())
 		assert.True(t, ctxawslocal.IsLocal(ctx))
 	})
 }
 
 func TestGetConf(t *testing.T) {
+	t.Parallel()
 	t.Run("context.Value not exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		_, ok := ctxawslocal.GetConf(ctx)
 		assert.False(t, ok)
 	})
 	t.Run("unspecified config", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(context.Background())
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
@@ -41,6 +47,7 @@ func TestGetConf(t *testing.T) {
 		}, c)
 	})
 	t.Run("set config", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(context.Background(),
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYACCESSKEYEXAMPLE"),

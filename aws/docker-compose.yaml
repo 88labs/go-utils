@@ -58,6 +58,7 @@ services:
       - dynamodb
     entrypoint: >
       /bin/sh -c '
+      until (aws dynamodb list-tables --endpoint-url http://dynamodb:28002 --output text) do echo '...waiting...' && sleep 1; done;
       aws dynamodb create-table --cli-input-json file:///test_tables/table_test.json --endpoint-url http://dynamodb:28002;
       '
     volumes:

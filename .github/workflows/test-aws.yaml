@@ -16,6 +16,10 @@ on:
 env:
   testdir : ./aws
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
@@ -25,30 +29,56 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
       - name: Install Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Cache Go modules
+        id: cache-go
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Download Go modules
+        working-directory: ${{ env.testdir }}
+        shell: bash
+        if: ${{ steps.cache-go.outputs.cache-hit != 'true' }}
+        run: go mod download
 
       - name: Setup Docker
         working-directory: ${{ env.testdir }}
-        run: docker-compose up -d
-
-      - name: Go Module Download
-        working-directory: ${{ env.testdir }}
+        env:
+          DOCKER_BUILDKIT: 1
         run: |
-          go install gotest.tools/gotestsum@latest
-          go mod download
+          # Create the directory for the volume of dynamodb in advance, otherwise permission error will occur.
+          # https://stackoverflow.com/questions/45850688/unable-to-open-local-dynamodb-database-file-after-power-outage
+          mkdir -p ./docker/dynamodb/data
+          sudo chmod 777 ./docker/dynamodb/data
+          docker compose up -d
+
+      - name: Wait for starting Dynamodb local
+        timeout-minutes: 1
+        env:
+          AWS_ACCESS_KEY_ID: DUMMYACCESSKEYEXAMPLE
+          AWS_SECRET_ACCESS_KEY: DUMMYSECRETKEYEXAMPLE
+          AWS_DEFAULT_REGION: ap-northeast-1
+        run: |
+          set -x
+          until (aws dynamodb describe-table --table-name test --endpoint-url http://localhost:28002 --output text) do echo '...waiting...' && sleep 1; done;
 
       - name: Test
         working-directory: ${{ env.testdir }}
-        timeout-minutes: 6
         run: |
           # shellcheck disable=SC2046
-          gotestsum --junitfile unit-tests.xml -- -v ./... -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./...
+          go test -p 4 -parallel 4 -v ./... -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./...
 
       - uses: codecov/codecov-action@v3
         with:
