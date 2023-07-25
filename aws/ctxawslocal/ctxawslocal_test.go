@@ -37,6 +37,7 @@ func TestGetConf(t *testing.T) {
 			S3Endpoint:      "http://127.0.0.1:4566", // localstack default endpoint
 			SQSEndpoint:     "http://127.0.0.1:4566", // localstack default endpoint
 			CognitoEndpoint: "",
+			DynamoEndpoint:  "http://127.0.0.1:4566", // localstack default endpoint
 		}, c)
 	})
 	t.Run("set config", func(t *testing.T) {
@@ -47,6 +48,7 @@ func TestGetConf(t *testing.T) {
 			ctxawslocal.WithS3Endpoint("http://localhost:14572"),
 			ctxawslocal.WithSQSEndpoint("http://localhost:24572"),
 			ctxawslocal.WithCognitoEndpoint("http://localhost:34572"),
+			ctxawslocal.WithDynamoEndpoint("http://localhost:44572"),
 		)
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
@@ -57,6 +59,7 @@ func TestGetConf(t *testing.T) {
 			S3Endpoint:      "http://localhost:14572",
 			SQSEndpoint:     "http://localhost:24572",
 			CognitoEndpoint: "http://localhost:34572",
+			DynamoEndpoint:  "http://localhost:44572",
 		}, c)
 	})
 }
