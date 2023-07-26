@@ -1,0 +1,45 @@
+# PR単位で差分があるファイルに対してSemgrep(SASTツール)を実行し、
+# 脆弱性につながる可能性のある記述をPRコメントで指摘するワークフローです
+# 詳細は以下のドキュメントをご参照ください
+# https://andpad-dev.esa.io/posts/8984
+
+name: semgrep
+
+on:
+  pull_request
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: semgrep
+    runs-on: ubuntu-latest
+    # Skip any PR created by dependabot to avoid permission issues
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - name: Check out code
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        with:
+          fetch-depth: 0
+      - uses: reviewdog/action-setup@8e48baae926e97848f0863ae248f3b08e089c81f # v1.0.5
+      - id: changed-files
+        uses: tj-actions/changed-files@54849deb963ca9f24185fb5de2965e002d066e6b # v37.0.5
+      - id: run-semgrep
+        name: Run semgrep
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run \
+            -v $(pwd):/workdir \
+            --workdir /workdir \
+            returntocorp/semgrep:1.27.0@sha256:7026020ebb6c1aa477431a2ba550df3ae4d080822e391d03bb816eeac700a36b \
+            semgrep scan --config auto --severity WARNING --json ${{ steps.changed-files.outputs.all_changed_files }} \
+          | jq -r '.results[] | "\(.path):\(.start.line):\(.start.col): \(.extra.message)"' \
+          | sed 's#^/workdir/##' \
+          | reviewdog \
+            -efm="%f:%l:%c: %m" \
+            -diff="git diff FETCH_HEAD" \
+            -level=warning \
+            -reporter=github-pr-review
