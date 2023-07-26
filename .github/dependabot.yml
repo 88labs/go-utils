@@ -6,6 +6,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: gomod
   directory: "/osext"
@@ -13,6 +17,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: gomod
   directory: "/sql-escape"
@@ -20,6 +28,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: gomod
   directory: "/tspb_cast"
@@ -27,6 +39,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: gomod
   directory: "/ulid"
@@ -34,6 +50,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: gomod
   directory: "/errgroup"
@@ -41,6 +61,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: gomod
   directory: "/envlookup"
@@ -55,6 +79,10 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
 - package-ecosystem: 'github-actions'
   directory: '/'
@@ -62,4 +90,8 @@ updates:
     interval: daily
     time: "12:00"
     timezone: Asia/Tokyo
+  groups:
+    dependencies:
+      patterns:
+        - "*"
   open-pull-requests-limit: 10
