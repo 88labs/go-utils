@@ -64,16 +64,6 @@ jobs:
           sudo chmod 777 ./docker/dynamodb/data
           docker compose up -d
 
-      - name: Wait for starting Dynamodb local
-        timeout-minutes: 1
-        env:
-          AWS_ACCESS_KEY_ID: DUMMYACCESSKEYEXAMPLE
-          AWS_SECRET_ACCESS_KEY: DUMMYSECRETKEYEXAMPLE
-          AWS_DEFAULT_REGION: ap-northeast-1
-        run: |
-          set -x
-          until (aws dynamodb describe-table --table-name test --endpoint-url http://localhost:28002 --output text) do echo '...waiting...' && sleep 1; done;
-
       - name: Test
         working-directory: ${{ env.testdir }}
         run: |
