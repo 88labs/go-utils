@@ -11,6 +11,7 @@ type ConfMock struct {
 	S3Endpoint      string
 	SQSEndpoint     string
 	CognitoEndpoint string
+	DynamoEndpoint  string
 }
 
 // nolint:revive
@@ -22,6 +23,7 @@ func getConf(opts ...OptionMock) ConfMock {
 		SessionToken:    "",
 		S3Endpoint:      "http://127.0.0.1:4566", // localstack default endpoint
 		SQSEndpoint:     "http://127.0.0.1:4566", // localstack default endpoint
+		DynamoEndpoint:  "http://127.0.0.1:4566", // localstack default endpoint
 	}
 	for _, opt := range opts {
 		opt.Apply(&c)
@@ -87,4 +89,14 @@ func (o OptionCognitoEndpoint) Apply(c *ConfMock) {
 
 func WithCognitoEndpoint(endpoint string) OptionCognitoEndpoint {
 	return OptionCognitoEndpoint(endpoint)
+}
+
+type OptionDynamoEndpoint string
+
+func (o OptionDynamoEndpoint) Apply(c *ConfMock) {
+	c.DynamoEndpoint = string(o)
+}
+
+func WithDynamoEndpoint(endpoint string) OptionDynamoEndpoint {
+	return OptionDynamoEndpoint(endpoint)
 }

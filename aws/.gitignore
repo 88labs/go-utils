@@ -4,3 +4,5 @@
 # Minio Data
 docker/minio/config
 docker/minio/data
+# DynamoDB Data
+docker/dynamodb/data

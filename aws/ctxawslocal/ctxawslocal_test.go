@@ -10,23 +10,29 @@ import (
 )
 
 func TestIsLocal(t *testing.T) {
+	t.Parallel()
 	t.Run("context.Value not exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		assert.False(t, ctxawslocal.IsLocal(ctx))
 	})
 	t.Run("context.Value exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(context.Background())
 		assert.True(t, ctxawslocal.IsLocal(ctx))
 	})
 }
 
 func TestGetConf(t *testing.T) {
+	t.Parallel()
 	t.Run("context.Value not exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		_, ok := ctxawslocal.GetConf(ctx)
 		assert.False(t, ok)
 	})
 	t.Run("unspecified config", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(context.Background())
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
@@ -37,9 +43,11 @@ func TestGetConf(t *testing.T) {
 			S3Endpoint:      "http://127.0.0.1:4566", // localstack default endpoint
 			SQSEndpoint:     "http://127.0.0.1:4566", // localstack default endpoint
 			CognitoEndpoint: "",
+			DynamoEndpoint:  "http://127.0.0.1:4566", // localstack default endpoint
 		}, c)
 	})
 	t.Run("set config", func(t *testing.T) {
+		t.Parallel()
 		ctx := ctxawslocal.WithContext(context.Background(),
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYACCESSKEYEXAMPLE"),
@@ -47,6 +55,7 @@ func TestGetConf(t *testing.T) {
 			ctxawslocal.WithS3Endpoint("http://localhost:14572"),
 			ctxawslocal.WithSQSEndpoint("http://localhost:24572"),
 			ctxawslocal.WithCognitoEndpoint("http://localhost:34572"),
+			ctxawslocal.WithDynamoEndpoint("http://localhost:44572"),
 		)
 		c, ok := ctxawslocal.GetConf(ctx)
 		assert.True(t, ok)
@@ -57,6 +66,7 @@ func TestGetConf(t *testing.T) {
 			S3Endpoint:      "http://localhost:14572",
 			SQSEndpoint:     "http://localhost:24572",
 			CognitoEndpoint: "http://localhost:34572",
+			DynamoEndpoint:  "http://localhost:44572",
 		}, c)
 	})
 }

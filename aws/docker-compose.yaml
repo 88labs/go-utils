@@ -38,3 +38,29 @@ services:
       "
     volumes:
       - ./docker/minio/policies:/policies
+  dynamodb:
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data -port 28002"
+    image: "amazon/dynamodb-local:latest"
+    container_name: go_utils_dynamodb_ci
+    ports:
+      - "28002:28002"
+    volumes:
+      - "./docker/dynamodb/data:/home/dynamodblocal/data"
+    working_dir: /home/dynamodblocal
+  dynamodbcreatetable:
+    image: "amazon/aws-cli"
+    container_name: go_utils_dynamodb_ci_init
+    environment:
+      - AWS_ACCESS_KEY_ID=DUMMYACCESSKEYEXAMPLE
+      - AWS_SECRET_ACCESS_KEY=DUMMYSECRETKEYEXAMPLE
+      - AWS_DEFAULT_REGION=ap-northeast-1
+    depends_on:
+      - dynamodb
+    entrypoint: >
+      /bin/sh -c '
+      until (aws dynamodb list-tables --endpoint-url http://dynamodb:28002 --output text) do echo '...waiting...' && sleep 1; done;
+      aws dynamodb create-table --cli-input-json file:///test_tables/table_test.json --endpoint-url http://dynamodb:28002;
+      until (aws dynamodb describe-table --table-name test --endpoint-url http://dynamodb:28002 --output text) do echo '...waiting...' && sleep 1; done;
+      '
+    volumes:
+      - ./docker/dynamodb:/test_tables
