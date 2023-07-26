@@ -7,7 +7,7 @@ require (
 	github.com/88labs/go-utils/utf8bom v0.3.0
 	github.com/aws/aws-sdk-go-v2 v1.19.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.28
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.27
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.28
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.31
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.4.58
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.72
@@ -38,7 +38,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.19.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.20.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
