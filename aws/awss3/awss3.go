@@ -26,6 +26,7 @@ import (
 	"github.com/aws/smithy-go"
 	awshttp "github.com/aws/smithy-go/transport/http"
 	"github.com/tomtwinkle/utfbomremover"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/transform"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
@@ -311,7 +312,9 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 		return filePath
 	}
 
+	var eg errgroup.Group
 	for i := range uniqKeys {
+		i := i
 		s3Key := uniqKeys[i]
 		filePath := getFilePath(s3Key.String())
 		paths[i] = filePath
@@ -319,12 +322,18 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 		if err != nil {
 			return nil, err
 		}
-		if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
-			Bucket: bucketName.AWSString(),
-			Key:    s3Key.AWSString(),
-		}); err != nil {
-			return nil, err
-		}
+		eg.Go(func() error {
+			if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
+				Bucket: bucketName.AWSString(),
+				Key:    s3Key.AWSString(),
+			}); err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, err
 	}
 	return paths, nil
 }

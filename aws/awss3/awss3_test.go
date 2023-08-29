@@ -12,30 +12,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/88labs/go-utils/aws/awss3/options/global/s3dialer"
-
-	"github.com/88labs/go-utils/aws/awss3/options/s3list"
-
-	"github.com/88labs/go-utils/aws/awss3/options/s3head"
-
-	"github.com/88labs/go-utils/utf8bom"
-
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-
-	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/bxcodec/faker/v3"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3"
+	"github.com/88labs/go-utils/aws/awss3/options/global/s3dialer"
 	"github.com/88labs/go-utils/aws/awss3/options/s3download"
+	"github.com/88labs/go-utils/aws/awss3/options/s3head"
+	"github.com/88labs/go-utils/aws/awss3/options/s3list"
 	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
+	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 	"github.com/88labs/go-utils/ulid"
+	"github.com/88labs/go-utils/utf8bom"
 )
 
 const (
@@ -281,12 +275,16 @@ func TestDownloadFiles(t *testing.T) {
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
 	assert.NoError(t, err)
 
-	keys := make(awss3.Keys, 3)
-	for i := 0; i < 3; i++ {
+	getBodyText := func(idx int) string {
+		const bodyText = "test-%d"
+		return fmt.Sprintf(bodyText, idx)
+	}
+	keys := make(awss3.Keys, 100)
+	for i := 0; i < 100; i++ {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		uploader := manager.NewUploader(s3Client)
 		input := s3.PutObjectInput{
-			Body:    strings.NewReader("test"),
+			Body:    strings.NewReader(getBodyText(i)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
@@ -301,13 +299,15 @@ func TestDownloadFiles(t *testing.T) {
 	t.Run("no option", func(t *testing.T) {
 		t.Parallel()
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir())
-		assert.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		if assert.Len(t, filePaths, len(keys)) {
 			for i, v := range filePaths {
 				assert.Equal(t, filepath.Base(keys[i].String()), filepath.Base(v))
 				fileBody, err := os.ReadFile(v)
 				assert.NoError(t, err)
-				assert.Equal(t, "test", string(fileBody))
+				assert.Equal(t, getBodyText(i), string(fileBody))
 			}
 		}
 	})
@@ -318,13 +318,15 @@ func TestDownloadFiles(t *testing.T) {
 				return "add_" + baseFileName
 			}),
 		)
-		assert.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		if assert.Len(t, filePaths, len(keys)) {
 			for i, v := range filePaths {
 				assert.Equal(t, "add_"+filepath.Base(keys[i].String()), filepath.Base(v))
 				fileBody, err := os.ReadFile(v)
 				assert.NoError(t, err)
-				assert.Equal(t, "test", string(fileBody))
+				assert.Equal(t, getBodyText(i), string(fileBody))
 			}
 		}
 	})
@@ -335,7 +337,9 @@ func TestDownloadFiles(t *testing.T) {
 				return "fixname.txt"
 			}),
 		)
-		assert.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		if assert.Len(t, filePaths, len(keys)) {
 			for i, v := range filePaths {
 				if i == 0 {
@@ -345,7 +349,7 @@ func TestDownloadFiles(t *testing.T) {
 				}
 				fileBody, err := os.ReadFile(v)
 				assert.NoError(t, err)
-				assert.Equal(t, "test", string(fileBody))
+				assert.Equal(t, getBodyText(i), string(fileBody))
 			}
 		}
 	})
