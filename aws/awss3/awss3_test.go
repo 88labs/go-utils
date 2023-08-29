@@ -276,7 +276,7 @@ func TestDownloadFiles(t *testing.T) {
 	assert.NoError(t, err)
 
 	getBodyText := func(idx int) string {
-		const bodyText = "test-%d"
+		bodyText := fmt.Sprintf("%d-%s", idx, strings.Repeat("test", 10000))
 		return fmt.Sprintf(bodyText, idx)
 	}
 	keys := make(awss3.Keys, 100)
