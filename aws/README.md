@@ -13,6 +13,6 @@
 ### testing
 
 ```shell
-docker-compose up -d
+docker compose up -d
 go test ./...
 ```
