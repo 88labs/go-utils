@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/88labs/go-utils/aws/awss3/options/s3list"
 
 	"github.com/88labs/go-utils/aws/awss3/options/s3head"
@@ -326,10 +328,16 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 			return nil, err
 		}
 		eg.Go(func() error {
-			if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
-				Bucket: bucketName.AWSString(),
-				Key:    s3Key.AWSString(),
-			}); err != nil {
+			b := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+			if err := backoff.Retry(func() error {
+				if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
+					Bucket: bucketName.AWSString(),
+					Key:    s3Key.AWSString(),
+				}); err != nil {
+					return err
+				}
+				return nil
+			}, b); err != nil {
 				return err
 			}
 			return nil
