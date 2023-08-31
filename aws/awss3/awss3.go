@@ -345,12 +345,12 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 	return paths, nil
 }
 
-// DownloadFilesParallels
+// DownloadFilesParallel
 // Batch download objects on s3 and save to directory
 // If the file name is duplicated, add a sequential number to the suffix and save
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func DownloadFilesParallels(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3download.OptionS3Download) ([]string, error) {
+func DownloadFilesParallel(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3download.OptionS3Download) ([]string, error) {
 	c := s3download.GetS3DownloadConf(opts...)
 
 	client, err := GetClient(ctx, region) // nolint:typecheck

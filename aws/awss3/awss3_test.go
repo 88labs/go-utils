@@ -365,7 +365,7 @@ func TestDownloadFiles(t *testing.T) {
 	})
 }
 
-func TestDownloadFilesParallels(t *testing.T) {
+func TestDownloadFilesParallel(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
@@ -399,7 +399,7 @@ func TestDownloadFilesParallels(t *testing.T) {
 
 	t.Run("no option", func(t *testing.T) {
 		t.Parallel()
-		filePaths, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, keys, t.TempDir())
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, t.TempDir())
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -414,7 +414,7 @@ func TestDownloadFilesParallels(t *testing.T) {
 	})
 	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
 		t.Parallel()
-		filePaths, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, keys, t.TempDir(),
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, t.TempDir(),
 			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "add_" + baseFileName
 			}),
@@ -433,7 +433,7 @@ func TestDownloadFilesParallels(t *testing.T) {
 	})
 	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
 		t.Parallel()
-		filePaths, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, keys, t.TempDir(),
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, t.TempDir(),
 			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
 				return "fixname.txt"
 			}),
@@ -456,13 +456,13 @@ func TestDownloadFilesParallels(t *testing.T) {
 	})
 	t.Run("Error:BucketNotFound", func(t *testing.T) {
 		t.Parallel()
-		_, err := awss3.DownloadFilesParallels(ctx, TestRegion, "NOT_FOUND", keys, t.TempDir())
+		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, "NOT_FOUND", keys, t.TempDir())
 		assert.Error(t, err)
 	})
 	t.Run("Error:KeyNotFound", func(t *testing.T) {
 		t.Parallel()
 		dummyKeys := awss3.Keys{"dummy", "dummy", "dummy"}
-		_, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
+		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
 		assert.Error(t, err)
 	})
 }
