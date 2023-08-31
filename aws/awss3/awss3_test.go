@@ -365,6 +365,108 @@ func TestDownloadFiles(t *testing.T) {
 	})
 }
 
+func TestDownloadFilesParallels(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NoError(t, err)
+
+	getBodyText := func(idx int) string {
+		bodyText := fmt.Sprintf("%d-%s", idx, strings.Repeat("test", 10000))
+		return fmt.Sprintf(bodyText, idx)
+	}
+	keys := make(awss3.Keys, 100)
+	for i := 0; i < 100; i++ {
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		uploader := manager.NewUploader(s3Client)
+		input := s3.PutObjectInput{
+			Body:    strings.NewReader(getBodyText(i)),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.Upload(ctx, &input); err != nil {
+			assert.NoError(t, err)
+			return
+		}
+		keys[i] = awss3.Key(key)
+	}
+
+	t.Run("no option", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, keys, t.TempDir())
+		if !assert.NoError(t, err) {
+			return
+		}
+		if assert.Len(t, filePaths, len(keys)) {
+			for i, v := range filePaths {
+				assert.Equal(t, filepath.Base(keys[i].String()), filepath.Base(v))
+				fileBody, err := os.ReadFile(v)
+				assert.NoError(t, err)
+				assert.Equal(t, getBodyText(i), string(fileBody))
+			}
+		}
+	})
+	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, keys, t.TempDir(),
+			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
+				return "add_" + baseFileName
+			}),
+		)
+		if !assert.NoError(t, err) {
+			return
+		}
+		if assert.Len(t, filePaths, len(keys)) {
+			for i, v := range filePaths {
+				assert.Equal(t, "add_"+filepath.Base(keys[i].String()), filepath.Base(v))
+				fileBody, err := os.ReadFile(v)
+				assert.NoError(t, err)
+				assert.Equal(t, getBodyText(i), string(fileBody))
+			}
+		}
+	})
+	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, keys, t.TempDir(),
+			s3download.WithFileNameReplacerFunc(func(S3Key, baseFileName string) string {
+				return "fixname.txt"
+			}),
+		)
+		if !assert.NoError(t, err) {
+			return
+		}
+		if assert.Len(t, filePaths, len(keys)) {
+			for i, v := range filePaths {
+				if i == 0 {
+					assert.Equal(t, "fixname.txt", filepath.Base(v))
+				} else {
+					assert.Equal(t, fmt.Sprintf("fixname_%d.txt", i+1), filepath.Base(v))
+				}
+				fileBody, err := os.ReadFile(v)
+				assert.NoError(t, err)
+				assert.Equal(t, getBodyText(i), string(fileBody))
+			}
+		}
+	})
+	t.Run("Error:BucketNotFound", func(t *testing.T) {
+		t.Parallel()
+		_, err := awss3.DownloadFilesParallels(ctx, TestRegion, "NOT_FOUND", keys, t.TempDir())
+		assert.Error(t, err)
+	})
+	t.Run("Error:KeyNotFound", func(t *testing.T) {
+		t.Parallel()
+		dummyKeys := awss3.Keys{"dummy", "dummy", "dummy"}
+		_, err := awss3.DownloadFilesParallels(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
+		assert.Error(t, err)
+	})
+}
+
 func TestPutObject(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(

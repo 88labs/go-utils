@@ -317,6 +317,76 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 		return filePath
 	}
 
+	for i := range uniqKeys {
+		i := i
+		s3Key := uniqKeys[i]
+		filePath := getFilePath(s3Key.String())
+		paths[i] = filePath
+		f, err := os.Create(filePath)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
+			Bucket: bucketName.AWSString(),
+			Key:    s3Key.AWSString(),
+		}); err != nil {
+			var oe *smithy.OperationError
+			if errors.As(err, &oe) {
+				var resErr *awshttp.ResponseError
+				if errors.As(oe.Err, &resErr) {
+					if resErr.Response.StatusCode == http.StatusNotFound {
+						return nil, ErrNotFound
+					}
+				}
+			}
+			return nil, err
+		}
+	}
+	return paths, nil
+}
+
+// DownloadFilesParallels
+// Batch download objects on s3 and save to directory
+// If the file name is duplicated, add a sequential number to the suffix and save
+//
+// Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
+func DownloadFilesParallels(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3download.OptionS3Download) ([]string, error) {
+	c := s3download.GetS3DownloadConf(opts...)
+
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+
+	uniqKeys := keys.Unique()
+	option := func(d *manager.Downloader) {
+		d.BufferProvider = manager.NewPooledBufferedWriterReadFromProvider(5 * 1024 * 1024)
+	}
+	downloader := manager.NewDownloader(client, option)
+	paths := make([]string, len(uniqKeys))
+
+	getFilePath := func(s3Key string) string {
+		fileName := filepath.Base(s3Key)
+		if c.FileNameReplacer != nil {
+			fileName = c.FileNameReplacer(s3Key, fileName)
+		}
+		filePath := path.Join(outputDir, fileName)
+		var existsFileCount int
+		for {
+			if existsFileCount > 0 {
+				// If the file name is duplicated, add a sequential number to the suffix
+				ext := filepath.Ext(fileName)
+				newFileName := fmt.Sprintf("%s_%d%s", strings.TrimSuffix(fileName, ext), existsFileCount+1, ext)
+				filePath = path.Join(outputDir, newFileName)
+			}
+			if _, err := os.Stat(filePath); err != nil {
+				break
+			}
+			existsFileCount++
+		}
+		return filePath
+	}
+
 	var eg errgroup.Group
 	for i := range uniqKeys {
 		i := i
