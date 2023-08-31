@@ -328,16 +328,38 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 			return nil, err
 		}
 		eg.Go(func() error {
+			ctx, cancel := context.WithCancel(ctx)
 			b := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+			var gErr error
 			if err := backoff.Retry(func() error {
 				if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
 					Bucket: bucketName.AWSString(),
 					Key:    s3Key.AWSString(),
 				}); err != nil {
+					var oe *smithy.OperationError
+					if errors.As(err, &oe) {
+						var resErr *awshttp.ResponseError
+						if errors.As(oe.Err, &resErr) {
+							switch resErr.Response.StatusCode {
+							case http.StatusNotFound:
+								gErr = ErrNotFound
+								cancel()
+							case http.StatusBadRequest, http.StatusUnauthorized, http.StatusPaymentRequired,
+								http.StatusForbidden, http.StatusMethodNotAllowed, http.StatusUnprocessableEntity,
+								http.StatusMisdirectedRequest, http.StatusRequestURITooLong, http.StatusRequestEntityTooLarge,
+								http.StatusPreconditionFailed:
+								gErr = resErr.Err
+								cancel()
+							}
+						}
+					}
 					return err
 				}
 				return nil
 			}, b); err != nil {
+				if gErr != nil {
+					return gErr
+				}
 				return err
 			}
 			return nil
