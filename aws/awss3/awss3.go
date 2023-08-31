@@ -287,7 +287,10 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 	}
 
 	uniqKeys := keys.Unique()
-	downloader := manager.NewDownloader(client)
+	option := func(d *manager.Downloader) {
+		d.BufferProvider = manager.NewPooledBufferedWriterReadFromProvider(5 * 1024 * 1024)
+	}
+	downloader := manager.NewDownloader(client, option)
 	paths := make([]string, len(uniqKeys))
 
 	getFilePath := func(s3Key string) string {
