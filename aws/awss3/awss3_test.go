@@ -353,6 +353,17 @@ func TestDownloadFiles(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Error:BucketNotFound", func(t *testing.T) {
+		t.Parallel()
+		_, err := awss3.DownloadFiles(ctx, TestRegion, "NOT_FOUND", keys, t.TempDir())
+		assert.Error(t, err)
+	})
+	t.Run("Error:KeyNotFound", func(t *testing.T) {
+		t.Parallel()
+		dummyKeys := awss3.Keys{"dummy", "dummy", "dummy"}
+		_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
+		assert.Error(t, err)
+	})
 }
 
 func TestPutObject(t *testing.T) {
