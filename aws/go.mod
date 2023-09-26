@@ -1,6 +1,6 @@
 module github.com/88labs/go-utils/aws
 
-go 1.20
+go 1.21
 
 require (
 	github.com/88labs/go-utils/ulid v0.2.0

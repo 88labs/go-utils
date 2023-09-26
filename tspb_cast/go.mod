@@ -1,5 +1,5 @@
 module github.com/88labs/go-utils/tspb_cast
 
-go 1.20
+go 1.21
 
 require google.golang.org/protobuf v1.31.0
