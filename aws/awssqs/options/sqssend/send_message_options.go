@@ -1,8 +1,6 @@
 package sqssend
 
-import (
-	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-)
+import "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
 type SendMessageOption interface {
 	Apply(*confSendMessage)

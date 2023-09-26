@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
-	"github.com/88labs/go-utils/envlookup"
-	"github.com/bxcodec/faker/v3"
+	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/88labs/go-utils/envlookup"
 )
 
 func TestLookUpString(t *testing.T) {

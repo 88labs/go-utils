@@ -1,8 +1,6 @@
 package s3head
 
-import (
-	"time"
-)
+import "time"
 
 type OptionS3Head interface {
 	Apply(*confS3Head)

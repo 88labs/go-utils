@@ -1,8 +1,6 @@
 package ctxawslocal
 
-import (
-	"context"
-)
+import "context"
 
 type ctxKeyLocal struct{}
 

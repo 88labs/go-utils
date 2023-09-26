@@ -1,8 +1,6 @@
 package s3presigned
 
-import (
-	"time"
-)
+import "time"
 
 type OptionS3Presigned interface {
 	Apply(*confS3Presigned)

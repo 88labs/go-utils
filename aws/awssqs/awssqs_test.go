@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/88labs/go-utils/aws/awsconfig"
-
-	"github.com/bxcodec/faker/v3"
+	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awssqs"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqsreceive"
 	"github.com/88labs/go-utils/aws/ctxawslocal"

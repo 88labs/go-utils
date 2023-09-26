@@ -12,11 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/88labs/go-utils/ulid"
+	"github.com/88labs/go-utils/utf8bom"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/bxcodec/faker/v3"
+	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
@@ -27,8 +29,6 @@ import (
 	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
 	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
-	"github.com/88labs/go-utils/ulid"
-	"github.com/88labs/go-utils/utf8bom"
 )
 
 const (
