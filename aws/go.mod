@@ -3,8 +3,8 @@ module github.com/88labs/go-utils/aws
 go 1.21
 
 require (
-	github.com/88labs/go-utils/ulid v0.2.0
-	github.com/88labs/go-utils/utf8bom v0.3.0
+	github.com/88labs/go-utils/ulid v0.3.0
+	github.com/88labs/go-utils/utf8bom v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.21.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.42
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.40

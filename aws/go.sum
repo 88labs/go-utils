@@ -1,7 +1,7 @@
-github.com/88labs/go-utils/ulid v0.2.0 h1:F4CNoXZirrzgvNNf1dxQAoPGX6AdoC9a/nZ/yk8E3w4=
-github.com/88labs/go-utils/ulid v0.2.0/go.mod h1:7RT6ypL2s+Z+T/rSA0sJ7fLu3rK5LXE9VnBI3EeZsnI=
-github.com/88labs/go-utils/utf8bom v0.3.0 h1:fUq25oFw+NhR4JXoVYi6FlW2edH1DhR5Hhm+acAyP4U=
-github.com/88labs/go-utils/utf8bom v0.3.0/go.mod h1:HLoOaVaqf0vGfO648KM3XUEoguVXMxt1dFTLMi5ZyxM=
+github.com/88labs/go-utils/ulid v0.3.0 h1:Wuw/qQHdTXVL/gs2QVtRcQGDi/Ok9o7hebjXmtiXXrI=
+github.com/88labs/go-utils/ulid v0.3.0/go.mod h1:AzKSse/I2qlKy0ImLauFj5Fx8vtPs7sZ8vJI1Mf/UJs=
+github.com/88labs/go-utils/utf8bom v0.4.0 h1:4r+KVixTaRoKS6J7nD1KT/Y1DB/oco8fl8ME/smeMRQ=
+github.com/88labs/go-utils/utf8bom v0.4.0/go.mod h1:FJs/bGwRY0XxvYuYTPbh9y2lc/pocVbUHkUOTeQYbB4=
 github.com/aws/aws-sdk-go-v2 v1.21.0 h1:gMT0IW+03wtYJhRqTVYn0wLzwdnK9sRMcxmtfGzRdJc=
 github.com/aws/aws-sdk-go-v2 v1.21.0/go.mod h1:/RfNgGmRxI+iFOB1OeJUyxiU+9s88k3pfHvDagGEp0M=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.13 h1:OPLEkmhXf6xFPiz0bLeDArZIDx1NNS4oJyG4nv3Gct0=
@@ -55,6 +55,7 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.22.0/go.mod h1:VC7JDqsqiwXukYEDjoHh9
 github.com/aws/smithy-go v1.14.2 h1:MJU9hqBGbvWZdApzpvoF2WAIJDbtjK2NDJSiJP7HblQ=
 github.com/aws/smithy-go v1.14.2/go.mod h1:Tg+OJXh4MB2R/uN61Ko2f6hTZwB/ZYGOtib8J3gBHzA=
 github.com/bxcodec/faker/v3 v3.8.1 h1:qO/Xq19V6uHt2xujwpaetgKhraGCapqY2CRWGD/SqcM=
+github.com/bxcodec/faker/v3 v3.8.1/go.mod h1:DdSDccxF5msjFo5aO4vrobRQ8nIApg8kq3QWPEQD6+o=
 github.com/cenkalti/backoff/v4 v4.2.1 h1:y4OZtCnogmCPw98Zjyt5a6+QwPLGkiQsYW5oUqylYbM=
 github.com/cenkalti/backoff/v4 v4.2.1/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
