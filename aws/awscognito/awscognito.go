@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/88labs/go-utils/aws/ctxawslocal"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
+	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 
 // GetCredentialsForIdentity

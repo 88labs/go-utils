@@ -1,8 +1,6 @@
 package s3dialer
 
-import (
-	"time"
-)
+import "time"
 
 type ConfGlobalDialer struct {
 	// Timeout is the maximum amount of time a dial will wait for

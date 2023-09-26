@@ -7,6 +7,7 @@ import (
 )
 
 // ToTime cast Timestamp to Time.
+//
 //goland:noinspection GoUnusedExportedFunction
 func ToTime(from *timestamppb.Timestamp) time.Time {
 	if from == nil {
@@ -17,6 +18,7 @@ func ToTime(from *timestamppb.Timestamp) time.Time {
 }
 
 // ToTimestamp cast Time to Timestamp.
+//
 //goland:noinspection GoUnusedExportedFunction
 func ToTimestamp(from time.Time) *timestamppb.Timestamp {
 	if from.IsZero() {

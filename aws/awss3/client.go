@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/88labs/go-utils/aws/awss3/options/global/s3dialer"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -14,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
+	"github.com/88labs/go-utils/aws/awss3/options/global/s3dialer"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 

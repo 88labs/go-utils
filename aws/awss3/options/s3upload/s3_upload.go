@@ -1,8 +1,6 @@
 package s3upload
 
-import (
-	"time"
-)
+import "time"
 
 type OptionS3Upload interface {
 	Apply(*confS3Upload)

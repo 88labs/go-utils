@@ -15,24 +15,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-
-	"github.com/88labs/go-utils/aws/awss3/options/s3list"
-
-	"github.com/88labs/go-utils/aws/awss3/options/s3head"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	awshttp "github.com/aws/smithy-go/transport/http"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/tomtwinkle/utfbomremover"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/transform"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3/options/s3download"
+	"github.com/88labs/go-utils/aws/awss3/options/s3head"
+	"github.com/88labs/go-utils/aws/awss3/options/s3list"
 	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
 	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
 	"github.com/88labs/go-utils/aws/awss3/options/s3upload"

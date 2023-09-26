@@ -6,15 +6,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/88labs/go-utils/aws/ctxawslocal"
-
-	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"github.com/88labs/go-utils/aws/awsconfig"
+	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 
 var dynamoDBClient *dynamodb.Client

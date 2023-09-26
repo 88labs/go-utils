@@ -87,6 +87,48 @@ tasks:
     cmds:
       - go mod tidy
 
+  go-oif:
+    deps: [
+      go-oif-aws,go-oif-cerrors,go-oif-envlookup,go-oif-errgroup,go-oif-osext,
+      go-oif-sql-escape,go-oif-tspb_cast,go-oif-ulid,go-oif-utf8bom,
+    ]
+  go-oif-aws:
+    dir: aws
+    cmds:
+      - go-oif ./...
+  go-oif-cerrors:
+    dir: cerrors
+    cmds:
+      - go-oif ./...
+  go-oif-envlookup:
+    dir: envlookup
+    cmds:
+      - go-oif ./...
+  go-oif-errgroup:
+    dir: errgroup
+    cmds:
+      - go-oif ./...
+  go-oif-osext:
+    dir: osext
+    cmds:
+      - go-oif ./...
+  go-oif-sql-escape:
+    dir: sql-escape
+    cmds:
+      - go-oif ./...
+  go-oif-tspb_cast:
+    dir: tspb_cast
+    cmds:
+      - go-oif ./...
+  go-oif-ulid:
+    dir: ulid
+    cmds:
+      - go-oif ./...
+  go-oif-utf8bom:
+    dir: utf8bom
+    cmds:
+      - go-oif ./...
+
   go-mod-updates:
     deps: [
       go-mod-update-aws,go-mod-update-cerrors,go-mod-update-envlookup,go-mod-update-errgroup,go-mod-update-osext,
