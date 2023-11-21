@@ -62,7 +62,6 @@ jobs:
           # https://stackoverflow.com/questions/45850688/unable-to-open-local-dynamodb-database-file-after-power-outage
           mkdir -p ./docker/dynamodb/data
           sudo chmod 777 ./docker/dynamodb/data
-          docker system prune --all --force
           docker compose up -d
 
       - name: Test
