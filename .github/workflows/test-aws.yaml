@@ -39,18 +39,18 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Cache Go modules
-        id: cache-go
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+#      - name: Cache Go modules
+#        id: cache-go
+#        uses: actions/cache@v3
+#        with:
+#          path: ~/go/pkg/mod
+#          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+#          restore-keys: |
+#            ${{ runner.os }}-go-
       - name: Download Go modules
         working-directory: ${{ env.testdir }}
         shell: bash
-        if: ${{ steps.cache-go.outputs.cache-hit != 'true' }}
+#        if: ${{ steps.cache-go.outputs.cache-hit != 'true' }}
         run: go mod download
 
       - name: Setup Docker
