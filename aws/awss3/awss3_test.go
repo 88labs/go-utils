@@ -67,7 +67,7 @@ func TestHeadObject(t *testing.T) {
 		key := createFixture(100)
 		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
-		assert.Equal(t, int64(100), res.ContentLength)
+		assert.Equal(t, aws.Int64(100), res.ContentLength)
 	})
 	t.Run("not exists object", func(t *testing.T) {
 		t.Parallel()
@@ -83,7 +83,7 @@ func TestHeadObject(t *testing.T) {
 			s3head.WithTimeout(5*time.Second),
 		)
 		assert.NoError(t, err)
-		assert.Equal(t, int64(100), res.ContentLength)
+		assert.Equal(t, aws.Int64(100), res.ContentLength)
 	})
 	t.Run("not exists object use Waiter", func(t *testing.T) {
 		t.Parallel()
@@ -781,7 +781,7 @@ func TestSelectCSVAll(t *testing.T) {
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
 		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: true}),
+			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
 		)
 		if !assert.NoError(t, err) {
 			return
@@ -803,7 +803,7 @@ func TestSelectCSVAll(t *testing.T) {
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
 		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: true}),
+			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
 		)
 		if !assert.NoError(t, err) {
 			return
@@ -825,7 +825,7 @@ func TestSelectCSVAll(t *testing.T) {
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
 		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: true}),
+			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
 		)
 		if !assert.NoError(t, err) {
 			return
@@ -847,7 +847,7 @@ func TestSelectCSVAll(t *testing.T) {
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
 		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: true}),
+			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
 		)
 
 		if !assert.NoError(t, err) {

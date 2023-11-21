@@ -20,7 +20,7 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*sqs.Client, error
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
 		return getClientLocal(ctx, *localProfile)
 	}
-	// S3 Client
+	// SQS Client
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)

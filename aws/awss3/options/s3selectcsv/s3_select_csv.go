@@ -7,7 +7,7 @@ type OptionS3SelectCSV interface {
 }
 
 type confS3SelectCSV struct {
-	SkipByteSize    int64
+	SkipByteSize    *int64
 	CSVInput        types.CSVInput
 	CompressionType types.CompressionType
 	CSVOutput       types.CSVOutput
@@ -28,7 +28,8 @@ func GetS3SelectCSVConf(opts ...OptionS3SelectCSV) confS3SelectCSV {
 type OptionSkipByteSize int64
 
 func (o OptionSkipByteSize) Apply(c *confS3SelectCSV) {
-	c.SkipByteSize = int64(o)
+	v := int64(o)
+	c.SkipByteSize = &v
 }
 
 // WithSkipByteSize
