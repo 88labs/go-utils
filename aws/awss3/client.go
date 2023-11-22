@@ -1,10 +1,13 @@
 package awss3
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"net"
 	"net/url"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
@@ -20,8 +23,11 @@ import (
 
 var (
 	// GlobalDialer Global http dialer settings for awss3 library
-	GlobalDialer   *s3dialer.ConfGlobalDialer
-	customEndpoint string
+	GlobalDialer *s3dialer.ConfGlobalDialer
+
+	customMu             sync.Mutex
+	customEndpoint       string
+	customEndpointClient *s3.Client
 )
 
 // GetClient
@@ -29,7 +35,14 @@ var (
 // Using ctxawslocal.WithContext, you can make requests for local mocks
 func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		return getClientLocal(ctx, *localProfile)
+		customMu.Lock()
+		defer customMu.Unlock()
+		var err error
+		if customEndpointClient != nil {
+			return customEndpointClient, err
+		}
+		customEndpointClient, err = getClientLocal(ctx, *localProfile)
+		return customEndpointClient, err
 	}
 	awsHttpClient := awshttp.NewBuildableClient()
 	if GlobalDialer != nil {
@@ -149,4 +162,12 @@ func getLocalEndpoint(ctx context.Context) (*LocalProfile, bool) {
 		return p, true
 	}
 	return nil, false
+}
+
+func hash(v LocalProfile) ([]byte, error) {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(v); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }
