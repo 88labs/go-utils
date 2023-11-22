@@ -562,7 +562,7 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 			},
 		},
 	}
-	if c.SkipByteSize > 0 {
+	if c.SkipByteSize != nil {
 		req.ScanRange = &types.ScanRange{Start: c.SkipByteSize}
 	}
 	resp, err := client.SelectObjectContent(ctx, req)

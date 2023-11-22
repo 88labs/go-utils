@@ -58,6 +58,6 @@ func TestGlobalOptionWithHeadObject(t *testing.T) {
 		awss3.GlobalDialer = dialer
 		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
 		assert.NoError(t, err)
-		assert.Equal(t, int64(100), res.ContentLength)
+		assert.Equal(t, aws.Int64(100), res.ContentLength)
 	})
 }
