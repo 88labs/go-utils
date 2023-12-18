@@ -26,8 +26,8 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.7.2 h1:GrSw8s0Gs/5zZ0SX+gX4zQjRnRsM
 github.com/aws/aws-sdk-go-v2/internal/ini v1.7.2/go.mod h1:6fQQgfuGmw8Al/3M2IgIllycxV7ZW7WCdVSqfBeUiCY=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.9 h1:ugD6qzjYtB7zM5PN/ZIeaAIyefPaD82G8+SJopgvUpw=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.9/go.mod h1:YD0aYBWCrPENpHolhKw2XDlTIWae2GKXT1T4o6N6hiM=
-github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.21.5 h1:aaFwcq8XL+NXToT35R4G2nkh8bSqpP0YgEWympuZmzs=
-github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.21.5/go.mod h1:IG2Q0oe0DXSRLdn6FoyVmfJw1Mwy+XNMtkL8VWh+kcw=
+github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.21.6 h1:rpVV6Z3zj5mTVF5pdlvQC2mz6nAauYRGYqg2AE/8Hgw=
+github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.21.6/go.mod h1:IG2Q0oe0DXSRLdn6FoyVmfJw1Mwy+XNMtkL8VWh+kcw=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.26.6 h1:kSdpnPOZL9NG5QHoKL5rTsdY+J+77hr+vqVMsPeyNe0=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.26.6/go.mod h1:o7TD9sjdgrl8l/g2a2IkYjuhxjPy9DMP2sWo7piaRBQ=
 github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.18.5 h1:ekyZDC/JMR4s/64oT9KsOnYWfGr03ebkwgHwe3iX9rA=
