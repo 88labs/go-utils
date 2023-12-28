@@ -237,6 +237,13 @@ func Test_ErrorCode_String(t *testing.T) {
 			want: "Canceled",
 		},
 		{
+			name: "AlreadyExists",
+			args: args{
+				code: AlreadyExists,
+			},
+			want: "AlreadyExists",
+		},
+		{
 			name: "不正値",
 			args: args{
 				code: ErrorCode(-1),

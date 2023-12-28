@@ -21,6 +21,7 @@ const (
 	UnavailableErr
 	ResourceExhaustedErr
 	Canceled
+	AlreadyExists
 )
 
 func (e ErrorCode) String() string {
@@ -45,6 +46,8 @@ func (e ErrorCode) String() string {
 		return "ResourceExhaustedErr"
 	case Canceled:
 		return "Canceled"
+	case AlreadyExists:
+		return "AlreadyExists"
 	default:
 		return "UnknownErr"
 	}
@@ -75,7 +78,8 @@ func defaultErrorLevel(code ErrorCode) ErrorLevel {
 		ParameterErr,
 		ResourceExhaustedErr,
 		FailedPreconditionErr,
-		Canceled:
+		Canceled,
+		AlreadyExists:
 		return ErrorLevelWarn
 	case UnknownErr,
 		UnimplementedErr,
