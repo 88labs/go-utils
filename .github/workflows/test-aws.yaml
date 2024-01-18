@@ -54,15 +54,9 @@ jobs:
         run: go mod download
 
       - name: Setup Docker
-        working-directory: ${{ env.testdir }}
-        env:
-          DOCKER_BUILDKIT: 1
-        run: |
-          # Create the directory for the volume of dynamodb in advance, otherwise permission error will occur.
-          # https://stackoverflow.com/questions/45850688/unable-to-open-local-dynamodb-database-file-after-power-outage
-          mkdir -p ./docker/dynamodb/data
-          sudo chmod 777 ./docker/dynamodb/data
-          docker compose up -d
+        uses: actions/setup-go@v5
+        with:
+          compose-file: %{{ env.testdir }}/docker-compose.yml
 
       - name: Test
         working-directory: ${{ env.testdir }}
