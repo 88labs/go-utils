@@ -56,7 +56,7 @@ jobs:
       - name: Setup Docker
         uses: isbang/compose-action@v1.5.1
         with:
-          compose-file: ${{ env.testdir }}/docker-compose.yml
+          compose-file: ${{ env.testdir }}/docker-compose.yaml
 
       - name: Test
         working-directory: ${{ env.testdir }}
