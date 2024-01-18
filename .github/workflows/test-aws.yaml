@@ -68,7 +68,7 @@ jobs:
         working-directory: ${{ env.testdir }}
         run: |
           # shellcheck disable=SC2046
-          go test -p 4 -parallel 4 -v ./... -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./...
+          go test -v ./... -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./...
 
       - uses: codecov/codecov-action@v3
         with:
