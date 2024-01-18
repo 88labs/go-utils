@@ -54,7 +54,7 @@ jobs:
         run: go mod download
 
       - name: Setup Docker
-        uses: actions/setup-go@v5
+        uses: isbang/compose-action@v1.5.1
         with:
           compose-file: %{{ env.testdir }}/docker-compose.yml
 
