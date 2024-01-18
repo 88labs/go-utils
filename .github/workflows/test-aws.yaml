@@ -54,7 +54,13 @@ jobs:
         uses: isbang/compose-action@v1.5.1
         with:
           compose-file: ${{ env.testdir }}/docker-compose.yaml
-          up-flags: --detach
+          up-flags: -d
+          services: |
+            elasticmq
+            minio
+            miniocreatebuckets
+            dynamodb
+            dynamodbcreatetable
       - name: Test
         working-directory: ${{ env.testdir }}
         run: |
