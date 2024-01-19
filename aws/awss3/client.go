@@ -33,20 +33,7 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error)
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client, error) {
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if service == s3.ServiceID {
-			return aws.Endpoint{
-				PartitionID:       "aws",
-				URL:               localProfile.Endpoint,
-				SigningRegion:     region,
-				HostnameImmutable: true,
-			}, nil
-		}
-		// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
-		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-	})
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
-		awsConfig.WithEndpointResolverWithOptions(customResolver),
 		awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
 				AccessKeyID:     localProfile.AccessKey,
@@ -58,7 +45,9 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client,
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return s3.NewFromConfig(awsCfg), nil
+	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(localProfile.Endpoint)
+	}), nil
 }
 
 type LocalProfile struct {
