@@ -1,5 +1,5 @@
-github.com/88labs/go-utils/aws v0.75.0 h1:M+2IC4HQ1WtH27kilG9eKOUbRj7pUV/+o9NcxzqXH2I=
-github.com/88labs/go-utils/aws v0.75.0/go.mod h1:G1puDykDxfq4z8iAJcdRMwGMflSn1a8oju6O2AMZlSs=
+github.com/88labs/go-utils/aws v0.78.0 h1:9YS3AR8ux8pA/YQQL3LmOjI4fgNdl0vOwae4DfLuL5c=
+github.com/88labs/go-utils/aws v0.78.0/go.mod h1:QK/a6V3e2zM5G6o4JwBD7OXfJSSwAtdJi5nMAiLCSnY=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
