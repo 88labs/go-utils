@@ -610,7 +610,6 @@ func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName B
 		QuoteEscapeCharacter:       c.CSVInput.QuoteEscapeCharacter,
 		RecordDelimiter:            c.CSVInput.RecordDelimiter,
 	}))
-	opts = append(opts, s3selectcsv.WithSkipByteSize(0))
 	var buf bytes.Buffer
 	if err := SelectCSVAll(ctx, region, bucketName, key, SelectCSVLimit1Query, &buf, opts...); err != nil {
 		return nil, err
