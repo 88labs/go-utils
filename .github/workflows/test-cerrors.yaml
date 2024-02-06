@@ -46,7 +46,7 @@ jobs:
           # shellcheck disable=SC2046
           gotestsum --junitfile unit-tests.xml -- -v ./... -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./...
 
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ env.testdir }}/coverage.txt
