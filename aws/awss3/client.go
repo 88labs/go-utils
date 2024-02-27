@@ -91,6 +91,7 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client,
 				SessionToken:    localProfile.SessionToken,
 			},
 		}),
+		awsConfig.WithDefaultRegion(awsconfig.RegionTokyo.String()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
