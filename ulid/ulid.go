@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	oklogulid "github.com/oklog/ulid/v2"
 )
@@ -15,8 +16,9 @@ var (
 	pool = sync.Pool{
 		New: func() interface{} { return oklogulid.Monotonic(rand.Reader, 0) },
 	}
-	zeroValueULID oklogulid.ULID
-	ErrULIDZero   = errors.New("ulid is zero")
+	zeroValueULID  oklogulid.ULID
+	ErrULIDZero    = errors.New("ulid is zero")
+	ErrInvalidTime = errors.New("invalid time")
 )
 
 func New() (ULID, error) {
@@ -79,4 +81,17 @@ func (u ULID) String() string {
 
 func (u ULID) IsZero() bool {
 	return oklogulid.ULID(u) == zeroValueULID
+}
+
+func (u ULID) SetTime(t time.Time) error {
+	id := oklogulid.ULID(u)
+	err := id.SetTime(oklogulid.Timestamp(t))
+	if err != nil {
+		return errors.Join(ErrInvalidTime, err)
+	}
+	return nil
+}
+
+func (u ULID) Time() time.Time {
+	return oklogulid.Time(oklogulid.ULID(u).Time())
 }
