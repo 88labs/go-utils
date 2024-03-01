@@ -1,10 +1,12 @@
 package ulid_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	oklogulid "github.com/oklog/ulid/v2"
 
@@ -115,5 +117,70 @@ func TestMustNew(t *testing.T) {
 			}()
 		}
 		wg.Wait()
+	})
+}
+
+func TestSetTime(t *testing.T) {
+	t.Run("set time", func(t *testing.T) {
+		id := ulid.MustNew()
+		if id.Time().IsZero() {
+			t.Fatal("zero")
+		}
+		now := time.Now().UTC()
+		err := id.SetTime(now)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("set time 50 year after", func(t *testing.T) {
+		id := ulid.MustNew()
+		if id.Time().IsZero() {
+			t.Fatal("zero")
+		}
+		after := time.Now().AddDate(50, 0, 0).UTC()
+		err := id.SetTime(after)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("set time zero", func(t *testing.T) {
+		id := ulid.MustNew()
+		if id.Time().IsZero() {
+			t.Fatal("zero")
+		}
+		zero := time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC)
+		err := id.SetTime(zero)
+		if !errors.Is(err, ulid.ErrInvalidTime) {
+			t.Fatal("err not match")
+		}
+	})
+	t.Run("set time too big", func(t *testing.T) {
+		id := ulid.MustNew()
+		if id.Time().IsZero() {
+			t.Fatal("zero")
+		}
+		big := time.Date(99999, 12, 31, 23, 59, 59, 0, time.UTC)
+		err := id.SetTime(big)
+		if !errors.Is(err, ulid.ErrInvalidTime) {
+			t.Fatal("err not match")
+		}
+	})
+}
+
+func TestTime(t *testing.T) {
+	t.Run("get time", func(t *testing.T) {
+		id := ulid.MustNew()
+		if id.Time().IsZero() {
+			t.Fatal("zero")
+		}
+		now := time.Now().UTC()
+		if err := id.SetTime(now); err != nil {
+			t.Fatal(err)
+		}
+		got := id.Time()
+		cmp := now.Sub(got)
+		if cmp > time.Millisecond {
+			t.Fatal("time not match", cmp)
+		}
 	})
 }
