@@ -1,5 +1,5 @@
-github.com/88labs/go-utils/ulid v0.3.0 h1:Wuw/qQHdTXVL/gs2QVtRcQGDi/Ok9o7hebjXmtiXXrI=
-github.com/88labs/go-utils/ulid v0.3.0/go.mod h1:AzKSse/I2qlKy0ImLauFj5Fx8vtPs7sZ8vJI1Mf/UJs=
+github.com/88labs/go-utils/ulid v0.4.0 h1:HXFvq6Nh7GiPH8Jw2YDflyPZsQU8Uqz3siag2BVILC0=
+github.com/88labs/go-utils/ulid v0.4.0/go.mod h1:AzKSse/I2qlKy0ImLauFj5Fx8vtPs7sZ8vJI1Mf/UJs=
 github.com/88labs/go-utils/utf8bom v0.4.0 h1:4r+KVixTaRoKS6J7nD1KT/Y1DB/oco8fl8ME/smeMRQ=
 github.com/88labs/go-utils/utf8bom v0.4.0/go.mod h1:FJs/bGwRY0XxvYuYTPbh9y2lc/pocVbUHkUOTeQYbB4=
 github.com/aws/aws-sdk-go-v2 v1.25.2 h1:/uiG1avJRgLGiQM9X3qJM8+Qa6KRGK5rRPuXE0HUM+w=
@@ -88,8 +88,8 @@ github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTE
 github.com/rogpeppe/go-internal v1.8.0 h1:FCbCCtXNOY3UtUuHUYaghJg4y7Fd14rXifAYUAtL9R8=
 github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6poM+XZ2dLUbcbE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
-github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
-github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
+github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
+github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tomtwinkle/utfbomremover v0.1.1 h1:GYRMDznAkHQq5sBuzJULO9AsTA84kILhV26dVXsDKtM=
 github.com/tomtwinkle/utfbomremover v0.1.1/go.mod h1:5iCGUVDwbVxfPVTgnMLZ7hZA5U+h1BsrMbkyzOcaz/0=
 golang.org/x/sync v0.6.0 h1:5BMeUDZ7vkXGfEr1x9B4bRcTH4lpkTkpdh0T/J+qjbQ=

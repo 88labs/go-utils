@@ -3,7 +3,7 @@ module github.com/88labs/go-utils/aws
 go 1.21
 
 require (
-	github.com/88labs/go-utils/ulid v0.3.0
+	github.com/88labs/go-utils/ulid v0.4.0
 	github.com/88labs/go-utils/utf8bom v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.4
@@ -18,7 +18,7 @@ require (
 	github.com/aws/smithy-go v1.20.1
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/go-faker/faker/v4 v4.3.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
 	golang.org/x/sync v0.6.0
 	golang.org/x/text v0.14.0
