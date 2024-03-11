@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
       - uses: reviewdog/action-setup@1d18b2938261447f64c39f831d7395e90ef5a40e # v1.2.1
       - id: changed-files
-        uses: tj-actions/changed-files@7fc073d92265804a8d4e4982b637dee053daf6c5 # v42.0.7
+        uses: tj-actions/changed-files@aa08304bd477b800d468db44fe10f6c61f7f7b11 # v42.1.0
       - id: run-semgrep
         if: steps.changed-files.outputs.all_changed_files_count != '0'
         name: Run semgrep
