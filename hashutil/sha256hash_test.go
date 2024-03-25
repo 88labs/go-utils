@@ -3,10 +3,10 @@ package hashutil_test
 import (
 	"testing"
 
+	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/88labs/go-utils/hashutil"
-	"github.com/go-faker/faker/v4"
 )
 
 func TestMustGetHash(t *testing.T) {
