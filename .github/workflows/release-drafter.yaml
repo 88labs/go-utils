@@ -129,7 +129,7 @@ jobs:
       - uses: release-drafter/release-drafter@v6
         if: steps.changes.outputs.hashutil == 'true'
         with:
-          config-name: release-drafter-utf8bom.yml
+          config-name: release-drafter-hashutil.yml
           name: hashutil/v$RESOLVED_VERSION
           tag: hashutil/v$RESOLVED_VERSION
           publish: true

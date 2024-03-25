@@ -1,3 +1,4 @@
+// Package hashutil provides a simple way to hash strings, bytes, and structs using SHA256.
 package hashutil
 
 import (
