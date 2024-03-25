@@ -43,6 +43,8 @@ jobs:
               - 'ulid/**'
             utf8bom:
               - 'utf8bom/**'
+            hashutil:
+              - 'hashutil/**'
       - uses: release-drafter/release-drafter@v6
         if: steps.changes.outputs.aws == 'true'
         with:
@@ -121,6 +123,15 @@ jobs:
           config-name: release-drafter-utf8bom.yml
           name: utf8bom/v$RESOLVED_VERSION
           tag: utf8bom/v$RESOLVED_VERSION
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: release-drafter/release-drafter@v6
+        if: steps.changes.outputs.hashutil == 'true'
+        with:
+          config-name: release-drafter-utf8bom.yml
+          name: hashutil/v$RESOLVED_VERSION
+          tag: hashutil/v$RESOLVED_VERSION
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
