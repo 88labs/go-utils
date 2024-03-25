@@ -108,3 +108,6 @@ autolabeler:
   - label: lib:utf8bom
     files:
       - 'utf8bom/**/*'
+  - label: lib:hashutil
+    files:
+      - 'hashutil/**/*'

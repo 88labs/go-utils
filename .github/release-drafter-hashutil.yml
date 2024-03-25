@@ -1,8 +1,8 @@
-name-template: 'sql-escape/v$RESOLVED_VERSION'
-tag-template: 'sql-escape/v$RESOLVED_VERSION'
-tag-prefix: sql-escape/
+name-template: 'hashutil/v$RESOLVED_VERSION'
+tag-template: 'hashutil/v$RESOLVED_VERSION'
+tag-prefix: hashutil/
 include-paths:
-  - "sql-escape"
+  - "hashutil"
 
 categories:
   - title: '🚀 Features'
