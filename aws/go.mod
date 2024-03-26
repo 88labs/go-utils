@@ -8,15 +8,15 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.26.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.9
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.11
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.11
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.12
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.12
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.16.13
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.23.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.3
 	github.com/aws/smithy-go v1.20.1
-	github.com/cenkalti/backoff/v4 v4.2.1
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-faker/faker/v4 v4.3.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
