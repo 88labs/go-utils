@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/88labs/go-utils/aws v0.94.0
-	github.com/go-faker/faker/v4 v4.3.0
+	github.com/go-faker/faker/v4 v4.4.0
 	github.com/stretchr/testify v1.9.0
 )
 
