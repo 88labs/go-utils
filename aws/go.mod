@@ -6,18 +6,18 @@ require (
 	github.com/88labs/go-utils/ulid v0.4.0
 	github.com/88labs/go-utils/utf8bom v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.26.1
-	github.com/aws/aws-sdk-go-v2/config v1.27.10
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.10
+	github.com/aws/aws-sdk-go-v2/config v1.27.11
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.11
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.13
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.13
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.16.14
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.16.15
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.23.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.31.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.4
 	github.com/aws/smithy-go v1.20.2
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/go-faker/faker/v4 v4.4.0
+	github.com/go-faker/faker/v4 v4.4.1
 	github.com/stretchr/testify v1.9.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
 	golang.org/x/sync v0.7.0
@@ -37,7 +37,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.20.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
