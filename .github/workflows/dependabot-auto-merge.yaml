@@ -1,0 +1,53 @@
+name: Dependabot auto-merge
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Check if aws-sdk-go-v2 is in the dependency list
+        id: check
+        env:
+          DEPENDENCIES: ${{ steps.metadata.outputs.dependency-names }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          if [[ $UPDATE_TYPE == "version-update:semver-major" ]]; then
+            if [[ $DEPENDENCIES == "tj-actions/changed-files" ]]; then
+              echo "match=true" >> $GITHUB_OUTPUT
+            else
+              echo "match=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ $UPDATE_TYPE == "version-update:semver-minor" ]]; then
+            if [[ $DEPENDENCIES == "tj-actions/changed-files" ]]; then
+              echo "match=true" >> $GITHUB_OUTPUT
+            else
+              echo "match=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ $UPDATE_TYPE == "version-update:semver-patch" ]]; then
+            if [[ $DEPENDENCIES == "github.com/aws/aws-sdk-go-v2"* ]] || [[ $DEPENDENCIES == "tj-actions/changed-files" ]]; then
+              echo "match=true" >> $GITHUB_OUTPUT
+            else
+              echo "match=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Approve and Enable auto-merge for Dependabot PRs
+        if: ${{ steps.check.outputs.match == 'true' }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
