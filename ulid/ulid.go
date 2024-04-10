@@ -101,8 +101,8 @@ func (u ULID) Time() time.Time {
 	return oklogulid.Time(oklogulid.ULID(u).Time())
 }
 
-func (u ULID) Scan(src any) error {
-	_u := oklogulid.ULID(u)
+func (u *ULID) Scan(src any) error {
+	_u := (*oklogulid.ULID)(u)
 	return _u.Scan(src)
 }
 
