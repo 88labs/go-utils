@@ -2,6 +2,7 @@ package ulid
 
 import (
 	"crypto/rand"
+	"database/sql/driver"
 	"errors"
 	"io"
 	"sync"
@@ -75,6 +76,10 @@ func ParseStrict(id string) (ULID, error) {
 	return ULID(okid), nil
 }
 
+func (u ULID) Bytes() []byte {
+	return oklogulid.ULID(u).Bytes()
+}
+
 func (u ULID) String() string {
 	return oklogulid.ULID(u).String()
 }
@@ -94,4 +99,14 @@ func (u ULID) SetTime(t time.Time) error {
 
 func (u ULID) Time() time.Time {
 	return oklogulid.Time(oklogulid.ULID(u).Time())
+}
+
+func (u ULID) Scan(src any) error {
+	_u := oklogulid.ULID(u)
+	return _u.Scan(src)
+}
+
+func (u ULID) Value() (driver.Value, error) {
+	_u := oklogulid.ULID(u)
+	return _u.Value()
 }
