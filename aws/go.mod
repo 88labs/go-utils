@@ -8,12 +8,12 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.27.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.17
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.21
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.21
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.16.22
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.14.0
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.22
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.16.23
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.23.12
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.32.7
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.54.4
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.55.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.32.4
 	github.com/aws/smithy-go v1.20.2
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -21,7 +21,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
 	golang.org/x/sync v0.7.0
-	golang.org/x/text v0.15.0
+	golang.org/x/text v0.16.0
 )
 
 require (
