@@ -1,3 +1,3 @@
 module github.com/88labs/go-utils/errgroup
 
-go 1.21
+go 1.22
