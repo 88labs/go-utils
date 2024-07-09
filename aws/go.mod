@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.14.7
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.29
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.5
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.25.2
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.25.3
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.1
