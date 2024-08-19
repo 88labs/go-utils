@@ -5,6 +5,7 @@ type OptionS3Download interface {
 }
 
 type confS3Download struct {
+	// Sets the function used to replace file names in downloaded files.
 	FileNameReplacer FileNameReplacerFunc
 }
 
@@ -15,6 +16,8 @@ func (o OptionFileNameReplacer) Apply(c *confS3Download) {
 	c.FileNameReplacer = FileNameReplacerFunc(o)
 }
 
+// WithFileNameReplacerFunc
+// Sets the function used to replace file names in downloaded files.
 func WithFileNameReplacerFunc(fileNameReplacerFunc FileNameReplacerFunc) OptionFileNameReplacer {
 	return OptionFileNameReplacer(fileNameReplacerFunc)
 }
