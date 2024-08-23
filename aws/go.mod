@@ -6,15 +6,15 @@ require (
 	github.com/88labs/go-utils/ulid v0.7.0
 	github.com/88labs/go-utils/utf8bom v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.30.4
-	github.com/aws/aws-sdk-go-v2/config v1.27.28
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.28
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.14.11
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.33
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.12
+	github.com/aws/aws-sdk-go-v2/config v1.27.29
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.29
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.14.12
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.34
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.13
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.25.6
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.34.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.60.0
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.4
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.34.6
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.60.1
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.5
 	github.com/aws/smithy-go v1.20.4
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-faker/faker/v4 v4.4.2
@@ -31,7 +31,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.16 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.16 // indirect
-	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.22.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.22.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.17 // indirect
@@ -39,7 +39,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.22.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.30.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.30.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
