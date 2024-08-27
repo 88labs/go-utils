@@ -6,11 +6,11 @@ require (
 	github.com/88labs/go-utils/ulid v0.7.0
 	github.com/88labs/go-utils/utf8bom v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.30.4
-	github.com/aws/aws-sdk-go-v2/config v1.27.30
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.29
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.14.12
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.34
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.14
+	github.com/aws/aws-sdk-go-v2/config v1.27.31
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.30
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.0
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.35
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.15
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.25.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.34.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.60.1
