@@ -16,8 +16,8 @@ github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.43 h1:5uik0CKOtnx1
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.43/go.mod h1:p3hK1XxQuZhdB9svm/5aL9lefQVdCEFoIEHeOjMD26k=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.14 h1:C/d03NAmh8C4BZXhuRNboF/DqhBkBCeDiJDcaqIT5pA=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.14/go.mod h1:7I0Ju7p9mCIdlrfS+JCgqcYD0VXz/N4yozsox+0o078=
-github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.25 h1:HkpHeZMM39sGtMHVYG1buAg93vhj5d7F81y6G0OAbGc=
-github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.25/go.mod h1:j3Vz04ZjaWA6kygOsZRpmWe4CyGqfqq2u3unDTU0QGA=
+github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.26 h1:BTfwWNFVGLxW2bih/V2xhgCsYDQwG1cAWhWoW9Jx7wE=
+github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.26/go.mod h1:LA1/FxoEFFmv7XpkB8KKqLAUz8AePdK9H0Ec7PUKazs=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.18 h1:kYQ3H1u0ANr9KEKlGs/jTLrBFPo8P8NaH/w7A01NeeM=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.18/go.mod h1:r506HmK5JDUh9+Mw4CfGJGSSoqIiLCndAuqXuhbv67Y=
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.18 h1:Z7IdFUONvTcvS7YuhtVxN99v2cCoHRXOS4mTr0B/pUc=
@@ -42,8 +42,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.20 h1:Xbwbmk44
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.20/go.mod h1:oAfOFzUB14ltPZj1rWwRc3d/6OgD76R8KlvU3EqM9Fg=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.18 h1:eb+tFOIl9ZsUe2259/BKPeniKuz4/02zZFH/i4Nf8Rg=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.18/go.mod h1:GVCC2IJNJTmdlyEsSmofEy7EfJncP7DNnXDzRjJ5Keg=
-github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3 h1:3zt8qqznMuAZWDTDpcwv9Xr11M/lVj2FsRR7oYBt0OA=
-github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3/go.mod h1:NLTqRLe3pUNu3nTEHI6XlHLKYmc8fbHUdMxAB6+s41Q=
+github.com/aws/aws-sdk-go-v2/service/s3 v1.64.0 h1:I0p8knB/IDYSQ3dbanaCr4UhiYQ96bvKRhGYxvLyiD8=
+github.com/aws/aws-sdk-go-v2/service/s3 v1.64.0/go.mod h1:NLTqRLe3pUNu3nTEHI6XlHLKYmc8fbHUdMxAB6+s41Q=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.35.3 h1:Lcs658WFW235QuUfpAdxd8RCy8Va2VUA7/U9iIrcjcY=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.35.3/go.mod h1:WuGxWQhu2LXoPGA2HBIbotpwhM6T4hAz0Ip/HjdxfJg=
 github.com/aws/aws-sdk-go-v2/service/sso v1.23.3 h1:rs4JCczF805+FDv2tRhZ1NU0RB2H6ryAvsWPanAr72Y=
