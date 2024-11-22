@@ -10,10 +10,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.46
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.17
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.52
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.39
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.40
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.37.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.67.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.68.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.37.1
 	github.com/aws/smithy-go v1.22.1
 	github.com/cenkalti/backoff/v4 v4.3.0
