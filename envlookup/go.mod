@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/88labs/go-utils/aws v0.124.0
 	github.com/go-faker/faker/v4 v4.5.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
