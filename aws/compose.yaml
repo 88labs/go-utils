@@ -1,4 +1,3 @@
-version: '3'
 services:
   elasticmq:
     image: softwaremill/elasticmq:latest
@@ -12,7 +11,7 @@ services:
     image: minio/minio:latest
     container_name: go_utils_minio_ci
     ports:
-      - "29000:29000"
+      - "29000:9000"
     environment:
       - MINIO_ROOT_USER=DUMMYACCESSKEYEXAMPLE
       - MINIO_ROOT_PASSWORD=DUMMYSECRETKEYEXAMPLE
@@ -20,10 +19,15 @@ services:
       - AWS_EC2_METADATA_DISABLED=true
     entrypoint: sh
     command: -c "
-      minio server --address ':29000' /data;
+      minio server /data;
       "
     volumes:
       - ./docker/minio/data:/data
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   miniocreatebuckets:
     image: minio/mc
     container_name: go_utils_minio_init_ci
