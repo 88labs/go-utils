@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/88labs/go-utils/ulid"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/88labs/go-utils/ulid"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3"
@@ -25,6 +27,11 @@ const (
 )
 
 func TestGlobalOptionWithHeadObject(t *testing.T) {
+	if _, ok := os.LookupEnv("CI"); ok {
+		t.Skip("Skip the test in CI environment.")
+		return
+	}
+
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio

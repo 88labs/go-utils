@@ -1,6 +1,6 @@
 module github.com/88labs/go-utils/envlookup
 
-go 1.22
+go 1.23
 
 require (
 	github.com/88labs/go-utils/aws v0.128.0

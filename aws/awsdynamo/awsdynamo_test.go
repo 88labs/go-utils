@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/88labs/go-utils/ulid"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/88labs/go-utils/ulid"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awsdynamo"
@@ -112,14 +113,14 @@ func TestDeleteItem(t *testing.T) {
 		ctxawslocal.WithAccessKey(TestAccessKey),
 		ctxawslocal.WithSecretAccessKey(TestSecretAccessKey),
 	)
-	testItem := Test{
-		ID:        ulid.MustNew().String(),
-		Name:      faker.Name(),
-		CreatedAt: attributevalue.UnixTime(time.Now()),
-	}
 
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
+		testItem := Test{
+			ID:        ulid.MustNew().String(),
+			Name:      faker.Name(),
+			CreatedAt: attributevalue.UnixTime(time.Now()),
+		}
 		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
 		assert.NoError(t, err)
 
@@ -137,6 +138,11 @@ func TestDeleteItem(t *testing.T) {
 
 	t.Run("Delete out param nil", func(t *testing.T) {
 		t.Parallel()
+		testItem := Test{
+			ID:        ulid.MustNew().String(),
+			Name:      faker.Name(),
+			CreatedAt: attributevalue.UnixTime(time.Now()),
+		}
 		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
 		assert.NoError(t, err)
 
