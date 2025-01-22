@@ -1,7 +1,7 @@
-github.com/88labs/go-utils/ulid v0.7.0 h1:pWrk4fky9ZDEYX80QzSjdJCovzDqFF2s/Pyg7v/Rniw=
-github.com/88labs/go-utils/ulid v0.7.0/go.mod h1:epQjW5Fqoj0EPrBhbEU/L/E2rV1ODeMp+H+F+AEItWw=
-github.com/88labs/go-utils/utf8bom v0.4.0 h1:4r+KVixTaRoKS6J7nD1KT/Y1DB/oco8fl8ME/smeMRQ=
-github.com/88labs/go-utils/utf8bom v0.4.0/go.mod h1:FJs/bGwRY0XxvYuYTPbh9y2lc/pocVbUHkUOTeQYbB4=
+github.com/88labs/go-utils/ulid v0.8.0 h1:Fv+shGEW0vR9fL+U+ZBzyydu/sVrv3ywH/5XSqae0d0=
+github.com/88labs/go-utils/ulid v0.8.0/go.mod h1:thX4Bl48UmbSbuSaNjAcL4nE4Vl9f86+aC/qbR3l/hc=
+github.com/88labs/go-utils/utf8bom v0.5.0 h1:8YT5/oJ2xo0iIIMFjaMWStd+ZI0p2Q46/H0sJCdGdw4=
+github.com/88labs/go-utils/utf8bom v0.5.0/go.mod h1:nCF0NUK98dv7WW3lrMmpUPCl43vtR+SjCsWzyk/yXIE=
 github.com/aws/aws-sdk-go-v2 v1.33.0 h1:Evgm4DI9imD81V0WwD+TN4DCwjUMdc94TrduMLbgZJs=
 github.com/aws/aws-sdk-go-v2 v1.33.0/go.mod h1:P5WJBrYqqbWVaOxgH0X/FYYD47/nooaPOZPlQdmiN2U=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7 h1:lL7IfaFzngfx0ZwUGOZdsFFnQ5uLvR0hWqqhyE7Q9M8=
@@ -52,10 +52,8 @@ github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.10 h1:l+dgv/64iVlQ3WsBbnn+JSb
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.10/go.mod h1:Fzsj6lZEb8AkTE5S68OhcbBqeWPsR8RnGuKPr8Todl8=
 github.com/aws/aws-sdk-go-v2/service/sts v1.33.9 h1:BRVDbewN6VZcwr+FBOszDKvYeXY1kJ+GGMCcpghlw0U=
 github.com/aws/aws-sdk-go-v2/service/sts v1.33.9/go.mod h1:f6vjfZER1M17Fokn0IzssOTMT2N8ZSq+7jnNF0tArvw=
-github.com/aws/smithy-go v1.22.1 h1:/HPHZQ0g7f4eUeK6HKglFz8uwVfZKgoI25rb/J+dnro=
-github.com/aws/smithy-go v1.22.1/go.mod h1:irrKGvNn1InZwb2d7fkIRNucdfwR8R+Ts3wxYa/cJHg=
-github.com/bxcodec/faker/v3 v3.8.1 h1:qO/Xq19V6uHt2xujwpaetgKhraGCapqY2CRWGD/SqcM=
-github.com/bxcodec/faker/v3 v3.8.1/go.mod h1:DdSDccxF5msjFo5aO4vrobRQ8nIApg8kq3QWPEQD6+o=
+github.com/aws/smithy-go v1.22.2 h1:6D9hW43xKFrRx/tXXfAlIZc4JI+yQe6snnWcQyxSyLQ=
+github.com/aws/smithy-go v1.22.2/go.mod h1:irrKGvNn1InZwb2d7fkIRNucdfwR8R+Ts3wxYa/cJHg=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
