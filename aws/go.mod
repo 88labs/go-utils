@@ -3,8 +3,8 @@ module github.com/88labs/go-utils/aws
 go 1.23
 
 require (
-	github.com/88labs/go-utils/ulid v0.7.0
-	github.com/88labs/go-utils/utf8bom v0.4.0
+	github.com/88labs/go-utils/ulid v0.8.0
+	github.com/88labs/go-utils/utf8bom v0.5.0
 	github.com/aws/aws-sdk-go-v2 v1.33.0
 	github.com/aws/aws-sdk-go-v2/config v1.29.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.54
@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.39.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.73.2
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.37.9
-	github.com/aws/smithy-go v1.22.1
+	github.com/aws/smithy-go v1.22.2
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-faker/faker/v4 v4.5.0
 	github.com/stretchr/testify v1.10.0
