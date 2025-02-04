@@ -3,7 +3,7 @@ module github.com/88labs/go-utils/envlookup
 go 1.23
 
 require (
-	github.com/88labs/go-utils/aws v0.133.0
+	github.com/88labs/go-utils/aws v0.134.0
 	github.com/go-faker/faker/v4 v4.5.0
 	github.com/stretchr/testify v1.10.0
 )
