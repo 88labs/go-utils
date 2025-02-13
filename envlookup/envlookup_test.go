@@ -1,13 +1,15 @@
 package envlookup_test
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/go-faker/faker/v4"
-	"github.com/stretchr/testify/assert"
+	"gotest.tools/assert"
 
+	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/envlookup"
 )
 
@@ -18,7 +20,7 @@ func TestLookUpString(t *testing.T) {
 	}
 	type Want struct {
 		Val string
-		Err bool
+		Err error
 	}
 	tests := map[string]struct {
 		SetEnv func(t *testing.T) (Param, Want)
@@ -33,7 +35,7 @@ func TestLookUpString(t *testing.T) {
 						Required: true,
 					}, Want{
 						Val: val,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -46,7 +48,7 @@ func TestLookUpString(t *testing.T) {
 						Key:      "NOT_EXIST",
 						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
 					}
 			},
 		},
@@ -60,7 +62,7 @@ func TestLookUpString(t *testing.T) {
 						Required: false,
 					}, Want{
 						Val: val,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -74,36 +76,126 @@ func TestLookUpString(t *testing.T) {
 						Required: false,
 					}, Want{
 						Val: "",
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
 	}
 
-	for n, v := range tests {
-		name := n
-		tt := v
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			p, want := tt.SetEnv(t)
-			if want.Err {
-				assert.Panics(t, func() {
-					envlookup.LookUpString(p.Key, p.Required)
-				})
+			got, err := envlookup.LookUpString(p.Key, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
 				return
 			}
-			got := envlookup.LookUpString(p.Key, p.Required)
+			assert.NilError(t, err)
 			assert.Equal(t, want.Val, got)
+		})
+	}
+}
+
+func TestLookUpStringSlice(t *testing.T) {
+	type Param struct {
+		Key      string
+		Sep      string
+		Required bool
+	}
+	type Want struct {
+		Val []string
+		Err error
+	}
+	tests := map[string]struct {
+		SetEnv func(t *testing.T) (Param, Want)
+	}{
+		"required:key exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val1 := faker.Sentence()
+				val2 := faker.Sentence()
+				t.Setenv(key, strings.Join([]string{val1, val2}, ","))
+				return Param{
+						Key:      key,
+						Sep:      ",",
+						Required: true,
+					}, Want{
+						Val: []string{val1, val2},
+						Err: nil,
+					}
+			},
+		},
+		"required:sep:|": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val1 := faker.Sentence()
+				val2 := faker.Sentence()
+				t.Setenv(key, strings.Join([]string{val1, val2}, "|"))
+				return Param{
+						Key:      key,
+						Sep:      "|",
+						Required: true,
+					}, Want{
+						Val: []string{val1, val2},
+						Err: nil,
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val1 := faker.Sentence()
+				val2 := faker.Sentence()
+				t.Setenv(key, strings.Join([]string{val1, val2}, ","))
+				return Param{
+						Key:      "NOT_EXIST",
+						Sep:      ",",
+						Required: true,
+					}, Want{
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
+					}
+			},
+		},
+		"not required:key exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val1 := faker.Sentence()
+				val2 := faker.Sentence()
+				t.Setenv(key, strings.Join([]string{val1, val2}, ","))
+				return Param{
+						Key:      "NOT_EXIST",
+						Sep:      ",",
+						Required: false,
+					}, Want{
+						Val: []string(nil),
+						Err: nil,
+					}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			p, want := tt.SetEnv(t)
+			got, err := envlookup.LookUpStringSlice(p.Key, p.Sep, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
+				return
+			}
+			assert.NilError(t, err)
+			assert.DeepEqual(t, want.Val, got)
 		})
 	}
 }
 
 func TestLookUpInt(t *testing.T) {
 	type Param struct {
-		Key string
+		Key      string
+		Required bool
 	}
 	type Want struct {
 		Val int
-		Err bool
+		Err error
 	}
 	tests := map[string]struct {
 		SetEnv func(t *testing.T) (Param, Want)
@@ -114,10 +206,11 @@ func TestLookUpInt(t *testing.T) {
 				val := "1"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
 						Val: 1,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -127,10 +220,11 @@ func TestLookUpInt(t *testing.T) {
 				val := "0"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
 						Val: 0,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -140,38 +234,51 @@ func TestLookUpInt(t *testing.T) {
 				val := "hoge"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New(`strconv.Atoi: parsing "` + val + `": invalid syntax`),
 					}
 			},
 		},
-		"key not exists": {
+		"not required:key not exists": {
 			SetEnv: func(t *testing.T) (Param, Want) {
 				key := faker.UUIDHyphenated()
 				val := "1"
 				t.Setenv(key, val)
 				return Param{
-						Key: "NOT_EXIST",
+						Key:      "NOT_EXIST",
+						Required: false,
 					}, Want{
-						Err: true,
+						Val: 0,
+						Err: nil,
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "1"
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: true,
+					}, Want{
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
 					}
 			},
 		},
 	}
 
-	for n, v := range tests {
-		name := n
-		tt := v
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			p, want := tt.SetEnv(t)
-			if want.Err {
-				assert.Panics(t, func() {
-					envlookup.LookUpInt(p.Key)
-				})
+			got, err := envlookup.LookUpInt(p.Key, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
 				return
 			}
-			got := envlookup.LookUpInt(p.Key)
+			assert.NilError(t, err)
 			assert.Equal(t, want.Val, got)
 		})
 	}
@@ -179,11 +286,12 @@ func TestLookUpInt(t *testing.T) {
 
 func TestLookUpTime(t *testing.T) {
 	type Param struct {
-		Key string
+		Key      string
+		Required bool
 	}
 	type Want struct {
 		Val time.Time
-		Err bool
+		Err error
 	}
 	tests := map[string]struct {
 		SetEnv func(t *testing.T) (Param, Want)
@@ -194,10 +302,11 @@ func TestLookUpTime(t *testing.T) {
 				val := "2022-01-02T03:04:05Z"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
 						Val: time.Date(2022, 1, 2, 3, 4, 5, 0, time.UTC),
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -207,9 +316,10 @@ func TestLookUpTime(t *testing.T) {
 				val := "2022-01-02"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New(`parsing time "` + val + `" as "2006-01-02T15:04:05Z07:00": cannot parse "" as "T"`),
 					}
 			},
 		},
@@ -219,38 +329,147 @@ func TestLookUpTime(t *testing.T) {
 				val := "hoge"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New(`parsing time "` + val + `" as "2006-01-02T15:04:05Z07:00": cannot parse "hoge" as "2006"`),
 					}
 			},
 		},
-		"key not exists": {
+		"not required:key not exists": {
 			SetEnv: func(t *testing.T) (Param, Want) {
 				key := faker.UUIDHyphenated()
 				val := faker.Sentence()
 				t.Setenv(key, val)
 				return Param{
-						Key: "NOT_EXIST",
+						Key:      "NOT_EXIST",
+						Required: false,
 					}, Want{
-						Err: true,
+						Val: time.Time{},
+						Err: nil,
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: true,
+					}, Want{
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
 					}
 			},
 		},
 	}
 
-	for n, v := range tests {
-		name := n
-		tt := v
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			p, want := tt.SetEnv(t)
-			if want.Err {
-				assert.Panics(t, func() {
-					envlookup.LookUpTime(p.Key)
-				})
+			got, err := envlookup.LookUpTime(p.Key, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
 				return
 			}
-			got := envlookup.LookUpTime(p.Key)
+			assert.NilError(t, err)
+			assert.Equal(t, want.Val, got)
+		})
+	}
+}
+
+func TestLookUpDuration(t *testing.T) {
+	type Param struct {
+		Key      string
+		Required bool
+	}
+	type Want struct {
+		Val time.Duration
+		Err error
+	}
+	tests := map[string]struct {
+		SetEnv func(t *testing.T) (Param, Want)
+	}{
+		"key exists:10s": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "10s"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: 10 * time.Second,
+						Err: nil,
+					}
+			},
+		},
+		"key exists:30m": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "30m"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: 30 * time.Minute,
+						Err: nil,
+					}
+			},
+		},
+		"key exists:not Duration": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := "hoge"
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Err: errors.New(`time: invalid duration "` + val + `"`),
+					}
+			},
+		},
+		"not required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: false,
+					}, Want{
+						Val: 0,
+						Err: nil,
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: true,
+					}, Want{
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
+					}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			p, want := tt.SetEnv(t)
+			got, err := envlookup.LookUpDuration(p.Key, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
+				return
+			}
+			assert.NilError(t, err)
 			assert.Equal(t, want.Val, got)
 		})
 	}
@@ -258,11 +477,12 @@ func TestLookUpTime(t *testing.T) {
 
 func TestLookUpRegion(t *testing.T) {
 	type Param struct {
-		Key string
+		Key      string
+		Required bool
 	}
 	type Want struct {
 		Val awsconfig.Region
-		Err bool
+		Err error
 	}
 	tests := map[string]struct {
 		SetEnv func(t *testing.T) (Param, Want)
@@ -273,10 +493,11 @@ func TestLookUpRegion(t *testing.T) {
 				val := awsconfig.RegionOhio
 				t.Setenv(key, val.String())
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
 						Val: val,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -286,38 +507,50 @@ func TestLookUpRegion(t *testing.T) {
 				val := "hoge"
 				t.Setenv(key, val)
 				return Param{
-						Key: key,
+						Key:      key,
+						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New("no supported region [" + val + "]"),
 					}
 			},
 		},
-		"key not exists": {
+		"not required:key not exists": {
 			SetEnv: func(t *testing.T) (Param, Want) {
 				key := faker.UUIDHyphenated()
 				val := awsconfig.RegionOhio
 				t.Setenv(key, val.String())
 				return Param{
-						Key: "NOT_EXIST",
+						Key:      "NOT_EXIST",
+						Required: false,
 					}, Want{
-						Err: true,
+						Err: errors.New("no supported region []"),
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := awsconfig.RegionOhio
+				t.Setenv(key, val.String())
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: true,
+					}, Want{
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
 					}
 			},
 		},
 	}
 
-	for n, v := range tests {
-		name := n
-		tt := v
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			p, want := tt.SetEnv(t)
-			if want.Err {
-				assert.Panics(t, func() {
-					envlookup.LookUpRegion(p.Key)
-				})
+			got, err := envlookup.LookUpRegion(p.Key, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
 				return
 			}
-			got := envlookup.LookUpRegion(p.Key)
+			assert.NilError(t, err)
 			assert.Equal(t, want.Val, got)
 		})
 	}
@@ -330,7 +563,7 @@ func TestLookUpBool(t *testing.T) {
 	}
 	type Want struct {
 		Val bool
-		Err bool
+		Err error
 	}
 	tests := map[string]struct {
 		SetEnv func(t *testing.T) (Param, Want)
@@ -345,7 +578,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: true,
 					}, Want{
 						Val: true,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -359,7 +592,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: true,
 					}, Want{
 						Val: false,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -373,7 +606,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: true,
 					}, Want{
 						Val: true,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -387,7 +620,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: true,
 					}, Want{
 						Val: false,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -400,7 +633,7 @@ func TestLookUpBool(t *testing.T) {
 						Key:      key,
 						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New("environment variable is not set to " + key + " strconv.ParseBool: parsing \"" + val + "\": invalid syntax"),
 					}
 			},
 		},
@@ -414,7 +647,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: true,
 					}, Want{
 						Val: true,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -427,7 +660,7 @@ func TestLookUpBool(t *testing.T) {
 						Key:      key,
 						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New("environment variable is not set to " + key + " strconv.ParseBool: parsing \"" + val + "\": invalid syntax"),
 					}
 			},
 		},
@@ -440,7 +673,7 @@ func TestLookUpBool(t *testing.T) {
 						Key:      "NOT_EXIST",
 						Required: true,
 					}, Want{
-						Err: true,
+						Err: errors.New("environment variable is not set to NOT_EXIST"),
 					}
 			},
 		},
@@ -454,7 +687,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: false,
 					}, Want{
 						Val: true,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
@@ -468,7 +701,7 @@ func TestLookUpBool(t *testing.T) {
 						Required: false,
 					}, Want{
 						Val: false,
-						Err: false,
+						Err: errors.New("environment variable is not set to " + key + " strconv.ParseBool: parsing \"" + val + "\": invalid syntax"),
 					}
 			},
 		},
@@ -482,24 +715,21 @@ func TestLookUpBool(t *testing.T) {
 						Required: false,
 					}, Want{
 						Val: false,
-						Err: false,
+						Err: nil,
 					}
 			},
 		},
 	}
 
-	for n, v := range tests {
-		name := n
-		tt := v
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			p, want := tt.SetEnv(t)
-			if want.Err {
-				assert.Panics(t, func() {
-					envlookup.LookUpBool(p.Key, p.Required)
-				})
+			got, err := envlookup.LookUpBool(p.Key, p.Required)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
 				return
 			}
-			got := envlookup.LookUpBool(p.Key, p.Required)
+			assert.NilError(t, err)
 			assert.Equal(t, want.Val, got)
 		})
 	}
