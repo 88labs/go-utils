@@ -13,6 +13,99 @@ import (
 	"github.com/88labs/go-utils/envlookup"
 )
 
+func TestMust(t *testing.T) {
+	type Param struct {
+		Key      string
+		Required bool
+	}
+	type Want struct {
+		Val string
+		Err error
+	}
+	tests := map[string]struct {
+		SetEnv func(t *testing.T) (Param, Want)
+	}{
+		"required:key exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: true,
+					}, Want{
+						Val: val,
+						Err: nil,
+					}
+			},
+		},
+		"required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: true,
+					}, Want{
+						Err: errors.New("environment variable is not set to " + "NOT_EXIST"),
+					}
+			},
+		},
+		"not required:key exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      key,
+						Required: false,
+					}, Want{
+						Val: val,
+						Err: nil,
+					}
+			},
+		},
+		"not required:key not exists": {
+			SetEnv: func(t *testing.T) (Param, Want) {
+				key := faker.UUIDHyphenated()
+				val := faker.Sentence()
+				t.Setenv(key, val)
+				return Param{
+						Key:      "NOT_EXIST",
+						Required: false,
+					}, Want{
+						Val: "",
+						Err: nil,
+					}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			p, want := tt.SetEnv(t)
+			fnRecover := func(p Param) (v any, err error) {
+				defer func() {
+					if r := recover(); r != nil {
+						err = r.(error)
+						return
+					}
+				}()
+				ret := envlookup.Must(envlookup.LookUpString(p.Key, p.Required))
+				return ret, nil
+			}
+			got, err := fnRecover(p)
+			if want.Err != nil {
+				assert.Error(t, err, want.Err.Error())
+				return
+			}
+			assert.NilError(t, err)
+			assert.Equal(t, want.Val, got)
+		})
+	}
+}
+
 func TestLookUpString(t *testing.T) {
 	type Param struct {
 		Key      string
