@@ -35,6 +35,8 @@ jobs:
               - 'errgroup/**'
             osext:
               - 'osext/**'
+            sentryhelper:
+              - 'sentryhelper/**'
             sql-escape:
               - 'sql-escape/**'
             tspb_cast:
@@ -87,6 +89,15 @@ jobs:
           config-name: release-drafter-osext.yml
           name: osext/v$RESOLVED_VERSION
           tag: osext/v$RESOLVED_VERSION
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: release-drafter/release-drafter@v6
+        if: steps.changes.outputs.sentryhelper == 'true'
+        with:
+          config-name: release-drafter-sentryhelper.yml
+          name: sentryhelper/v$RESOLVED_VERSION
+          tag: sentryhelper/v$RESOLVED_VERSION
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
