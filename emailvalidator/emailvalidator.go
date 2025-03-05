@@ -56,8 +56,6 @@ var (
 	// - Avoids issues with newlines affecting validation
 	// 改行の影響を避けるために\Aと\zを使う
 	rfcRegex = regexp.MustCompile("\\A" + localPart + "(?:@" + domainPartPattern + ")?\\z")
-
-	regexSample = regexp.MustCompile("/^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/")
 )
 
 /*
