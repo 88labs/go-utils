@@ -29,6 +29,8 @@ jobs:
               - 'aws/**'
             cerrors:
               - 'cerrors/**'
+            emailvalidator:
+                - 'emailvalidator/**'
             envlookup:
               - 'envlookup/**'
             errgroup:
@@ -62,6 +64,15 @@ jobs:
           config-name: release-drafter-cerrors.yml
           name: cerrors/v$RESOLVED_VERSION
           tag: cerrors/v$RESOLVED_VERSION
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: release-drafter/release-drafter@v6
+        if: steps.changes.outputs.emailvalidator == 'true'
+        with:
+          config-name: release-drafter-emailvalidator.yml
+          name: emailvalidator/v$RESOLVED_VERSION
+          tag: emailvalidator/v$RESOLVED_VERSION
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
