@@ -1,7 +1,6 @@
 module github.com/88labs/go-utils/aws
 
 go 1.23
-
 require (
 	github.com/88labs/go-utils/ulid v0.8.0
 	github.com/88labs/go-utils/utf8bom v0.5.0
@@ -20,8 +19,8 @@ require (
 	github.com/go-faker/faker/v4 v4.6.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
-	golang.org/x/sync v0.11.0
-	golang.org/x/text v0.22.0
+	golang.org/x/sync v0.12.0
+	golang.org/x/text v0.23.0
 )
 
 require (
