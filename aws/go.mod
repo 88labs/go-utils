@@ -1,7 +1,6 @@
 module github.com/88labs/go-utils/aws
 
 go 1.23
-
 require (
 	github.com/88labs/go-utils/ulid v0.8.0
 	github.com/88labs/go-utils/utf8bom v0.5.0
@@ -11,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.18.7
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.73
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.65
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.29.1
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.29.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.41.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.1
@@ -20,8 +19,8 @@ require (
 	github.com/go-faker/faker/v4 v4.6.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
-	golang.org/x/sync v0.11.0
-	golang.org/x/text v0.22.0
+	golang.org/x/sync v0.12.0
+	golang.org/x/text v0.23.0
 )
 
 require (
