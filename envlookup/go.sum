@@ -1,12 +1,12 @@
-github.com/88labs/go-utils/aws v0.140.0 h1:ARW9tHBwf7AmE81UvUP55xpKWdJpyDQZFhDpxADWq08=
-github.com/88labs/go-utils/aws v0.140.0/go.mod h1:KfL6KP1oYQsAiuIV+wJvn902cC9HTeDOef40IwsTe2Q=
+github.com/88labs/go-utils/aws v0.140.1 h1:yd+fz6zdFf1Et6FQGwQtyvKJzf0HTvrfneu0DxIZurs=
+github.com/88labs/go-utils/aws v0.140.1/go.mod h1:SZvEyLagNVyxZHQtbmgmt4Uh6Y6xs8rJOQ2q38gT48U=
 github.com/go-faker/faker/v4 v4.6.0 h1:6aOPzNptRiDwD14HuAnEtlTa+D1IfFuEHO8+vEFwjTs=
 github.com/go-faker/faker/v4 v4.6.0/go.mod h1:ZmrHuVtTTm2Em9e0Du6CJ9CADaLEzGXW62z1YqFH0m0=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-golang.org/x/text v0.22.0 h1:bofq7m3/HAFvbF51jz3Q9wLg3jkvSPuiZu/pD1XwgtM=
-golang.org/x/text v0.22.0/go.mod h1:YRoo4H8PVmsu+E3Ou7cqLVH8oXWIHVoX0jqUWALQhfY=
+golang.org/x/text v0.23.0 h1:D71I7dUrlY+VX0gQShAThNGHFxZ13dGLBHQLVl1mJlY=
+golang.org/x/text v0.23.0/go.mod h1:/BLNzu4aZCJ1+kcD0DNRotWKage4q2rGVAg4o22unh4=
 gotest.tools v2.2.0+incompatible h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=
 gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
