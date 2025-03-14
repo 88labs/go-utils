@@ -1,17 +1,19 @@
 module github.com/88labs/go-utils/aws
 
 go 1.23
+toolchain go1.24.1
+
 require (
 	github.com/88labs/go-utils/ulid v0.8.0
 	github.com/88labs/go-utils/utf8bom v0.5.0
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.62
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.18.7
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.73
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.18.8
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.74
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.66
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.29.2
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.41.1
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.2
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.1
 	github.com/aws/smithy-go v1.22.3
