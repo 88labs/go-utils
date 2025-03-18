@@ -23,9 +23,9 @@ jobs:
         uses: actions/checkout@v4 # v3.5.3
         with:
           fetch-depth: 0
-      - uses: reviewdog/action-setup@3f401fe1d58fe77e10d665ab713057375e39b887 # v1.3.0
+      - uses: reviewdog/action-setup@bddaa4f8db3717aad1ce0987da12e1cb4bd081c1 # v1.3.1
       - id: changed-files
-        uses: tj-actions/changed-files@9200e69727eb73eb060652b19946b8a2fdfb654b # v45.0.8
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
       - id: run-semgrep
         if: steps.changed-files.outputs.all_changed_files_count != '0'
         name: Run semgrep
@@ -35,7 +35,7 @@ jobs:
           docker run \
             -v $(pwd):/workdir \
             --workdir /workdir \
-            returntocorp/semgrep:1.27.0@sha256:7026020ebb6c1aa477431a2ba550df3ae4d080822e391d03bb816eeac700a36b \
+            semgrep/semgrep:pro-sha-511dd7ce3c1b7f2f35a4bf9422d3f81ffbe2a688@sha256:fdd6eb7b18182d42817b4dc7ab7112856d2a6183f019de9e32dda0cf022eb575 \
             semgrep scan --config auto --severity WARNING --json ${{ steps.changed-files.outputs.all_changed_files }} \
           | jq -r '.results[] | "\(.path):\(.start.line):\(.start.col): \(.extra.message)"' \
           | sed 's#^/workdir/##' \
