@@ -1,8 +1,15 @@
-/errgroup @KamikazeZirou
+# Repository Administrator
+* @tomtwinkle @KamikazeZirou @replu @bushiyama @nelnal
+
+# Main contributor per package
+/aws @tomtwinkle
 /cerrors @KamikazeZirou
+/emailvalidator @replu
+/envlookup @tomtwinkle
+/errgroup @KamikazeZirou
+/hashutil @tomtwinkle
 /osext @KamikazeZirou
 /sql-escape @KamikazeZirou
 /tspb_cast @KamikazeZirou
 /ulid @tomtwinkle
-/envlookup @tomtwinkle
-/aws @tomtwinkle
+/utf8bom @tomtwinkle
