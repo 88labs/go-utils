@@ -54,13 +54,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
         with:
           go-version: ${{ matrix.go-version }}
           cache-dependency-path: |
             ${{ env.testdir }}/go.sum
       - id: install-minio-cli
-        uses: yakubique/setup-minio-cli@d9826c1ad14228495203415557139d4cf491bed9 # v1.0.0
+        uses: yakubique/setup-minio-cli@d9826c1ad14228495203415557139d4cf491bed9 # v1
       - name: Setup gotestsum
         uses: autero1/action-gotestsum@7263b9d73912eec65f46337689e59fac865c425f # v2.0.0
         with:
@@ -100,7 +100,7 @@ jobs:
           # shellcheck disable=SC2046
           # FIXME: awsdynamo test doesn't work with ci.
           gotestsum --format testname --junitfile unit-tests.xml -- -p 4 -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./... $(go list ./... | grep -v awsdynamo)
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./unit-tests.xml,./coverage.txt
