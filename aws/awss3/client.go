@@ -6,7 +6,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
-	"sync"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
@@ -21,24 +21,23 @@ import (
 
 var (
 	// GlobalDialer Global http dialer settings for awss3 library
-	GlobalDialer *s3dialer.ConfGlobalDialer
-
-	customMu             sync.Mutex
-	customEndpointClient *s3.Client
+	GlobalDialer   *s3dialer.ConfGlobalDialer
+	s3ClientAtomic atomic.Pointer[s3.Client]
 )
 
 // GetClient
 // Get s3 client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks
 func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error) {
+	if v := s3ClientAtomic.Load(); v != nil {
+		return v, nil
+	}
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		customMu.Lock()
-		defer customMu.Unlock()
-		var err error
-		if customEndpointClient != nil {
-			return customEndpointClient, err
+		customEndpointClient, err := getClientLocal(ctx, *localProfile)
+		if err != nil {
+			return nil, err
 		}
-		customEndpointClient, err = getClientLocal(ctx, *localProfile)
+		s3ClientAtomic.Store(customEndpointClient)
 		return customEndpointClient, err
 	}
 	awsHttpClient := awshttp.NewBuildableClient()
@@ -64,7 +63,9 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return s3.NewFromConfig(awsCfg), nil
+	c := s3.NewFromConfig(awsCfg)
+	s3ClientAtomic.Store(c)
+	return c, nil
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client, error) {

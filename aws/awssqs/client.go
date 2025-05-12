@@ -3,6 +3,7 @@ package awssqs
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -13,24 +14,38 @@ import (
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 
+var sqsClientAtomic atomic.Pointer[sqs.Client]
+
 // GetClient
 // Get s3 client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks
 func GetClient(ctx context.Context, region awsconfig.Region) (*sqs.Client, error) {
+	if v := sqsClientAtomic.Load(); v != nil {
+		return v, nil
+	}
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		return getClientLocal(ctx, *localProfile)
+		c, err := getClientLocal(ctx, *localProfile)
+		if err != nil {
+			return nil, err
+		}
+		sqsClientAtomic.Store(c)
+		return c, nil
 	}
 	// SQS Client
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return sqs.NewFromConfig(awsCfg), nil
+	c := sqs.NewFromConfig(awsCfg)
+	sqsClientAtomic.Store(c)
+	return c, nil
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*sqs.Client, error) {
 	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+	customResolver := aws.EndpointResolverWithOptionsFunc(func(
+		service, region string, options ...interface{},
+	) (aws.Endpoint, error) {
 		if service == sqs.ServiceID {
 			return aws.Endpoint{
 				PartitionID:       "aws",
