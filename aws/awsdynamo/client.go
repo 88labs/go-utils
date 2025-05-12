@@ -2,8 +2,7 @@ package awsdynamo
 
 import (
 	"context"
-	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,74 +16,74 @@ import (
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 
-var dynamoDBClient *dynamodb.Client
-var once sync.Once
+var dynamoDBClientAtomic atomic.Pointer[dynamodb.Client]
 
-func GetClient(ctx context.Context, region awsconfig.Region, limitAttempts int, limitBackOffDelay time.Duration) (*dynamodb.Client, error) {
-	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		return getClientLocal(ctx, *localProfile)
+func GetClient(
+	ctx context.Context, region awsconfig.Region, limitAttempts int, limitBackOffDelay time.Duration,
+) (*dynamodb.Client, error) {
+	if v := dynamoDBClientAtomic.Load(); v != nil {
+		return v, nil
 	}
-	var responseError error
-	once.Do(func() {
-		// S3 Client
-		awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()),
-			awsConfig.WithRetryer(func() aws.Retryer {
-				r := retry.AddWithMaxAttempts(retry.NewStandard(), limitAttempts)
-				r = retry.AddWithMaxBackoffDelay(r, limitBackOffDelay)
-				r = retry.AddWithErrorCodes(r,
-					string(types.BatchStatementErrorCodeEnumItemCollectionSizeLimitExceeded),
-					string(types.BatchStatementErrorCodeEnumRequestLimitExceeded),
-					string(types.BatchStatementErrorCodeEnumProvisionedThroughputExceeded),
-					string(types.BatchStatementErrorCodeEnumInternalServerError),
-					string(types.BatchStatementErrorCodeEnumThrottlingError),
-				)
-				return r
-			}),
-		)
+	if localProfile, ok := getLocalEndpoint(ctx); ok {
+		c, err := getClientLocal(ctx, *localProfile)
 		if err != nil {
-			responseError = fmt.Errorf("unable to load SDK config, %w", err)
-		} else {
-			responseError = nil
+			return nil, err
 		}
-		dynamoDBClient = dynamodb.NewFromConfig(awsCfg)
-	})
-	return dynamoDBClient, responseError
+		dynamoDBClientAtomic.Store(c)
+		return c, nil
+	}
+	// S3 Client
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()),
+		awsConfig.WithRetryer(func() aws.Retryer {
+			r := retry.AddWithMaxAttempts(retry.NewStandard(), limitAttempts)
+			r = retry.AddWithMaxBackoffDelay(r, limitBackOffDelay)
+			r = retry.AddWithErrorCodes(r,
+				string(types.BatchStatementErrorCodeEnumItemCollectionSizeLimitExceeded),
+				string(types.BatchStatementErrorCodeEnumRequestLimitExceeded),
+				string(types.BatchStatementErrorCodeEnumProvisionedThroughputExceeded),
+				string(types.BatchStatementErrorCodeEnumInternalServerError),
+				string(types.BatchStatementErrorCodeEnumThrottlingError),
+			)
+			return r
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	c := dynamodb.NewFromConfig(awsCfg)
+	dynamoDBClientAtomic.Store(c)
+	return c, nil
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*dynamodb.Client, error) {
-	var responseError error
-	once.Do(func() {
-		// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/
-		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			if service == dynamodb.ServiceID {
-				return aws.Endpoint{
-					PartitionID:       "aws",
-					URL:               localProfile.Endpoint,
-					SigningRegion:     region,
-					HostnameImmutable: true,
-				}, nil
-			}
-			// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
-			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-		})
-		awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
-			awsConfig.WithEndpointResolverWithOptions(customResolver),
-			awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
-				Value: aws.Credentials{
-					AccessKeyID:     localProfile.AccessKey,
-					SecretAccessKey: localProfile.SecretAccessKey,
-				},
-			}),
-		)
-		if err != nil {
-			responseError = fmt.Errorf("unable to load SDK config, %w", err)
-			return
-		} else {
-			responseError = nil
+	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/
+	customResolver := aws.EndpointResolverWithOptionsFunc(func(
+		service, region string, options ...interface{},
+	) (aws.Endpoint, error) {
+		if service == dynamodb.ServiceID {
+			return aws.Endpoint{
+				PartitionID:       "aws",
+				URL:               localProfile.Endpoint,
+				SigningRegion:     region,
+				HostnameImmutable: true,
+			}, nil
 		}
-		dynamoDBClient = dynamodb.NewFromConfig(awsCfg)
+		// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
+		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 	})
-	return dynamoDBClient, responseError
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
+		awsConfig.WithEndpointResolverWithOptions(customResolver),
+		awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
+			Value: aws.Credentials{
+				AccessKeyID:     localProfile.AccessKey,
+				SecretAccessKey: localProfile.SecretAccessKey,
+			},
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return dynamodb.NewFromConfig(awsCfg), nil
 }
 
 type LocalProfile struct {

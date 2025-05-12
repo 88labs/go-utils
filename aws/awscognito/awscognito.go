@@ -3,6 +3,7 @@ package awscognito
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -12,22 +13,28 @@ import (
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 
+var cognitoidentityClientAtomic atomic.Pointer[cognitoidentity.Client]
+
 // GetCredentialsForIdentity
 // aws-sdk-go v2 GetCredentialsForIdentity
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func GetCredentialsForIdentity(ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
+func GetCredentialsForIdentity(
+	ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string,
+) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
+	var client *cognitoidentity.Client
+	if v := cognitoidentityClientAtomic.Load(); v != nil {
+		client = v
+	} else {
+		// Cognito Client
+		awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
+		if err != nil {
+			return nil, fmt.Errorf("unable to load SDK config, %w", err)
+		}
+		client = cognitoidentity.NewFromConfig(awsCfg)
+		cognitoidentityClientAtomic.Store(client)
+	}
 	localProfile, _ := getLocalEndpoint(ctx)
-	// Cognito Client
-	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
-	if err != nil {
-		return nil, fmt.Errorf("unable to load SDK config, %w", err)
-	}
-	client := cognitoidentity.NewFromConfig(awsCfg)
-	if err != nil {
-		return nil, err
-	}
-
 	res, err := client.GetCredentialsForIdentity(
 		ctx,
 		&cognitoidentity.GetCredentialsForIdentityInput{
