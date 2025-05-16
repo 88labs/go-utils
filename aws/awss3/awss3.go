@@ -621,3 +621,23 @@ func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName B
 	}
 	return headers, nil
 }
+
+func PresignPutObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3presigned.OptionS3Presigned) (string, error) {
+	c := s3presigned.GetS3PresignedConf(opts...)
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return "", err
+	}
+	input := &s3.PutObjectInput{
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
+	}
+	ps := s3.NewPresignClient(client)
+	resp, err := ps.PresignPutObject(ctx, input, func(o *s3.PresignOptions) {
+		o.Expires = c.PresignExpires
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.URL, nil
+}

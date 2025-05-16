@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -992,5 +993,55 @@ func TestSelectCSVHeaders(t *testing.T) {
 		key := createFixture(ctx, "")
 		_, err := awss3.SelectCSVHeaders(ctx, TestRegion, TestBucket, key)
 		assert.Error(t, err)
+	})
+}
+
+func TestPresignPutObject(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	uploadTxtByPresignedPutObjectURL := func(presignedURL string) error {
+		content := []byte("Hello World")
+		req, err := http.NewRequest(http.MethodPut, presignedURL, bytes.NewReader(content))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "text/plain")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("failed to upload file, status code: %d", resp.StatusCode)
+		}
+
+		return nil
+	}
+
+	confirmedUploadedObject := func(ctx context.Context, key awss3.Key) error {
+		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
+		return err
+	}
+
+	t.Run("Presign", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_presign_put_object_01.txt")
+		pURL, err := awss3.PresignPutObject(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, pURL)
+
+		err = uploadTxtByPresignedPutObjectURL(pURL)
+		assert.NoError(t, err)
+		err = confirmedUploadedObject(ctx, key)
+		assert.NoError(t, err)
 	})
 }
