@@ -28,7 +28,7 @@ services:
       - minio
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc config host add s3 http://minio:29000 DUMMYACCESSKEYEXAMPLE DUMMYSECRETKEYEXAMPLE;
+      /usr/bin/mc mc alias set s3 http://minio:29000 DUMMYACCESSKEYEXAMPLE DUMMYSECRETKEYEXAMPLE;
       /usr/bin/mc --quiet mb s3/test;
       /usr/bin/mc --quiet anonymous set upload s3/test;
       /usr/bin/mc --quiet anonymous set download s3/test;
