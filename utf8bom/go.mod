@@ -1,6 +1,6 @@
 module github.com/88labs/go-utils/utf8bom
 
-go 1.23
+go 1.24
 
 require (
 	github.com/go-faker/faker/v4 v4.5.0
