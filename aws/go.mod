@@ -14,11 +14,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.1
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.41.2
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.0
 	github.com/aws/smithy-go v1.22.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-faker/faker/v4 v4.6.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	github.com/tomtwinkle/utfbomremover v0.1.1
 	golang.org/x/sync v0.16.0
 	golang.org/x/text v0.28.0
