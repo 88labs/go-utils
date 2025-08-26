@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.1
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.0
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.1
 	github.com/aws/smithy-go v1.22.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-faker/faker/v4 v4.6.1
