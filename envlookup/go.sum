@@ -1,5 +1,5 @@
-github.com/88labs/go-utils/aws v0.163.0 h1:ekGINBIJDabMUdyDlGwCaspNIV0Qf5AWFy6xCGawT7g=
-github.com/88labs/go-utils/aws v0.163.0/go.mod h1:pB1SNJBEWF45mrPeaJ8VQ7Vjrv0L6fXhV2gYFcNq8ZU=
+github.com/88labs/go-utils/aws v0.164.1 h1:dGo9yF5BZX5kJzoAvl2spVFSljwBZfBTXiAudFez9V4=
+github.com/88labs/go-utils/aws v0.164.1/go.mod h1:Uos8Gqu5RWKH7JMBdm68BiSAE7L1q2GoYNkoFyNxnMA=
 github.com/go-faker/faker/v4 v4.6.1 h1:xUyVpAjEtB04l6XFY0V/29oR332rOSPWV4lU8RwDt4k=
 github.com/go-faker/faker/v4 v4.6.1/go.mod h1:arSdxNCSt7mOhdk8tEolvHeIJ7eX4OX80wXjKKvkKBY=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
