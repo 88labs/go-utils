@@ -33,8 +33,9 @@ import (
 )
 
 const (
-	TestBucket = "test"
-	TestRegion = awsconfig.RegionTokyo
+	NonExistentBucket = "non-existent-bucket"
+	TestBucket        = "test"
+	TestRegion        = awsconfig.RegionTokyo
 )
 
 func TestHeadObject(t *testing.T) {
@@ -1043,5 +1044,221 @@ func TestPresignPutObject(t *testing.T) {
 		assert.NoError(t, err)
 		err = confirmedUploadedObject(ctx, key)
 		assert.NoError(t, err)
+	})
+}
+
+func TestCreateMultipartUpload(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	t.Run("Create multipart upload with existing bucket", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_create_multipart_upload_file_a.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+	})
+
+	t.Run("Create multipart upload with non-existing bucket", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_create_multipart_upload_file_b.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, NonExistentBucket, key)
+		assert.Error(t, err)
+		assert.Empty(t, uploadId)
+	})
+}
+
+func TestAbortMultipartUpload(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	t.Run("Abort multipart upload with existing uploadId", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_abort_multipart_upload_file_a.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		err = awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Abort multipart upload with non-existing uploadId", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_abort_multipart_upload_file_b.txt")
+		uploadId := "non-existing-upload-id"
+		err := awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+		assert.Error(t, err)
+	})
+}
+
+func TestUploadPart(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	t.Run("Upload part with existing uploadId", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_upload_part_file_a.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+
+		partNumber := int32(1)
+		content := "Hello World"
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+	t.Run("Upload part with non-existing uploadId", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_upload_part_file_b.txt")
+		uploadId := "non-existing-upload-id"
+		partNumber := int32(1)
+		content := "Hello World"
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+	})
+}
+
+func TestCompleteMultipartUpload(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	t.Run("Complete multipart upload with enough parts", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_complete_multipart_upload_file_a.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+
+		partNumber := int32(1)
+		content := "Hello World"
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+
+		completedParts := []types.CompletedPart{
+			{
+				ETag:       resp.ETag,
+				PartNumber: aws.Int32(partNumber),
+			},
+		}
+
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, completedParts)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Complete multipart upload without parts", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_complete_multipart_upload_file_b.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+
+		completedParts := []types.CompletedPart{}
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, completedParts)
+		assert.Error(t, err)
+	})
+
+	t.Run("Complete multipart upload with incorrect parts", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_complete_multipart_upload_file_c.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+
+		partNumber := int32(1)
+		content := "Hello World"
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+
+		completedParts := []types.CompletedPart{
+			{
+				ETag:       resp.ETag,
+				PartNumber: aws.Int32(partNumber + 1), // incorrect part number
+			},
+		}
+
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, completedParts)
+		assert.Error(t, err)
+	})
+
+	t.Run("Full flow: Create, Abort multipart upload", func(t *testing.T) {
+		t.Parallel()
+		// Create a multipart upload
+		key := awss3.Key("test_full_flow_abort_multipart_upload_file.txt")
+		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, uploadId)
+
+		// Upload first part
+		contents := []byte("This is a test file for multipart upload.")
+		reader := bytes.NewReader(contents)
+		partNumber := int32(1)
+		uploadPartResp, err := awss3.UploadPart(
+			ctx,
+			TestRegion,
+			TestBucket,
+			key,
+			uploadId,
+			partNumber,
+			reader,
+		)
+		assert.NoError(t, err)
+		assert.NotNil(t, uploadPartResp)
+
+		// Complete the multipart upload
+		completedParts := []types.CompletedPart{
+			{
+				ETag:       uploadPartResp.ETag,
+				PartNumber: aws.Int32(partNumber),
+			},
+		}
+		completeMultipartUploadResp, err := awss3.CompleteMultipartUpload(
+			ctx,
+			TestRegion,
+			TestBucket,
+			key,
+			uploadId,
+			completedParts,
+		)
+		assert.NoError(t, err)
+		assert.NotNil(t, completeMultipartUploadResp)
+
+		// Abort multipart upload even success or fail to complete to ensure no leftover parts in S3
+		err = awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+		assert.Error(t, err)
 	})
 }

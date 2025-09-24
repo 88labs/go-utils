@@ -641,3 +641,87 @@ func PresignPutObject(ctx context.Context, region awsconfig.Region, bucketName B
 	}
 	return resp.URL, nil
 }
+
+// ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+func CreateMultipartUpload(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3upload.OptionS3Upload) (string, error) {
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return "", err
+	}
+
+	input := &s3.CreateMultipartUploadInput{
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
+	}
+	resp, err := client.CreateMultipartUpload(ctx, input)
+	if err != nil {
+		return "", err
+	}
+
+	return *resp.UploadId, nil
+}
+
+// ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html
+func UploadPart(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string, partNumber int32, body io.Reader) (*s3.UploadPartOutput, error) {
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+
+	input := &s3.UploadPartInput{
+		Bucket:     bucketName.AWSString(),
+		Key:        key.AWSString(),
+		PartNumber: aws.Int32(partNumber),
+		UploadId:   aws.String(uploadID),
+		Body:       body,
+	}
+	resp, err := client.UploadPart(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html
+func CompleteMultipartUpload(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string, completedParts []types.CompletedPart) (*s3.CompleteMultipartUploadOutput, error) {
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+
+	input := &s3.CompleteMultipartUploadInput{
+		Bucket:   bucketName.AWSString(),
+		Key:      key.AWSString(),
+		UploadId: aws.String(uploadID),
+		MultipartUpload: &types.CompletedMultipartUpload{
+			Parts: completedParts,
+		},
+	}
+	resp, err := client.CompleteMultipartUpload(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
+func AbortMultipartUpload(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string) error {
+	client, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return err
+	}
+
+	input := &s3.AbortMultipartUploadInput{
+		Bucket:   bucketName.AWSString(),
+		Key:      key.AWSString(),
+		UploadId: aws.String(uploadID),
+	}
+	_, err = client.AbortMultipartUpload(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
