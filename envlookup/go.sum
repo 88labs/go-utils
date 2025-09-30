@@ -1,7 +1,7 @@
 github.com/88labs/go-utils/aws v0.167.1 h1:ksdJz43ozk0psinj4K/y5Aakb5ELfDQId+Ag/K3AXJE=
 github.com/88labs/go-utils/aws v0.167.1/go.mod h1:BBg0S8hapx4MWDMPTOZnrbh3RysckIkk/B6YW3aQ7Wc=
-github.com/go-faker/faker/v4 v4.6.2 h1:IR1uQUYotFZnuTL7Iuy0FDGtHM5Rt1Q+2nipH9gnqKs=
-github.com/go-faker/faker/v4 v4.6.2/go.mod h1:u1dIRP5neLB6kTzgyVjdBOV5R1uP7BdxkcWk7tiKQXk=
+github.com/go-faker/faker/v4 v4.7.0 h1:VboC02cXHl/NuQh5lM2W8b87yp4iFXIu59x4w0RZi4E=
+github.com/go-faker/faker/v4 v4.7.0/go.mod h1:u1dIRP5neLB6kTzgyVjdBOV5R1uP7BdxkcWk7tiKQXk=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
