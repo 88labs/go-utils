@@ -2,6 +2,7 @@ package awsdynamo
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -56,34 +57,22 @@ func GetClient(
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*dynamodb.Client, error) {
-	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(
-		service, region string, options ...interface{},
-	) (aws.Endpoint, error) {
-		if service == dynamodb.ServiceID {
-			return aws.Endpoint{
-				PartitionID:       "aws",
-				URL:               localProfile.Endpoint,
-				SigningRegion:     region,
-				HostnameImmutable: true,
-			}, nil
-		}
-		// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
-		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-	})
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
-		awsConfig.WithEndpointResolverWithOptions(customResolver),
 		awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
 				AccessKeyID:     localProfile.AccessKey,
 				SecretAccessKey: localProfile.SecretAccessKey,
+				SessionToken:    localProfile.SessionToken,
 			},
 		}),
+		awsConfig.WithDefaultRegion(awsconfig.RegionTokyo.String()),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return dynamodb.NewFromConfig(awsCfg), nil
+	return dynamodb.NewFromConfig(awsCfg, func(o *dynamodb.Options) {
+		o.BaseEndpoint = aws.String(localProfile.Endpoint)
+	}), nil
 }
 
 type LocalProfile struct {

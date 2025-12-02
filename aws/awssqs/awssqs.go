@@ -16,23 +16,15 @@ import (
 	"github.com/88labs/go-utils/aws/awssqs/options/sqssend"
 )
 
-type QueueURL string
-
-func (q QueueURL) String() string {
-	return string(q)
-}
-
-func (q QueueURL) AWSString() *string {
-	return aws.String(string(q))
-}
-
 // SendMessage
 // aws-sdk-go v2 sqs SentMessage
 // convert message to json and send to sqs.
 // default DelaySeconds=0
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func SendMessage(ctx context.Context, region awsconfig.Region, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption) (*sqs.SendMessageOutput, error) {
+func SendMessage(
+	ctx context.Context, region awsconfig.Region, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption,
+) (*sqs.SendMessageOutput, error) {
 	c := sqssend.GetConf(opts...)
 	client, err := GetClient(ctx, region)
 	if err != nil {
@@ -61,7 +53,9 @@ func SendMessage(ctx context.Context, region awsconfig.Region, queueURL QueueURL
 // default DelaySeconds=0
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func SendMessageGob(ctx context.Context, region awsconfig.Region, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption) (*sqs.SendMessageOutput, error) {
+func SendMessageGob(
+	ctx context.Context, region awsconfig.Region, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption,
+) (*sqs.SendMessageOutput, error) {
 	c := sqssend.GetConf(opts...)
 	client, err := GetClient(ctx, region)
 	if err != nil {
@@ -91,7 +85,9 @@ func SendMessageGob(ctx context.Context, region awsconfig.Region, queueURL Queue
 // default MaxNumberOfMessages=1, WaitTimeSeconds=20, VisibilityTimeout=30
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func ReceiveMessage(ctx context.Context, region awsconfig.Region, queueURL QueueURL, opts ...sqsreceive.ReceiveMessageOption) (*sqs.ReceiveMessageOutput, error) {
+func ReceiveMessage(
+	ctx context.Context, region awsconfig.Region, queueURL QueueURL, opts ...sqsreceive.ReceiveMessageOption,
+) (*sqs.ReceiveMessageOutput, error) {
 	c := sqsreceive.GetConf(opts...)
 	client, err := GetClient(ctx, region)
 	if err != nil {
@@ -118,7 +114,9 @@ func ReceiveMessage(ctx context.Context, region awsconfig.Region, queueURL Queue
 // default MaxNumberOfMessages=1, WaitTimeSeconds=20, VisibilityTimeout=30
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func ReceiveMessageGob[T any](ctx context.Context, region awsconfig.Region, queueURL QueueURL, _ T, opts ...sqsreceive.ReceiveMessageOption) ([]*T, *sqs.ReceiveMessageOutput, error) {
+func ReceiveMessageGob[T any](
+	ctx context.Context, region awsconfig.Region, queueURL QueueURL, _ T, opts ...sqsreceive.ReceiveMessageOption,
+) ([]*T, *sqs.ReceiveMessageOutput, error) {
 	c := sqsreceive.GetConf(opts...)
 	client, err := GetClient(ctx, region)
 	if err != nil {
