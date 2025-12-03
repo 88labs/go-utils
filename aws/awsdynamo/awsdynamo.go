@@ -23,7 +23,16 @@ var (
 )
 
 // PutItem Put the item in DynamoDB Upsert if it does not exist
-func PutItem(ctx context.Context, region awsconfig.Region, tableName string, item any, opts ...dynamooptions.OptionDynamo) error {
+//
+// Type parameters:
+//   - T: the type of the item to retrieve
+func PutItem[T any](
+	ctx context.Context,
+	region awsconfig.Region,
+	tableName TableName,
+	item T,
+	opts ...dynamooptions.OptionDynamo,
+) error {
 	c := dynamooptions.GetDynamoConf(opts...)
 	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
 	if err != nil {
@@ -35,7 +44,7 @@ func PutItem(ctx context.Context, region awsconfig.Region, tableName string, ite
 	}
 	putItemInput := &dynamodb.PutItemInput{
 		Item:      putItem,
-		TableName: aws.String(tableName),
+		TableName: tableName.AWSString(),
 	}
 	if _, err := client.PutItem(ctx, putItemInput); err != nil {
 		return err
@@ -44,27 +53,35 @@ func PutItem(ctx context.Context, region awsconfig.Region, tableName string, ite
 }
 
 // UpdateItem Update the attributes of the item in DynamoDB Upsert if it does not exist
-// expression: https://docs.aws.amazon.com/sdk-for-go/api/service/dynamodb/expression/#example_Builder_WithUpdate
-func UpdateItem(
+//
+// Type parameters:
+//   - T: the type of the item to retrieve
+//   - K: a string-compatible type for the key value
+//
+// Returns the retrieved item or ErrNotFound if the item doesn't exist.
+func UpdateItem[T any, K ~string](
 	ctx context.Context,
 	region awsconfig.Region,
-	tableName, keyFieldName, key string,
+	tableName TableName,
+	keyAttributeName KeyAttributeName,
+	key K,
 	update expression.UpdateBuilder,
-	out any,
 	opts ...dynamooptions.OptionDynamo,
-) error {
+) (*T, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
 	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	expr, err := expression.NewBuilder().WithUpdate(update).Build()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	putItemInput := &dynamodb.UpdateItemInput{
-		Key:                         map[string]types.AttributeValue{keyFieldName: &types.AttributeValueMemberS{Value: key}},
-		TableName:                   aws.String(tableName),
+	updateItemInput := &dynamodb.UpdateItemInput{
+		Key: map[string]types.AttributeValue{
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: string(key)},
+		},
+		TableName:                   tableName.AWSString(),
 		ExpressionAttributeNames:    expr.Names(),
 		ExpressionAttributeValues:   expr.Values(),
 		ReturnConsumedCapacity:      types.ReturnConsumedCapacityNone,
@@ -72,85 +89,119 @@ func UpdateItem(
 		ReturnValues:                types.ReturnValueAllNew,
 		UpdateExpression:            expr.Update(),
 	}
-	updatedItem, err := client.UpdateItem(ctx, putItemInput)
+	updatedItem, err := client.UpdateItem(ctx, updateItemInput)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if updatedItem.Attributes == nil {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
-	if out != nil {
-		if err := attributevalue.UnmarshalMap(updatedItem.Attributes, &out); err != nil {
-			return err
-		}
+	out := new(T)
+	if err := attributevalue.UnmarshalMap(updatedItem.Attributes, out); err != nil {
+		return nil, err
 	}
-	return nil
+	return out, nil
 }
 
 // DeleteItem Delete DynamoDB item
-// expression: https://docs.aws.amazon.com/sdk-for-go/api/service/dynamodb/expression/#example_Builder_WithUpdate
-// Mapping the retrieved item to `out`, must be a pointer to the `out`.
-func DeleteItem(ctx context.Context, region awsconfig.Region, tableName, keyFieldName, key string, out any, opts ...dynamooptions.OptionDynamo) error {
+//
+// Type parameters:
+//   - T: the type of the item to retrieve
+//   - K: a string-compatible type for the key value
+//
+// Returns the retrieved item or ErrNotFound if the item doesn't exist.
+func DeleteItem[T any, K ~string](
+	ctx context.Context,
+	region awsconfig.Region,
+	tableName TableName,
+	keyAttributeName KeyAttributeName,
+	key K,
+	opts ...dynamooptions.OptionDynamo,
+) (*T, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
 	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	deleteItemInput := &dynamodb.DeleteItemInput{
-		Key:                         map[string]types.AttributeValue{keyFieldName: &types.AttributeValueMemberS{Value: key}},
-		TableName:                   aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: string(key)},
+		},
+		TableName:                   tableName.AWSString(),
 		ReturnConsumedCapacity:      types.ReturnConsumedCapacityTotal,
 		ReturnItemCollectionMetrics: types.ReturnItemCollectionMetricsSize,
 		ReturnValues:                types.ReturnValueAllOld,
 	}
 	deletedItem, err := client.DeleteItem(ctx, deleteItemInput)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if deletedItem.Attributes == nil {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
-	if out != nil {
-		if err := attributevalue.UnmarshalMap(deletedItem.Attributes, &out); err != nil {
-			return err
-		}
+	out := new(T)
+	if err := attributevalue.UnmarshalMap(deletedItem.Attributes, out); err != nil {
+		return nil, err
 	}
-	return nil
+	return out, nil
 }
 
 // GetItem Get the item in DynamoDB
-// Mapping the retrieved item to `out`, must be a pointer to the `out`.
-func GetItem(ctx context.Context, region awsconfig.Region, tableName, keyFieldName, key string, out any, opts ...dynamooptions.OptionDynamo) error {
+//
+// Type parameters:
+//   - T: the type of the item to retrieve
+//   - K: a string-compatible type for the key value
+//
+// Returns the retrieved item or ErrNotFound if the item doesn't exist.
+func GetItem[T any, K ~string](
+	ctx context.Context,
+	region awsconfig.Region,
+	tableName TableName,
+	keyAttributeName KeyAttributeName,
+	key K,
+	opts ...dynamooptions.OptionDynamo,
+) (*T, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
 	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	getItemInput := &dynamodb.GetItemInput{
 		Key: map[string]types.AttributeValue{
-			keyFieldName: &types.AttributeValueMemberS{Value: key},
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: string(key)},
 		},
-		TableName: aws.String(tableName),
+		TableName: tableName.AWSString(),
 		// https://docs.aws.amazon.com/ja_jp/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html
 		ConsistentRead: aws.Bool(true),
 	}
 	getItem, err := client.GetItem(ctx, getItemInput)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if getItem.Item == nil {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
-	if err := attributevalue.UnmarshalMap(getItem.Item, &out); err != nil {
-		return err
+	out := new(T)
+	if err := attributevalue.UnmarshalMap(getItem.Item, out); err != nil {
+		return nil, err
 	}
-	return nil
+	return out, nil
 }
 
 // BatchGetItem Retrieve Dynamodb items in a batch process
-// Return the retrieved item as a slice of type `T`.
 // Note that the order of retrieval is not the order in which the keys are specified.
-func BatchGetItem[T any, Key ~string](ctx context.Context, region awsconfig.Region, tableName, keyFieldName string, keys []Key, _ T, opts ...dynamooptions.OptionDynamo) ([]T, error) {
+//
+// Type parameters:
+//   - T: the type of the item to retrieve
+//   - K: a string-compatible type for the key value
+func BatchGetItem[T any, K ~string](
+	ctx context.Context,
+	region awsconfig.Region,
+	tableName TableName,
+	keyAttributeName KeyAttributeName,
+	keys []K,
+	opts ...dynamooptions.OptionDynamo,
+) ([]*T, error) {
 	// DynamoDB allows a maximum batch size of 100 items.
 	// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
 	const MaxBatchSize = 100
@@ -164,11 +215,11 @@ func BatchGetItem[T any, Key ~string](ctx context.Context, region awsconfig.Regi
 	reqKeys := make([]map[string]types.AttributeValue, len(keys))
 	for i, key := range keys {
 		reqKeys[i] = map[string]types.AttributeValue{
-			keyFieldName: &types.AttributeValueMemberS{Value: string(key)},
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: string(key)},
 		}
 	}
 
-	resultItems := make([]T, 0, len(keys))
+	resultItems := make([]*T, 0, len(keys))
 
 	start := 0
 	end := start + MaxBatchSize
@@ -182,17 +233,17 @@ func BatchGetItem[T any, Key ~string](ctx context.Context, region awsconfig.Regi
 		}
 		getItems, err := client.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
 			RequestItems: map[string]types.KeysAndAttributes{
-				tableName: {Keys: getReqs},
+				tableName.String(): {Keys: getReqs},
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("received batch error %+#v for batch getting. %v\n", getItems, err)
+			return nil, fmt.Errorf("received batch error %+#v for batch getting. %w", getItems, err)
 		}
 
-		for _, v := range getItems.Responses[tableName] {
-			var ret T
-			if err := attributevalue.UnmarshalMap(v, &ret); err != nil {
-				return nil, fmt.Errorf("Couldn't unmarshal item %+#v for batch getting. %v\n", v, err)
+		for _, v := range getItems.Responses[tableName.String()] {
+			ret := new(T)
+			if err := attributevalue.UnmarshalMap(v, ret); err != nil {
+				return nil, fmt.Errorf("couldn't unmarshal item %+#v for batch getting. %w", v, err)
 			}
 			resultItems = append(resultItems, ret)
 		}
@@ -204,10 +255,22 @@ func BatchGetItem[T any, Key ~string](ctx context.Context, region awsconfig.Regi
 }
 
 // BatchWriteItem Write Dynamodb items in a batch process
-func BatchWriteItem[T any](ctx context.Context, region awsconfig.Region, tableName string, items []T, opts ...dynamooptions.OptionDynamo) error {
-	// DynamoDB allows a maximum batch size of 25 items.
-	// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-	const MaxBatchSize = 25
+// Type parameters:
+//   - T: the type of the item to retrieve
+func BatchWriteItem[T any](
+	ctx context.Context,
+	region awsconfig.Region,
+	tableName TableName,
+	items []T,
+	opts ...dynamooptions.OptionDynamo,
+) error {
+	const (
+		// MaxBatchSize DynamoDB allows a maximum batch size of 25 items.
+		// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+		MaxBatchSize = 25
+		// WriteWaitTime wait time between batch writes
+		WriteWaitTime = 10 * time.Millisecond
+	)
 
 	c := dynamooptions.GetDynamoConf(opts...)
 	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
@@ -225,7 +288,7 @@ func BatchWriteItem[T any](ctx context.Context, region awsconfig.Region, tableNa
 		for _, v := range items[start:end] {
 			item, err := attributevalue.MarshalMap(v)
 			if err != nil {
-				return fmt.Errorf("Couldn't marshal item %+#v for batch writing. %v\n", v, err)
+				return fmt.Errorf("couldn't marshal item %+#v for batch writing. %w", v, err)
 			} else {
 				writeReqs = append(
 					writeReqs,
@@ -234,12 +297,12 @@ func BatchWriteItem[T any](ctx context.Context, region awsconfig.Region, tableNa
 			}
 		}
 		if _, err := client.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-			RequestItems: map[string][]types.WriteRequest{tableName: writeReqs},
+			RequestItems: map[string][]types.WriteRequest{tableName.String(): writeReqs},
 		},
 		); err != nil {
-			return fmt.Errorf("received batch error %+#v for batch writing. %v\n", writeReqs, err)
+			return fmt.Errorf("received batch error %+#v for batch writing. %w", writeReqs, err)
 		}
-		if err := awstime.SleepWithContext(ctx, 10*time.Millisecond); err != nil {
+		if err := awstime.SleepWithContext(ctx, WriteWaitTime); err != nil {
 			return err
 		}
 		start = end

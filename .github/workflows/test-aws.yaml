@@ -48,6 +48,10 @@ jobs:
           CONFIG_FORCE_rest-sqs_bind-port: 29324
           CONFIG_FORCE_queues_test-queue_fifo: false
           CONFIG_FORCE_queues_test-2-queue_fifo: false
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 28002:8000
     steps:
       - name: Checkout code
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
@@ -69,21 +73,33 @@ jobs:
         working-directory: ${{ env.testdir }}
         shell: bash
         run: go mod download
-#      - name: Run DynamoDB
-#        working-directory: ${{ env.testdir }}
-#        run: docker compose up -d dynamodb dynamodbcreatetable
-#      - name: Migrate DynamoDB
-#        timeout-minutes: 1
-#        working-directory: ${{ env.testdir }}
-#        env:
-#          AWS_ACCESS_KEY_ID: DUMMYACCESSKEYEXAMPLE
-#          AWS_SECRET_ACCESS_KEY: DUMMYSECRETKEYEXAMPLE
-#          AWS_DEFAULT_REGION: ap-northeast-1
-#        shell: bash
-#        run: |
-#          until (aws dynamodb list-tables --endpoint-url http://127.0.0.1:28002 --output text) do echo '...waiting...' && sleep 1; done;
-#          aws dynamodb create-table --cli-input-json file:///${{ github.workspace }}/aws/docker/dynamodb/table_test.json --endpoint-url http://127.0.0.1:28002
-#          until (aws dynamodb describe-table --table-name test --endpoint-url http://127.0.0.1:28002 --output text) do echo '...waiting...' && sleep 1; done;
+      - name: Migrate DynamoDB
+        timeout-minutes: 1
+        working-directory: ${{ env.testdir }}
+        env:
+          AWS_ACCESS_KEY_ID: DUMMYACCESSKEYEXAMPLE
+          AWS_SECRET_ACCESS_KEY: DUMMYSECRETKEYEXAMPLE
+          AWS_DEFAULT_REGION: ap-northeast-1
+          AWS_EC2_METADATA_DISABLED: true
+          AWS_PAGER: ""
+        shell: bash
+        run: |
+          echo "Waiting for DynamoDB to be ready..."
+          until aws dynamodb list-tables --endpoint-url http://127.0.0.1:28002 --output text; do
+            echo '...waiting...'
+            sleep 2
+          done
+
+          echo "DynamoDB is ready. Creating table..."
+          aws dynamodb create-table \
+            --cli-input-json file://${{ github.workspace }}/aws/docker/dynamodb/table_test.json \
+            --endpoint-url http://127.0.0.1:28002
+
+          echo "Waiting for table creation..."
+          until aws dynamodb describe-table --table-name test --endpoint-url http://127.0.0.1:28002 --output text; do
+            echo '...waiting...'
+            sleep 1
+          done
       - name: Migrate Minio
         timeout-minutes: 1
         working-directory: ${{ env.testdir }}
@@ -97,9 +113,7 @@ jobs:
       - name: Test
         working-directory: ${{ env.testdir }}
         run: |
-          # shellcheck disable=SC2046
-          # FIXME: awsdynamo test doesn't work with ci.
-          gotestsum --format testname --junitfile unit-tests.xml -- -p 4 -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./... $(go list ./... | grep -v awsdynamo)
+          gotestsum --format testname --junitfile unit-tests.xml -- ./... -p 4 -race -coverprofile="coverage.txt" -covermode=atomic -coverpkg=./...
       - uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

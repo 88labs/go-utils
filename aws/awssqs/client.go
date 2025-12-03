@@ -42,23 +42,7 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*sqs.Client, error
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*sqs.Client, error) {
-	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(
-		service, region string, options ...interface{},
-	) (aws.Endpoint, error) {
-		if service == sqs.ServiceID {
-			return aws.Endpoint{
-				PartitionID:       "aws",
-				URL:               localProfile.Endpoint,
-				SigningRegion:     region,
-				HostnameImmutable: true,
-			}, nil
-		}
-		// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
-		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-	})
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
-		awsConfig.WithEndpointResolverWithOptions(customResolver),
 		awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
 				AccessKeyID:     localProfile.AccessKey,
@@ -66,11 +50,14 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*sqs.Client
 				SessionToken:    localProfile.SessionToken,
 			},
 		}),
+		awsConfig.WithDefaultRegion(awsconfig.RegionTokyo.String()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return sqs.NewFromConfig(awsCfg), nil
+	return sqs.NewFromConfig(awsCfg, func(o *sqs.Options) {
+		o.BaseEndpoint = aws.String(localProfile.Endpoint)
+	}), nil
 }
 
 type LocalProfile struct {

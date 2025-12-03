@@ -37,71 +37,6 @@ import (
 
 var ErrNotFound = errors.New("NotFound")
 
-type BucketName string
-
-func (k BucketName) String() string {
-	return string(k)
-}
-
-func (k BucketName) AWSString() *string {
-	return aws.String(string(k))
-}
-
-type Key string
-
-func (k Key) String() string {
-	return string(k)
-}
-
-func (k Key) AWSString() *string {
-	return aws.String(string(k))
-}
-
-func (k Key) BucketJoinAWSString(bucketName BucketName) *string {
-	return aws.String(path.Join(bucketName.String(), k.String()))
-}
-
-func (k Key) Ext() string {
-	return strings.ToLower(filepath.Ext(string(k)))
-}
-
-type Keys []Key
-
-func NewKeys(keys ...string) Keys {
-	ks := make(Keys, len(keys))
-	for i, k := range keys {
-		ks[i] = Key(k)
-	}
-	return ks
-}
-
-func (ks Keys) Unique() Keys {
-	keys := make(Keys, 0, len(ks))
-	uniq := make(map[Key]struct{})
-	for _, k := range ks {
-		if _, ok := uniq[k]; ok {
-			continue
-		}
-		uniq[k] = struct{}{}
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-type Objects []types.Object
-
-func (o Objects) Find(key Key) (types.Object, bool) {
-	for _, v := range o {
-		if v.Key == nil {
-			continue
-		}
-		if *v.Key == key.String() {
-			return v, true
-		}
-	}
-	return types.Object{}, false
-}
-
 // PutObject
 // aws-sdk-go v2 PutObject
 // If there is no particular reason to use PutObject, please use UploadManager
@@ -113,7 +48,10 @@ func (o Objects) Find(key Key) (types.Object, bool) {
 // Amazon S3 requires the content length to be provided for all object’s uploaded to a bucket.
 // Since the Body input parameter does not implement io.Seeker interface the client will not be able to compute the ContentLength parameter for the request.
 // The parameter must be provided by the application. The request will fail if the ContentLength parameter is not provided.
-func PutObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader, opts ...s3upload.OptionS3Upload) (*s3.PutObjectOutput, error) {
+func PutObject(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader,
+	opts ...s3upload.OptionS3Upload,
+) (*s3.PutObjectOutput, error) {
 	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
@@ -134,7 +72,10 @@ func PutObject(ctx context.Context, region awsconfig.Region, bucketName BucketNa
 // Upload using the manager.Uploader of aws-sdk-go v2
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func UploadManager(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader, opts ...s3upload.OptionS3Upload) (*manager.UploadOutput, error) {
+func UploadManager(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader,
+	opts ...s3upload.OptionS3Upload,
+) (*manager.UploadOutput, error) {
 	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 
@@ -157,7 +98,9 @@ func UploadManager(ctx context.Context, region awsconfig.Region, bucketName Buck
 // aws-sdk-go v2 HeadObject
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3head.OptionS3Head) (*s3.HeadObjectOutput, error) {
+func HeadObject(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3head.OptionS3Head,
+) (*s3.HeadObjectOutput, error) {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
@@ -198,7 +141,9 @@ func HeadObject(ctx context.Context, region awsconfig.Region, bucketName BucketN
 // aws-sdk-go v2 ListObjectsV2
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func ListObjects(ctx context.Context, region awsconfig.Region, bucketName BucketName, opts ...s3list.OptionS3List) (Objects, error) {
+func ListObjects(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, opts ...s3list.OptionS3List,
+) (Objects, error) {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
@@ -256,7 +201,9 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 // DeleteObject
 // aws-sdk-go v2 DeleteObject
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key) (*s3.DeleteObjectOutput, error) {
+func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key) (
+	*s3.DeleteObjectOutput, error,
+) {
 	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
 		return nil, err
 	}
@@ -277,7 +224,10 @@ func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName Bucke
 // If the file name is duplicated, add a sequential number to the suffix and save
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3download.OptionS3Download) ([]string, error) {
+func DownloadFiles(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string,
+	opts ...s3download.OptionS3Download,
+) ([]string, error) {
 	c := s3download.GetS3DownloadConf(opts...)
 
 	client, err := GetClient(ctx, region) // nolint:typecheck
@@ -347,7 +297,10 @@ func DownloadFiles(ctx context.Context, region awsconfig.Region, bucketName Buck
 // If the file name is duplicated, add a sequential number to the suffix and save
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func DownloadFilesParallel(ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string, opts ...s3download.OptionS3Download) ([]string, error) {
+func DownloadFilesParallel(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string,
+	opts ...s3download.OptionS3Download,
+) ([]string, error) {
 	c := s3download.GetS3DownloadConf(opts...)
 
 	client, err := GetClient(ctx, region) // nolint:typecheck
@@ -443,7 +396,10 @@ func DownloadFilesParallel(ctx context.Context, region awsconfig.Region, bucketN
 // default expires is 15 minutes
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3presigned.OptionS3Presigned) (string, error) {
+func Presign(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
+	opts ...s3presigned.OptionS3Presigned,
+) (string, error) {
 	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
 		return "", err
 	}
@@ -460,7 +416,8 @@ func Presign(ctx context.Context, region awsconfig.Region, bucketName BucketName
 		Key:    key.AWSString(),
 	}
 	if c.PresignFileName != "" {
-		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.ContentDispositionType, c.PresignFileName))
+		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.ContentDispositionType,
+			c.PresignFileName))
 	}
 	// Note: Fixed a bug in which the response is returned with `Content-Type:pdf` in case of PDF.
 	// convert to Content-Type: application/pdf.
@@ -491,7 +448,10 @@ func ResponseContentDisposition(tp s3presigned.ContentDispositionType, fileName 
 // Copy copies an Amazon S3 object from one bucket to same.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func Copy(ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey, destKey Key, opts ...s3upload.OptionS3Upload) error {
+func Copy(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey, destKey Key,
+	opts ...s3upload.OptionS3Upload,
+) error {
 	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
@@ -528,7 +488,10 @@ const (
 
 // SelectCSVAll
 // SQL Reference : https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html
-func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, w io.Writer, opts ...s3selectcsv.OptionS3SelectCSV) error {
+func SelectCSVAll(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, w io.Writer,
+	opts ...s3selectcsv.OptionS3SelectCSV,
+) error {
 	c := s3selectcsv.GetS3SelectCSVConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
@@ -599,7 +562,10 @@ func SelectCSVAll(ctx context.Context, region awsconfig.Region, bucketName Bucke
 // SelectCSVHeaders
 // Get CSV headers
 // Valid options: CompressionType
-func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3selectcsv.OptionS3SelectCSV) ([]string, error) {
+func SelectCSVHeaders(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
+	opts ...s3selectcsv.OptionS3SelectCSV,
+) ([]string, error) {
 	c := s3selectcsv.GetS3SelectCSVConf(opts...)
 	opts = append(opts, s3selectcsv.WithCSVInput(types.CSVInput{
 		AllowQuotedRecordDelimiter: c.CSVInput.AllowQuotedRecordDelimiter,
@@ -622,7 +588,10 @@ func SelectCSVHeaders(ctx context.Context, region awsconfig.Region, bucketName B
 	return headers, nil
 }
 
-func PresignPutObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3presigned.OptionS3Presigned) (string, error) {
+func PresignPutObject(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
+	opts ...s3presigned.OptionS3Presigned,
+) (string, error) {
 	c := s3presigned.GetS3PresignedConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
@@ -643,7 +612,9 @@ func PresignPutObject(ctx context.Context, region awsconfig.Region, bucketName B
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-func CreateMultipartUpload(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3upload.OptionS3Upload) (string, error) {
+func CreateMultipartUpload(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3upload.OptionS3Upload,
+) (string, error) {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return "", err
@@ -662,7 +633,10 @@ func CreateMultipartUpload(ctx context.Context, region awsconfig.Region, bucketN
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html
-func UploadPart(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string, partNumber int32, body io.Reader) (*s3.UploadPartOutput, error) {
+func UploadPart(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string, partNumber int32,
+	body io.Reader,
+) (*s3.UploadPartOutput, error) {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
@@ -684,7 +658,10 @@ func UploadPart(ctx context.Context, region awsconfig.Region, bucketName BucketN
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html
-func CompleteMultipartUpload(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string, completedParts []types.CompletedPart) (*s3.CompleteMultipartUploadOutput, error) {
+func CompleteMultipartUpload(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string,
+	completedParts []types.CompletedPart,
+) (*s3.CompleteMultipartUploadOutput, error) {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
@@ -707,7 +684,9 @@ func CompleteMultipartUpload(ctx context.Context, region awsconfig.Region, bucke
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
-func AbortMultipartUpload(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string) error {
+func AbortMultipartUpload(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string,
+) error {
 	client, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err

@@ -84,8 +84,7 @@ func TestGetItem(t *testing.T) {
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		var out Test
-		err := awsdynamo.GetItem(ctx, TestRegion, TestTable, "id", testItem.ID, &out)
+		out, err := awsdynamo.GetItem[Test](ctx, TestRegion, TestTable, "id", testItem.ID)
 		assert.NoError(t, err)
 		assert.Equal(t, testItem.ID, out.ID)
 		assert.Equal(t, testItem.Name, out.Name)
@@ -98,8 +97,7 @@ func TestGetItem(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		var out Test
-		err := awsdynamo.GetItem(ctx, TestRegion, TestTable, "id", "NOT_FOUND", &out)
+		_, err := awsdynamo.GetItem[Test](ctx, TestRegion, TestTable, "id", "NOT_FOUND")
 		assert.Error(t, err)
 		assert.ErrorIs(t, awsdynamo.ErrNotFound, err)
 	})
@@ -124,8 +122,7 @@ func TestDeleteItem(t *testing.T) {
 		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
 		assert.NoError(t, err)
 
-		var out Test
-		err = awsdynamo.DeleteItem(ctx, TestRegion, TestTable, "id", testItem.ID, &out)
+		out, err := awsdynamo.DeleteItem[Test](ctx, TestRegion, TestTable, "id", testItem.ID)
 		assert.NoError(t, err)
 		assert.Equal(t, testItem.ID, out.ID)
 		assert.Equal(t, testItem.Name, out.Name)
@@ -136,23 +133,9 @@ func TestDeleteItem(t *testing.T) {
 		assert.Equal(t, expectedCreatedAt, actualCreatedAt)
 	})
 
-	t.Run("Delete out param nil", func(t *testing.T) {
-		t.Parallel()
-		testItem := Test{
-			ID:        ulid.MustNew().String(),
-			Name:      faker.Name(),
-			CreatedAt: attributevalue.UnixTime(time.Now()),
-		}
-		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
-		assert.NoError(t, err)
-
-		err = awsdynamo.DeleteItem(ctx, TestRegion, TestTable, "id", testItem.ID, nil)
-		assert.NoError(t, err)
-	})
-
 	t.Run("Delete NotFound", func(t *testing.T) {
 		t.Parallel()
-		err := awsdynamo.DeleteItem(ctx, TestRegion, TestTable, "id", "NOT_FOUND", nil)
+		_, err := awsdynamo.DeleteItem[Test](ctx, TestRegion, TestTable, "id", "NOT_FOUND")
 		assert.Error(t, err)
 		assert.ErrorIs(t, awsdynamo.ErrNotFound, err)
 	})
@@ -177,13 +160,12 @@ func TestUpdateItem(t *testing.T) {
 		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
 		assert.NoError(t, err)
 
-		var out Test
 		updateName := faker.Name()
 		update := expression.Set(
 			expression.Name("name"),
 			expression.Value(updateName),
 		)
-		err = awsdynamo.UpdateItem(ctx, TestRegion, TestTable, "id", testItem.ID, update, &out)
+		out, err := awsdynamo.UpdateItem[Test](ctx, TestRegion, TestTable, "id", testItem.ID, update)
 		assert.NoError(t, err)
 		assert.Equal(t, testItem.ID, out.ID)
 		assert.Equal(t, updateName, out.Name)
@@ -192,25 +174,6 @@ func TestUpdateItem(t *testing.T) {
 		actualCreatedAt, err := out.CreatedAt.MarshalDynamoDBAttributeValue()
 		assert.NoError(t, err)
 		assert.Equal(t, expectedCreatedAt, actualCreatedAt)
-	})
-
-	t.Run("Update out param nil", func(t *testing.T) {
-		t.Parallel()
-		testItem := Test{
-			ID:        ulid.MustNew().String(),
-			Name:      faker.Name(),
-			CreatedAt: attributevalue.UnixTime(time.Now()),
-		}
-		err := awsdynamo.PutItem(ctx, TestRegion, TestTable, testItem)
-		assert.NoError(t, err)
-
-		updateName := faker.Name()
-		update := expression.Set(
-			expression.Name("name"),
-			expression.Value(updateName),
-		)
-		err = awsdynamo.UpdateItem(ctx, TestRegion, TestTable, "id", testItem.ID, update, nil)
-		assert.NoError(t, err)
 	})
 }
 
@@ -243,7 +206,7 @@ func TestBatchGetItem(t *testing.T) {
 	t.Run("Get 101 items", func(t *testing.T) {
 		t.Parallel()
 		ids, testItems := makeItems(101)
-		out, err := awsdynamo.BatchGetItem(ctx, TestRegion, TestTable, "id", ids, Test{})
+		out, err := awsdynamo.BatchGetItem[Test](ctx, TestRegion, TestTable, "id", ids)
 		assert.NoError(t, err)
 		sort.Slice(testItems, func(i, j int) bool {
 			return testItems[i].ID < testItems[j].ID
@@ -265,7 +228,7 @@ func TestBatchGetItem(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		out, err := awsdynamo.BatchGetItem(ctx, TestRegion, TestTable, "id", []string{"NOT_FOUND"}, Test{})
+		out, err := awsdynamo.BatchGetItem[Test](ctx, TestRegion, TestTable, "id", []string{"NOT_FOUND"})
 		assert.NoError(t, err)
 		assert.Len(t, out, 0)
 	})
@@ -301,7 +264,7 @@ func TestBatchWriteItem(t *testing.T) {
 		err := awsdynamo.BatchWriteItem(ctx, TestRegion, TestTable, testItems)
 		assert.NoError(t, err)
 
-		out, err := awsdynamo.BatchGetItem(ctx, TestRegion, TestTable, "id", ids, Test{})
+		out, err := awsdynamo.BatchGetItem[Test](ctx, TestRegion, TestTable, "id", ids)
 		assert.NoError(t, err)
 		assert.Equal(t, len(testItems), len(out))
 	})
