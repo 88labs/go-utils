@@ -605,7 +605,8 @@ func TestPresign(t *testing.T) {
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
-	uploadText := func() awss3.Key {
+	uploadText := func(t testing.TB) awss3.Key {
+		t.Helper()
 		s3Client, err := awss3.GetClient(ctx, TestRegion)
 		if err != nil {
 			t.Fatal(err)
@@ -619,12 +620,13 @@ func TestPresign(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NilError(t, err)
+			t.Fatal(err)
 			return ""
 		}
 		return awss3.Key(key)
 	}
-	uploadPDF := func() awss3.Key {
+	uploadPDF := func(t testing.TB) awss3.Key {
+		t.Helper()
 		s3Client, err := awss3.GetClient(ctx, TestRegion)
 		if err != nil {
 			t.Fatal(err)
@@ -638,7 +640,7 @@ func TestPresign(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NilError(t, err)
+			t.Fatal(err)
 			return ""
 		}
 		return awss3.Key(key)
@@ -646,21 +648,21 @@ func TestPresign(t *testing.T) {
 
 	t.Run("Presign", func(t *testing.T) {
 		t.Parallel()
-		key := uploadText()
+		key := uploadText(t)
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
 		assert.NilError(t, err)
 		assert.Assert(t, presign != "")
 	})
 	t.Run("Presign PDF", func(t *testing.T) {
 		t.Parallel()
-		key := uploadPDF()
+		key := uploadPDF(t)
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
 		assert.NilError(t, err)
 		assert.Assert(t, presign != "")
 	})
 	t.Run("Presign with WithExpires option", func(t *testing.T) {
 		t.Parallel()
-		key := uploadText()
+		key := uploadText(t)
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key,
 			s3presigned.WithPresignExpires(30*time.Minute),
 		)
@@ -669,7 +671,7 @@ func TestPresign(t *testing.T) {
 	})
 	t.Run("Presign with WithPresignFileName attachment", func(t *testing.T) {
 		t.Parallel()
-		key := uploadText()
+		key := uploadText(t)
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key,
 			s3presigned.WithPresignFileName("download.txt"),
 			s3presigned.WithContentDispositionType(s3presigned.ContentDispositionTypeAttachment),
@@ -680,7 +682,7 @@ func TestPresign(t *testing.T) {
 	})
 	t.Run("Presign with WithPresignFileName inline", func(t *testing.T) {
 		t.Parallel()
-		key := uploadText()
+		key := uploadText(t)
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key,
 			s3presigned.WithPresignFileName("view.txt"),
 			s3presigned.WithContentDispositionType(s3presigned.ContentDispositionTypeInline),
@@ -720,7 +722,8 @@ func TestResponseContentDisposition(t *testing.T) {
 
 func TestCopy(t *testing.T) {
 	t.Parallel()
-	createFixture := func(ctx context.Context) awss3.Key {
+	createFixture := func(t testing.TB, ctx context.Context) awss3.Key {
+		t.Helper()
 		s3Client, err := awss3.GetClient(ctx, TestRegion)
 		if err != nil {
 			t.Fatal(err)
@@ -734,16 +737,14 @@ func TestCopy(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NilError(t, err)
-			t.FailNow()
+			t.Fatal(err)
 		}
 		waiter := s3.NewObjectExistsWaiter(s3Client)
 		if err := waiter.Wait(ctx,
 			&s3.HeadObjectInput{Bucket: aws.String(TestBucket), Key: aws.String(key)},
 			time.Second,
 		); err != nil {
-			assert.NilError(t, err)
-			t.FailNow()
+			t.Fatal(err)
 		}
 		return awss3.Key(key)
 	}
@@ -756,7 +757,7 @@ func TestCopy(t *testing.T) {
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
-		key := createFixture(ctx)
+		key := createFixture(t, ctx)
 		key2 := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
 		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key2))
 	})
@@ -768,7 +769,7 @@ func TestCopy(t *testing.T) {
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
-		key := createFixture(ctx)
+		key := createFixture(t, ctx)
 		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key))
 	})
 	t.Run("Copy with WithExpires option", func(t *testing.T) {
@@ -779,7 +780,7 @@ func TestCopy(t *testing.T) {
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
-		key := createFixture(ctx)
+		key := createFixture(t, ctx)
 		key2 := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
 		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key2, s3upload.WithS3Expires(10*time.Minute)))
 	})
