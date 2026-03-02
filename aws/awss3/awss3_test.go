@@ -447,6 +447,57 @@ func TestDownloadFilesParallel(t *testing.T) {
 		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
 		assert.Assert(t, err != nil)
 	})
+	t.Run("Error:KeyNotFound returns ErrNotFound", func(t *testing.T) {
+		t.Parallel()
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())),
+		}
+		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, t.TempDir())
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
+	})
+	t.Run("Error:no partially written files remain on failure", func(t *testing.T) {
+		t.Parallel()
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())),
+			awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())),
+		}
+		outDir := t.TempDir()
+		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, outDir)
+		assert.Assert(t, err != nil)
+		entries, readErr := os.ReadDir(outDir)
+		assert.NilError(t, readErr)
+		assert.Equal(t, 0, len(entries),
+			"partially written files must be removed on failure, found: %d file(s)", len(entries))
+	})
+	t.Run("duplicate keys are deduplicated", func(t *testing.T) {
+		t.Parallel()
+		// Pass the same key three times; only one file should be downloaded.
+		dupKeys := awss3.Keys{keys[0], keys[0], keys[0]}
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, dupKeys, t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
+		fileBody, err := os.ReadFile(filePaths[0])
+		assert.NilError(t, err)
+		assert.Equal(t, getBodyText(0), string(fileBody))
+	})
+	t.Run("empty keys returns empty slice", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, awss3.Keys{}, t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 0, len(filePaths))
+	})
+	t.Run("single key", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket,
+			awss3.Keys{keys[0]}, t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
+		assert.Equal(t, filepath.Base(keys[0].String()), filepath.Base(filePaths[0]))
+		fileBody, err := os.ReadFile(filePaths[0])
+		assert.NilError(t, err)
+		assert.Equal(t, getBodyText(0), string(fileBody))
+	})
 }
 
 func TestPutObject(t *testing.T) {
@@ -1152,12 +1203,12 @@ func TestCompleteMultipartUpload(t *testing.T) {
 	})
 }
 
-// openFDCount returns the number of regular-file file descriptors currently
-// open by this process. Sockets, pipes, and other non-regular FDs are excluded
-// so that HTTP connection-pool churn does not cause false positives.
-// It works on Linux (/proc/self/fd) and macOS (/dev/fd).
-// On unsupported platforms it returns -1 so callers can skip the assertion.
-func openFDCount() int {
+// openFDCount returns the number of open file descriptors whose target path
+// is inside outputDir. By scoping the count to the temporary output directory,
+// we avoid false positives from socket FDs kept open by the HTTP connection
+// pool or from unrelated parallel tests.
+// Returns -1 when the FD directory is unreadable or on unsupported platforms.
+func openFDCount(outputDir string) int {
 	var dir string
 	switch runtime.GOOS {
 	case "linux":
@@ -1173,44 +1224,44 @@ func openFDCount() int {
 	}
 	count := 0
 	for _, e := range entries {
-		// Each entry is a symlink to the actual file. Resolve it and check
-		// whether the target is a regular file.
 		target, err := os.Readlink(filepath.Join(dir, e.Name()))
 		if err != nil {
 			continue
 		}
-		fi, err := os.Stat(target)
-		if err != nil {
-			continue
-		}
-		if fi.Mode().IsRegular() {
+		// Count only FDs whose resolved path starts with outputDir.
+		if strings.HasPrefix(target, outputDir) {
 			count++
 		}
 	}
 	return count
 }
 
-// assertNoFDLeak takes a before-snapshot of open FDs, runs fn, then asserts
-// that the FD count has not grown. The check is skipped on platforms where
-// openFDCount returns -1.
-func assertNoFDLeak(t *testing.T, fn func()) {
+// assertNoFDLeak snapshots the number of open FDs pointing inside outputDir
+// before and after calling fn, then asserts the count has not grown.
+// The check is skipped when either snapshot returns -1 (unsupported platform
+// or unreadable FD directory).
+func assertNoFDLeak(t *testing.T, outputDir string, fn func()) {
 	t.Helper()
-	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+
+	// Force a GC so that any finalizer-closed FDs are flushed before
+	// snapshotting the baseline.
+	runtime.GC()
+
+	before := openFDCount(outputDir)
+	if before < 0 {
 		t.Skip("FD counting not supported on this platform")
 	}
 
-	// Force a GC so that any finalizer-closed FDs are collected before we
-	// snapshot the baseline.
-	runtime.GC()
-
-	before := openFDCount()
-
 	fn()
 
-	// GC again so that any deferred/runtime-managed FDs are released.
+	// GC again so that any runtime-managed FDs are released.
 	runtime.GC()
 
-	after := openFDCount()
+	after := openFDCount(outputDir)
+	if after < 0 {
+		t.Skip("FD counting not supported on this platform")
+	}
+
 	assert.Check(t, after <= before,
 		"file descriptor leak detected: before=%d after=%d", before, after)
 }
@@ -1218,7 +1269,8 @@ func assertNoFDLeak(t *testing.T, fn func()) {
 // TestDownloadFiles_FilesClosed verifies that every *os.File opened inside
 // DownloadFiles is closed on both the success path and the error path.
 func TestDownloadFiles_FilesClosed(t *testing.T) {
-	t.Parallel()
+	// Run serially to prevent FD activity from other parallel tests from
+	// polluting the before/after snapshots.
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
@@ -1248,32 +1300,32 @@ func TestDownloadFiles_FilesClosed(t *testing.T) {
 	}
 
 	t.Run("success path: all FDs closed", func(t *testing.T) {
-		t.Parallel()
-		assertNoFDLeak(t, func() {
-			paths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir())
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			paths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, outDir)
 			assert.NilError(t, err)
 			assert.Equal(t, numFiles, len(paths))
 		})
 	})
 
 	t.Run("error path: FDs closed even when key does not exist", func(t *testing.T) {
-		t.Parallel()
 		missingKeys := awss3.Keys{
 			awss3.Key(fmt.Sprintf("awstest/fdtest/missing-%s.txt", ulid.MustNew())),
 		}
-		assertNoFDLeak(t, func() {
-			_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, missingKeys, t.TempDir())
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, missingKeys, outDir)
 			assert.Assert(t, err != nil)
 		})
 	})
 
 	t.Run("error path with FileNameReplacer: FDs closed on failure", func(t *testing.T) {
-		t.Parallel()
 		missingKeys := awss3.Keys{
 			awss3.Key(fmt.Sprintf("awstest/fdtest/missing-%s.txt", ulid.MustNew())),
 		}
-		assertNoFDLeak(t, func() {
-			_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, missingKeys, t.TempDir(),
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, missingKeys, outDir,
 				s3download.WithFileNameReplacerFunc(func(s3Key, base string) string {
 					return "renamed-" + base
 				}),
@@ -1287,7 +1339,8 @@ func TestDownloadFiles_FilesClosed(t *testing.T) {
 // inside DownloadFilesParallel is closed on both the success path and the
 // error path.
 func TestDownloadFilesParallel_FilesClosed(t *testing.T) {
-	t.Parallel()
+	// Run serially to prevent FD activity from other parallel tests from
+	// polluting the before/after snapshots.
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
@@ -1316,32 +1369,32 @@ func TestDownloadFilesParallel_FilesClosed(t *testing.T) {
 	}
 
 	t.Run("success path: all FDs closed", func(t *testing.T) {
-		t.Parallel()
-		assertNoFDLeak(t, func() {
-			paths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, t.TempDir())
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			paths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, outDir)
 			assert.NilError(t, err)
 			assert.Equal(t, numFiles, len(paths))
 		})
 	})
 
 	t.Run("error path: FDs closed even when key does not exist", func(t *testing.T) {
-		t.Parallel()
 		missingKeys := awss3.Keys{
 			awss3.Key(fmt.Sprintf("awstest/fdtest-parallel/missing-%s.txt", ulid.MustNew())),
 		}
-		assertNoFDLeak(t, func() {
-			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, t.TempDir())
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, outDir)
 			assert.Assert(t, err != nil)
 		})
 	})
 
 	t.Run("error path with FileNameReplacer: FDs closed on failure", func(t *testing.T) {
-		t.Parallel()
 		missingKeys := awss3.Keys{
 			awss3.Key(fmt.Sprintf("awstest/fdtest-parallel/missing-%s.txt", ulid.MustNew())),
 		}
-		assertNoFDLeak(t, func() {
-			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, t.TempDir(),
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, outDir,
 				s3download.WithFileNameReplacerFunc(func(s3Key, base string) string {
 					return "renamed-" + base
 				}),
@@ -1351,13 +1404,13 @@ func TestDownloadFilesParallel_FilesClosed(t *testing.T) {
 	})
 
 	t.Run("mixed: some keys exist, one does not — no FD leak", func(t *testing.T) {
-		t.Parallel()
 		mixedKeys := append(
 			awss3.Keys{keys[0], keys[1]},
 			awss3.Key(fmt.Sprintf("awstest/fdtest-parallel/missing-%s.txt", ulid.MustNew())),
 		)
-		assertNoFDLeak(t, func() {
-			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, mixedKeys, t.TempDir())
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, mixedKeys, outDir)
 			assert.Assert(t, err != nil)
 		})
 	})
