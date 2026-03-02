@@ -271,13 +271,20 @@ func DownloadFiles(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+		_, dlErr := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
 			Bucket:   bucketName.AWSString(),
 			Key:      s3Key.AWSString(),
 			WriterAt: f,
-		}); err != nil {
+		})
+		// Always close the file regardless of success or failure.
+		if closeErr := f.Close(); closeErr != nil && dlErr == nil {
+			dlErr = closeErr
+		}
+		if dlErr != nil {
+			// Remove the partially written file on failure.
+			_ = os.Remove(filePath)
 			var oe *smithy.OperationError
-			if errors.As(err, &oe) {
+			if errors.As(dlErr, &oe) {
 				var resErr *awshttp.ResponseError
 				if errors.As(oe.Err, &resErr) {
 					if resErr.Response.StatusCode == http.StatusNotFound {
@@ -285,7 +292,7 @@ func DownloadFiles(
 					}
 				}
 			}
-			return nil, err
+			return nil, dlErr
 		}
 	}
 	return paths, nil
@@ -313,7 +320,7 @@ func DownloadFilesParallel(
 	})
 	paths := make([]string, len(uniqKeys))
 
-	getFilePath := func(s3Key string) string {
+	resolveFilePath := func(s3Key string) string {
 		fileName := filepath.Base(s3Key)
 		if c.FileNameReplacer != nil {
 			fileName = c.FileNameReplacer(s3Key, fileName)
@@ -322,7 +329,7 @@ func DownloadFilesParallel(
 		var existsFileCount int
 		for {
 			if existsFileCount > 0 {
-				// If the file name is duplicated, add a sequential number to the suffix
+				// If the file name is duplicated, add a sequential number to the suffix.
 				ext := filepath.Ext(fileName)
 				newFileName := fmt.Sprintf("%s_%d%s", strings.TrimSuffix(fileName, ext), existsFileCount+1, ext)
 				filePath = path.Join(outputDir, newFileName)
@@ -335,22 +342,39 @@ func DownloadFilesParallel(
 		return filePath
 	}
 
-	var eg errgroup.Group
-	for i := range uniqKeys {
-		i := i
-		s3Key := uniqKeys[i]
-		filePath := getFilePath(s3Key.String())
+	// Open all files serially before launching goroutines so that:
+	//   1. paths[i] is always the file for keys[i] (deterministic order).
+	//   2. If any os.Create fails, no goroutine has been launched yet, so we
+	//      can simply close the already-opened files and return.
+	files := make([]*os.File, len(uniqKeys))
+	for i, s3Key := range uniqKeys {
+		filePath := resolveFilePath(s3Key.String())
 		paths[i] = filePath
 		f, err := os.Create(filePath)
 		if err != nil {
+			// Close and remove any files already created.
+			for j := 0; j < i; j++ {
+				_ = files[j].Close()
+				_ = os.Remove(paths[j])
+			}
 			return nil, err
 		}
+		files[i] = f
+	}
+
+	var eg errgroup.Group
+	egCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	for i := range uniqKeys {
+		i := i
+		s3Key := uniqKeys[i]
+		f := files[i]
+		filePath := paths[i]
 		eg.Go(func() error {
-			ctx, cancel := context.WithCancel(ctx)
-			b := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
 			var gErr error
-			if err := backoff.Retry(func() error {
-				if _, err := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+			b := backoff.WithContext(backoff.NewExponentialBackOff(), egCtx)
+			dlErr := backoff.Retry(func() error {
+				if _, err := downloader.DownloadObject(egCtx, &transfermanager.DownloadObjectInput{
 					Bucket:   bucketName.AWSString(),
 					Key:      s3Key.AWSString(),
 					WriterAt: f,
@@ -375,11 +399,18 @@ func DownloadFilesParallel(
 					return err
 				}
 				return nil
-			}, b); err != nil {
+			}, b)
+			// Always close the file regardless of success or failure.
+			if closeErr := f.Close(); closeErr != nil && dlErr == nil {
+				dlErr = closeErr
+			}
+			if dlErr != nil {
+				// Remove the partially written file on failure.
+				_ = os.Remove(filePath)
 				if gErr != nil {
 					return gErr
 				}
-				return err
+				return dlErr
 			}
 			return nil
 		})

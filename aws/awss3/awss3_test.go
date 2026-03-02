@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/go-faker/faker/v4"
-	"github.com/stretchr/testify/assert"
+	"gotest.tools/v3/assert"
 
 	"github.com/88labs/go-utils/ulid"
 	"github.com/88labs/go-utils/utf8bom"
@@ -48,7 +49,7 @@ func TestHeadObject(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	assert.NilError(t, err)
 
 	createFixture := func(fileSize int) awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
@@ -60,7 +61,7 @@ func TestHeadObject(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 		}
 		return awss3.Key(key)
 	}
@@ -69,15 +70,14 @@ func TestHeadObject(t *testing.T) {
 		t.Parallel()
 		key := createFixture(100)
 		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.Equal(t, aws.Int64(100), res.ContentLength)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, aws.Int64(100), res.ContentLength)
 	})
 	t.Run("not exists object", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
-		if assert.Error(t, err) {
-			assert.ErrorIs(t, awss3.ErrNotFound, err)
-		}
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
 	})
 	t.Run("exists object use Waiter", func(t *testing.T) {
 		t.Parallel()
@@ -85,17 +85,16 @@ func TestHeadObject(t *testing.T) {
 		res, err := awss3.HeadObject(ctx, TestRegion, TestBucket, key,
 			s3head.WithTimeout(5*time.Second),
 		)
-		assert.NoError(t, err)
-		assert.Equal(t, aws.Int64(100), res.ContentLength)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, aws.Int64(100), res.ContentLength)
 	})
 	t.Run("not exists object use Waiter", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.HeadObject(ctx, TestRegion, TestBucket, "NOT_FOUND",
 			s3head.WithTimeout(5*time.Second),
 		)
-		if assert.Error(t, err) {
-			assert.ErrorIs(t, awss3.ErrNotFound, errors.Unwrap(err))
-		}
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, errors.Unwrap(err), awss3.ErrNotFound)
 	})
 }
 
@@ -108,7 +107,7 @@ func TestListObjects(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	assert.NilError(t, err)
 
 	createFixture := func(prefix string) awss3.Key {
 		key := fmt.Sprintf("%s/awstest/%s.txt", prefix, ulid.MustNew())
@@ -120,7 +119,7 @@ func TestListObjects(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 		}
 		return awss3.Key(key)
 	}
@@ -131,7 +130,7 @@ func TestListObjects(t *testing.T) {
 		key2 := createFixture("hoge")
 		key3 := createFixture("hoge")
 		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket)
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		if _, ok := res.Find(key1); !ok {
 			t.Errorf("%s not found", key1)
 		}
@@ -149,7 +148,7 @@ func TestListObjects(t *testing.T) {
 		key2 := createFixture("hoge")
 		key3 := createFixture("fuga")
 		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket, s3list.WithPrefix("hoge"))
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		if _, ok := res.Find(key1); !ok {
 			t.Errorf("%s not found", key1)
 		}
@@ -168,7 +167,7 @@ func TestListObjects(t *testing.T) {
 			keys[i] = createFixture("piyo")
 		}
 		res, err := awss3.ListObjects(ctx, TestRegion, TestBucket)
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		for _, key := range keys {
 			if _, ok := res.Find(key); !ok {
 				t.Errorf("%s not found", key)
@@ -186,7 +185,7 @@ func TestGetObject(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	assert.NilError(t, err)
 
 	createFixture := func() awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
@@ -198,7 +197,7 @@ func TestGetObject(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 		}
 		return awss3.Key(key)
 	}
@@ -208,17 +207,16 @@ func TestGetObject(t *testing.T) {
 		key := createFixture()
 		var buf bytes.Buffer
 		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, key, &buf)
-		assert.NoError(t, err)
-		assert.Equal(t, "test", string(buf.Bytes()))
+		assert.NilError(t, err)
+		assert.Equal(t, "test", buf.String())
 	})
 
 	t.Run("GetObjectWriter NotFound", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
 		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, "NOT_FOUND", &buf)
-		if assert.Error(t, err) {
-			assert.ErrorIs(t, awss3.ErrNotFound, err)
-		}
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
 	})
 }
 
@@ -231,7 +229,7 @@ func TestDeleteObject(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	assert.NilError(t, err)
 
 	createFixture := func() awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
@@ -243,7 +241,7 @@ func TestDeleteObject(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 		}
 		return awss3.Key(key)
 	}
@@ -252,17 +250,16 @@ func TestDeleteObject(t *testing.T) {
 		t.Parallel()
 		key := createFixture()
 		_, err := awss3.DeleteObject(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		_, err = awss3.HeadObject(ctx, TestRegion, TestBucket, key)
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
 	})
 
 	t.Run("DeleteObject NotFound", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.DeleteObject(ctx, TestRegion, TestBucket, "NOT_FOUND")
-		if assert.Error(t, err) {
-			assert.ErrorIs(t, awss3.ErrNotFound, err)
-		}
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
 	})
 }
 
@@ -275,7 +272,7 @@ func TestDownloadFiles(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	assert.NilError(t, err)
 
 	getBodyText := func(idx int) string {
 		bodyText := fmt.Sprintf("%d-%s", idx, strings.Repeat("test", 10000))
@@ -292,7 +289,7 @@ func TestDownloadFiles(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 			return
 		}
 		keys[i] = awss3.Key(key)
@@ -301,16 +298,13 @@ func TestDownloadFiles(t *testing.T) {
 	t.Run("no option", func(t *testing.T) {
 		t.Parallel()
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, t.TempDir())
-		if !assert.NoError(t, err) {
-			return
-		}
-		if assert.Len(t, filePaths, len(keys)) {
-			for i, v := range filePaths {
-				assert.Equal(t, filepath.Base(keys[i].String()), filepath.Base(v))
-				fileBody, err := os.ReadFile(v)
-				assert.NoError(t, err)
-				assert.Equal(t, getBodyText(i), string(fileBody))
-			}
+		assert.NilError(t, err)
+		assert.Equal(t, len(keys), len(filePaths))
+		for i, v := range filePaths {
+			assert.Equal(t, filepath.Base(keys[i].String()), filepath.Base(v))
+			fileBody, err := os.ReadFile(v)
+			assert.NilError(t, err)
+			assert.Equal(t, getBodyText(i), string(fileBody))
 		}
 	})
 	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
@@ -320,16 +314,13 @@ func TestDownloadFiles(t *testing.T) {
 				return "add_" + baseFileName
 			}),
 		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if assert.Len(t, filePaths, len(keys)) {
-			for i, v := range filePaths {
-				assert.Equal(t, "add_"+filepath.Base(keys[i].String()), filepath.Base(v))
-				fileBody, err := os.ReadFile(v)
-				assert.NoError(t, err)
-				assert.Equal(t, getBodyText(i), string(fileBody))
-			}
+		assert.NilError(t, err)
+		assert.Equal(t, len(keys), len(filePaths))
+		for i, v := range filePaths {
+			assert.Equal(t, "add_"+filepath.Base(keys[i].String()), filepath.Base(v))
+			fileBody, err := os.ReadFile(v)
+			assert.NilError(t, err)
+			assert.Equal(t, getBodyText(i), string(fileBody))
 		}
 	})
 	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
@@ -339,32 +330,29 @@ func TestDownloadFiles(t *testing.T) {
 				return "fixname.txt"
 			}),
 		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if assert.Len(t, filePaths, len(keys)) {
-			for i, v := range filePaths {
-				if i == 0 {
-					assert.Equal(t, "fixname.txt", filepath.Base(v))
-				} else {
-					assert.Equal(t, fmt.Sprintf("fixname_%d.txt", i+1), filepath.Base(v))
-				}
-				fileBody, err := os.ReadFile(v)
-				assert.NoError(t, err)
-				assert.Equal(t, getBodyText(i), string(fileBody))
+		assert.NilError(t, err)
+		assert.Equal(t, len(keys), len(filePaths))
+		for i, v := range filePaths {
+			if i == 0 {
+				assert.Equal(t, "fixname.txt", filepath.Base(v))
+			} else {
+				assert.Equal(t, fmt.Sprintf("fixname_%d.txt", i+1), filepath.Base(v))
 			}
+			fileBody, err := os.ReadFile(v)
+			assert.NilError(t, err)
+			assert.Equal(t, getBodyText(i), string(fileBody))
 		}
 	})
 	t.Run("Error:BucketNotFound", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.DownloadFiles(ctx, TestRegion, "NOT_FOUND", keys, t.TempDir())
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
 	})
 	t.Run("Error:KeyNotFound", func(t *testing.T) {
 		t.Parallel()
 		dummyKeys := awss3.Keys{"dummy", "dummy", "dummy"}
 		_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
 	})
 }
 
@@ -377,7 +365,7 @@ func TestDownloadFilesParallel(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
 	s3Client, err := awss3.GetClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	assert.NilError(t, err)
 
 	getBodyText := func(idx int) string {
 		bodyText := fmt.Sprintf("%d-%s", idx, strings.Repeat("test", 10000))
@@ -394,7 +382,7 @@ func TestDownloadFilesParallel(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 			return
 		}
 		keys[i] = awss3.Key(key)
@@ -403,16 +391,13 @@ func TestDownloadFilesParallel(t *testing.T) {
 	t.Run("no option", func(t *testing.T) {
 		t.Parallel()
 		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, t.TempDir())
-		if !assert.NoError(t, err) {
-			return
-		}
-		if assert.Len(t, filePaths, len(keys)) {
-			for i, v := range filePaths {
-				assert.Equal(t, filepath.Base(keys[i].String()), filepath.Base(v))
-				fileBody, err := os.ReadFile(v)
-				assert.NoError(t, err)
-				assert.Equal(t, getBodyText(i), string(fileBody))
-			}
+		assert.NilError(t, err)
+		assert.Equal(t, len(keys), len(filePaths))
+		for i, v := range filePaths {
+			assert.Equal(t, filepath.Base(keys[i].String()), filepath.Base(v))
+			fileBody, err := os.ReadFile(v)
+			assert.NilError(t, err)
+			assert.Equal(t, getBodyText(i), string(fileBody))
 		}
 	})
 	t.Run("FileNameReplacer:not duplicate", func(t *testing.T) {
@@ -422,16 +407,13 @@ func TestDownloadFilesParallel(t *testing.T) {
 				return "add_" + baseFileName
 			}),
 		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if assert.Len(t, filePaths, len(keys)) {
-			for i, v := range filePaths {
-				assert.Equal(t, "add_"+filepath.Base(keys[i].String()), filepath.Base(v))
-				fileBody, err := os.ReadFile(v)
-				assert.NoError(t, err)
-				assert.Equal(t, getBodyText(i), string(fileBody))
-			}
+		assert.NilError(t, err)
+		assert.Equal(t, len(keys), len(filePaths))
+		for i, v := range filePaths {
+			assert.Equal(t, "add_"+filepath.Base(keys[i].String()), filepath.Base(v))
+			fileBody, err := os.ReadFile(v)
+			assert.NilError(t, err)
+			assert.Equal(t, getBodyText(i), string(fileBody))
 		}
 	})
 	t.Run("FileNameReplacer:duplicate", func(t *testing.T) {
@@ -441,32 +423,80 @@ func TestDownloadFilesParallel(t *testing.T) {
 				return "fixname.txt"
 			}),
 		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if assert.Len(t, filePaths, len(keys)) {
-			for i, v := range filePaths {
-				if i == 0 {
-					assert.Equal(t, "fixname.txt", filepath.Base(v))
-				} else {
-					assert.Equal(t, fmt.Sprintf("fixname_%d.txt", i+1), filepath.Base(v))
-				}
-				fileBody, err := os.ReadFile(v)
-				assert.NoError(t, err)
-				assert.Equal(t, getBodyText(i), string(fileBody))
+		assert.NilError(t, err)
+		assert.Equal(t, len(keys), len(filePaths))
+		for i, v := range filePaths {
+			if i == 0 {
+				assert.Equal(t, "fixname.txt", filepath.Base(v))
+			} else {
+				assert.Equal(t, fmt.Sprintf("fixname_%d.txt", i+1), filepath.Base(v))
 			}
+			fileBody, err := os.ReadFile(v)
+			assert.NilError(t, err)
+			assert.Equal(t, getBodyText(i), string(fileBody))
 		}
 	})
 	t.Run("Error:BucketNotFound", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, "NOT_FOUND", keys, t.TempDir())
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
 	})
 	t.Run("Error:KeyNotFound", func(t *testing.T) {
 		t.Parallel()
 		dummyKeys := awss3.Keys{"dummy", "dummy", "dummy"}
 		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, dummyKeys, t.TempDir())
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
+	})
+	t.Run("Error:KeyNotFound returns ErrNotFound", func(t *testing.T) {
+		t.Parallel()
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())),
+		}
+		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, t.TempDir())
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
+	})
+	t.Run("Error:no partially written files remain on failure", func(t *testing.T) {
+		t.Parallel()
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())),
+			awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())),
+		}
+		outDir := t.TempDir()
+		_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, outDir)
+		assert.Assert(t, err != nil)
+		entries, readErr := os.ReadDir(outDir)
+		assert.NilError(t, readErr)
+		assert.Equal(t, 0, len(entries),
+			"partially written files must be removed on failure, found: %d file(s)", len(entries))
+	})
+	t.Run("duplicate keys are deduplicated", func(t *testing.T) {
+		t.Parallel()
+		// Pass the same key three times; only one file should be downloaded.
+		dupKeys := awss3.Keys{keys[0], keys[0], keys[0]}
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, dupKeys, t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
+		fileBody, err := os.ReadFile(filePaths[0])
+		assert.NilError(t, err)
+		assert.Equal(t, getBodyText(0), string(fileBody))
+	})
+	t.Run("empty keys returns empty slice", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, awss3.Keys{}, t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 0, len(filePaths))
+	})
+	t.Run("single key", func(t *testing.T) {
+		t.Parallel()
+		filePaths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket,
+			awss3.Keys{keys[0]}, t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
+		assert.Equal(t, filepath.Base(keys[0].String()), filepath.Base(filePaths[0]))
+		fileBody, err := os.ReadFile(filePaths[0])
+		assert.NilError(t, err)
+		assert.Equal(t, getBodyText(0), string(fileBody))
 	})
 }
 
@@ -484,12 +514,12 @@ func TestPutObject(t *testing.T) {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		body := faker.Sentence()
 		_, err := awss3.PutObject(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body))
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), t.TempDir())
-		assert.NoError(t, err)
-		assert.Len(t, filePaths, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
 		fileBody, err := os.ReadFile(filePaths[0])
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		assert.Equal(t, body, string(fileBody))
 	})
 }
@@ -508,14 +538,13 @@ func TestUploadManager(t *testing.T) {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
 		body := faker.Sentence()
 		_, err := awss3.UploadManager(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body))
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), t.TempDir())
-		assert.NoError(t, err)
-		assert.Len(t, filePaths, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
 		fileBody, err := os.ReadFile(filePaths[0])
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		assert.Equal(t, body, string(fileBody))
-		assert.NoError(t, err)
 	})
 }
 
@@ -541,7 +570,7 @@ func TestPresign(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 			return ""
 		}
 		return awss3.Key(key)
@@ -560,7 +589,7 @@ func TestPresign(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 			return ""
 		}
 		return awss3.Key(key)
@@ -570,22 +599,21 @@ func TestPresign(t *testing.T) {
 		t.Parallel()
 		key := uploadText()
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, presign)
+		assert.NilError(t, err)
+		assert.Assert(t, presign != "")
 	})
 	t.Run("Presign PDF", func(t *testing.T) {
 		t.Parallel()
 		key := uploadPDF()
 		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, presign)
+		assert.NilError(t, err)
+		assert.Assert(t, presign != "")
 	})
 	t.Run("Presign NotFound", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.Presign(ctx, TestRegion, TestBucket, "NOT_FOUND")
-		if assert.Error(t, err) {
-			assert.ErrorIs(t, awss3.ErrNotFound, err)
-		}
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
 	})
 }
 
@@ -595,7 +623,7 @@ func TestResponseContentDisposition(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		t.Parallel()
 		actual := awss3.ResponseContentDisposition(s3presigned.ContentDispositionTypeAttachment, fileName)
-		assert.NotEmpty(t, actual)
+		assert.Assert(t, actual != "")
 	})
 }
 
@@ -615,7 +643,7 @@ func TestCopy(t *testing.T) {
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
 		if _, err := uploader.UploadObject(ctx, input); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 			t.FailNow()
 		}
 		waiter := s3.NewObjectExistsWaiter(s3Client)
@@ -623,7 +651,7 @@ func TestCopy(t *testing.T) {
 			&s3.HeadObjectInput{Bucket: aws.String(TestBucket), Key: aws.String(key)},
 			time.Second,
 		); err != nil {
-			assert.NoError(t, err)
+			assert.NilError(t, err)
 			t.FailNow()
 		}
 		return awss3.Key(key)
@@ -639,7 +667,7 @@ func TestCopy(t *testing.T) {
 		)
 		key := createFixture(ctx)
 		key2 := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
-		assert.NoError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key2))
+		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key2))
 	})
 	t.Run("Copy:Same Item", func(t *testing.T) {
 		t.Parallel()
@@ -650,7 +678,7 @@ func TestCopy(t *testing.T) {
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
 		key := createFixture(ctx)
-		assert.NoError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key))
+		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key))
 	})
 
 	t.Run("Copy:NotFound", func(t *testing.T) {
@@ -662,9 +690,8 @@ func TestCopy(t *testing.T) {
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
 		err := awss3.Copy(ctx, TestRegion, TestBucket, "NOT_FOUND", "NOT_FOUND")
-		if assert.Error(t, err) {
-			assert.ErrorIs(t, awss3.ErrNotFound, err)
-		}
+		assert.Assert(t, err != nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
 	})
 }
 
@@ -673,36 +700,36 @@ func TestSelectCSVAll(t *testing.T) {
 	type TestCSV string
 	const (
 		TestCSVHeader TestCSV = `id,name,detail
-1,hoge,あ髙社🍣
-2,fuga,い髙社🍣
-3,piyo,う髙社🍣
+1,hoge,あ髙社🍣
+2,fuga,い髙社🍣
+3,piyo,う髙社🍣
 `
-		TestCSVNoHeader TestCSV = `1,hoge,あ髙社🍣
-2,fuga,い髙社🍣
-3,piyo,う髙社🍣
+		TestCSVNoHeader TestCSV = `1,hoge,あ髙社🍣
+2,fuga,い髙社🍣
+3,piyo,う髙社🍣
 `
-		TestCSVWithLineFeedLF_LF     TestCSV = "id,name,detail\n1,hoge,\"あ髙\n社🍣\"\n2,fuga,\"い髙\n社🍣\"\n3,piyo,\"う髙\n社🍣\""
-		TestCSVWithLineFeedLF_CRLF   TestCSV = "id,name,detail\n1,hoge,\"あ髙\r\n社🍣\"\n2,fuga,\"い髙\r\n社🍣\"\n3,piyo,\"う髙\r\n社🍣\""
-		TestCSVWithLineFeedCRLF_LF   TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\n社🍣\"\r\n2,fuga,\"い髙\n社🍣\"\r\n3,piyo,\"う髙\n社🍣\""
-		TestCSVWithLineFeedCRLF_CRLF TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\r\n社🍣\"\r\n2,fuga,\"い髙\r\n社🍣\"\r\n3,piyo,\"う髙\r\n社🍣\""
+		TestCSVWithLineFeedLF_LF     TestCSV = "id,name,detail\n1,hoge,\"あ髙\n社🍣\"\n2,fuga,\"い髙\n社🍣\"\n3,piyo,\"う髙\n社🍣\""
+		TestCSVWithLineFeedLF_CRLF   TestCSV = "id,name,detail\n1,hoge,\"あ髙\r\n社🍣\"\n2,fuga,\"い髙\r\n社🍣\"\n3,piyo,\"う髙\r\n社🍣\""
+		TestCSVWithLineFeedCRLF_LF   TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\n社🍣\"\r\n2,fuga,\"い髙\n社🍣\"\r\n3,piyo,\"う髙\n社🍣\""
+		TestCSVWithLineFeedCRLF_CRLF TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\r\n社🍣\"\r\n2,fuga,\"い髙\r\n社🍣\"\r\n3,piyo,\"う髙\r\n社🍣\""
 	)
 	var (
 		WantCSV = [][]string{
 			{"id", "name", "detail"},
-			{"1", "hoge", "あ髙社🍣"},
-			{"2", "fuga", "い髙社🍣"},
-			{"3", "piyo", "う髙社🍣"},
+			{"1", "hoge", "あ髙社🍣"},
+			{"2", "fuga", "い髙社🍣"},
+			{"3", "piyo", "う髙社🍣"},
 		}
 		WantNoHeaderCSV = [][]string{
-			{"1", "hoge", "あ髙社🍣"},
-			{"2", "fuga", "い髙社🍣"},
-			{"3", "piyo", "う髙社🍣"},
+			{"1", "hoge", "あ髙社🍣"},
+			{"2", "fuga", "い髙社🍣"},
+			{"3", "piyo", "う髙社🍣"},
 		}
 		WantCSVWithLineFeedLF = [][]string{
 			{"id", "name", "detail"},
-			{"1", "hoge", "あ髙\n社🍣"},
-			{"2", "fuga", "い髙\n社🍣"},
-			{"3", "piyo", "う髙\n社🍣"},
+			{"1", "hoge", "あ髙\n社🍣"},
+			{"2", "fuga", "い髙\n社🍣"},
+			{"3", "piyo", "う髙\n社🍣"},
 		}
 	)
 
@@ -740,17 +767,12 @@ func TestSelectCSVAll(t *testing.T) {
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
-		src := TestCSVHeader
-		key := createFixture(ctx, src)
+		key := createFixture(ctx, TestCSVHeader)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSV, records)
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSV, records)
 	})
 	t.Run("CSV With Header", func(t *testing.T) {
 		t.Parallel()
@@ -763,14 +785,10 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSVHeader
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSV, records)
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSV, records)
 	})
 	t.Run("CSV With LineFeed File:LF, Field:LF", func(t *testing.T) {
 		t.Parallel()
@@ -783,16 +801,12 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSVWithLineFeedLF_LF
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSVWithLineFeedLF, records)
+		))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV With LineFeed File:CRLF, Field:LF", func(t *testing.T) {
 		t.Parallel()
@@ -805,16 +819,12 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSVWithLineFeedCRLF_LF
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSVWithLineFeedLF, records)
+		))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV With LineFeed File:LF, Field:CRLF", func(t *testing.T) {
 		t.Parallel()
@@ -827,16 +837,12 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSVWithLineFeedLF_CRLF
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSVWithLineFeedLF, records)
+		))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV With LineFeed File:CRLF, Field:CRLF", func(t *testing.T) {
 		t.Parallel()
@@ -849,17 +855,13 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSVWithLineFeedCRLF_CRLF
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		)
+		))
 
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSVWithLineFeedLF, records)
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV No Header", func(t *testing.T) {
 		t.Parallel()
@@ -872,16 +874,12 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSVNoHeader
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithCSVInput(types.CSVInput{FileHeaderInfo: types.FileHeaderInfoNone}),
-		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantNoHeaderCSV, records)
+		))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantNoHeaderCSV, records)
 	})
 	t.Run("CSV With UTF-8 BOM", func(t *testing.T) {
 		t.Parallel()
@@ -894,14 +892,10 @@ func TestSelectCSVAll(t *testing.T) {
 		src := TestCSV(utf8bom.AddBOM([]byte(TestCSVHeader)))
 		key := createFixture(ctx, src)
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
-		assert.Equal(t, WantCSV, records)
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSV, records)
 	})
 	t.Run("CSV 300000 records", func(t *testing.T) {
 		t.Parallel()
@@ -915,15 +909,11 @@ func TestSelectCSVAll(t *testing.T) {
 		key := createFixture(ctx, src)
 
 		var buf bytes.Buffer
-		err := awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
+		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
 			s3selectcsv.WithCSVInput(types.CSVInput{FileHeaderInfo: types.FileHeaderInfoNone}),
-		)
-		if !assert.NoError(t, err) {
-			return
-		}
-		r := csv.NewReader(&buf)
-		records, err := r.ReadAll()
-		assert.NoError(t, err)
+		))
+		records, err := csv.NewReader(&buf).ReadAll()
+		assert.NilError(t, err)
 		assert.Equal(t, 300000, len(records))
 	})
 }
@@ -933,9 +923,9 @@ func TestSelectCSVHeaders(t *testing.T) {
 	type TestCSV string
 	const (
 		TestCSVHeader TestCSV = `id,name,detail
-1,hoge,あ髙社🍣
-2,fuga,い髙社🍣
-3,piyo,う髙社🍣
+1,hoge,あ髙社🍣
+2,fuga,い髙社🍣
+3,piyo,う髙社🍣
 `
 	)
 	var (
@@ -976,13 +966,10 @@ func TestSelectCSVHeaders(t *testing.T) {
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
-		src := TestCSVHeader
-		key := createFixture(ctx, src)
+		key := createFixture(ctx, TestCSVHeader)
 		got, err := awss3.SelectCSVHeaders(ctx, TestRegion, TestBucket, key)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Equal(t, WantCSVHeaders, got)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, WantCSVHeaders, got)
 	})
 	t.Run("Empty CSV", func(t *testing.T) {
 		t.Parallel()
@@ -994,7 +981,7 @@ func TestSelectCSVHeaders(t *testing.T) {
 		)
 		key := createFixture(ctx, "")
 		_, err := awss3.SelectCSVHeaders(ctx, TestRegion, TestBucket, key)
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
 	})
 }
 
@@ -1038,13 +1025,13 @@ func TestPresignPutObject(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_presign_put_object_01.txt")
 		pURL, err := awss3.PresignPutObject(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, pURL)
+		assert.NilError(t, err)
+		assert.Assert(t, pURL != "")
 
 		err = uploadTxtByPresignedPutObjectURL(pURL)
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 		err = confirmedUploadedObject(ctx, key)
-		assert.NoError(t, err)
+		assert.NilError(t, err)
 	})
 }
 
@@ -1061,18 +1048,18 @@ func TestCreateMultipartUpload(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_create_multipart_upload_file_a.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
 
-		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId) //nolint:errcheck
 	})
 
 	t.Run("Create multipart upload with non-existing bucket", func(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_create_multipart_upload_file_b.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, NonExistentBucket, key)
-		assert.Error(t, err)
-		assert.Empty(t, uploadId)
+		assert.Assert(t, err != nil)
+		assert.Equal(t, "", uploadId)
 	})
 }
 
@@ -1089,19 +1076,16 @@ func TestAbortMultipartUpload(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_abort_multipart_upload_file_a.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
-
-		err = awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
-		assert.NoError(t, err)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
+		assert.NilError(t, awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId))
 	})
 
 	t.Run("Abort multipart upload with non-existing uploadId", func(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_abort_multipart_upload_file_b.txt")
-		uploadId := "non-existing-upload-id"
-		err := awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
-		assert.Error(t, err)
+		err := awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, "non-existing-upload-id")
+		assert.Assert(t, err != nil)
 	})
 }
 
@@ -1118,28 +1102,21 @@ func TestUploadPart(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_upload_part_file_a.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId) //nolint:errcheck
 
-		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
-
-		partNumber := int32(1)
-		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
-			strings.NewReader(content))
-		assert.NoError(t, err)
-		assert.NotNil(t, resp)
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, 1, strings.NewReader("Hello World"))
+		assert.NilError(t, err)
+		assert.Assert(t, resp != nil)
 	})
 	t.Run("Upload part with non-existing uploadId", func(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_upload_part_file_b.txt")
-		uploadId := "non-existing-upload-id"
-		partNumber := int32(1)
-		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
-			strings.NewReader(content))
-		assert.Error(t, err)
-		assert.Nil(t, resp)
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, "non-existing-upload-id", 1,
+			strings.NewReader("Hello World"))
+		assert.Assert(t, err != nil)
+		assert.Assert(t, resp == nil)
 	})
 }
 
@@ -1156,114 +1133,285 @@ func TestCompleteMultipartUpload(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_complete_multipart_upload_file_a.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId) //nolint:errcheck
 
-		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+		partResp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, 1,
+			strings.NewReader("Hello World"))
+		assert.NilError(t, err)
+		assert.Assert(t, partResp != nil)
 
-		partNumber := int32(1)
-		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
-			strings.NewReader(content))
-		assert.NoError(t, err)
-		assert.NotNil(t, resp)
-
-		completedParts := []types.CompletedPart{
-			{
-				ETag:       resp.ETag,
-				PartNumber: aws.Int32(partNumber),
-			},
-		}
-
-		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, completedParts)
-		assert.NoError(t, err)
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, []types.CompletedPart{
+			{ETag: partResp.ETag, PartNumber: aws.Int32(1)},
+		})
+		assert.NilError(t, err)
 	})
 
 	t.Run("Complete multipart upload without parts", func(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_complete_multipart_upload_file_b.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId) //nolint:errcheck
 
-		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
-
-		completedParts := []types.CompletedPart{}
-		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, completedParts)
-		assert.Error(t, err)
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, []types.CompletedPart{})
+		assert.Assert(t, err != nil)
 	})
 
 	t.Run("Complete multipart upload with incorrect parts", func(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_complete_multipart_upload_file_c.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
+		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId) //nolint:errcheck
 
-		defer awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
+		partResp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, 1,
+			strings.NewReader("Hello World"))
+		assert.NilError(t, err)
+		assert.Assert(t, partResp != nil)
 
-		partNumber := int32(1)
-		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
-			strings.NewReader(content))
-		assert.NoError(t, err)
-		assert.NotNil(t, resp)
-
-		completedParts := []types.CompletedPart{
-			{
-				ETag:       resp.ETag,
-				PartNumber: aws.Int32(partNumber + 1), // incorrect part number
-			},
-		}
-
-		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, completedParts)
-		assert.Error(t, err)
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId, []types.CompletedPart{
+			{ETag: partResp.ETag, PartNumber: aws.Int32(2)}, // incorrect part number
+		})
+		assert.Assert(t, err != nil)
 	})
 
 	t.Run("Full flow: Create, Abort multipart upload", func(t *testing.T) {
 		t.Parallel()
-		// Create a multipart upload
 		key := awss3.Key("test_full_flow_abort_multipart_upload_file.txt")
 		uploadId, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, uploadId)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadId != "")
 
-		// Upload first part
-		contents := []byte("This is a test file for multipart upload.")
-		reader := bytes.NewReader(contents)
-		partNumber := int32(1)
-		uploadPartResp, err := awss3.UploadPart(
-			ctx,
-			TestRegion,
-			TestBucket,
-			key,
-			uploadId,
-			partNumber,
-			reader,
-		)
-		assert.NoError(t, err)
-		assert.NotNil(t, uploadPartResp)
+		partResp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, 1,
+			bytes.NewReader([]byte("This is a test file for multipart upload.")))
+		assert.NilError(t, err)
+		assert.Assert(t, partResp != nil)
 
-		// Complete the multipart upload
-		completedParts := []types.CompletedPart{
-			{
-				ETag:       uploadPartResp.ETag,
-				PartNumber: aws.Int32(partNumber),
-			},
-		}
-		completeMultipartUploadResp, err := awss3.CompleteMultipartUpload(
-			ctx,
-			TestRegion,
-			TestBucket,
-			key,
-			uploadId,
-			completedParts,
+		completeResp, err := awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId,
+			[]types.CompletedPart{{ETag: partResp.ETag, PartNumber: aws.Int32(1)}},
 		)
-		assert.NoError(t, err)
-		assert.NotNil(t, completeMultipartUploadResp)
+		assert.NilError(t, err)
+		assert.Assert(t, completeResp != nil)
 
 		// Abort multipart upload even success or fail to complete to ensure no leftover parts in S3
 		err = awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId)
-		assert.Error(t, err)
+		assert.Assert(t, err != nil)
+	})
+}
+
+// openFDCount returns the number of open file descriptors whose target path
+// is inside outputDir. By scoping the count to the temporary output directory,
+// we avoid false positives from socket FDs kept open by the HTTP connection
+// pool or from unrelated parallel tests.
+// Returns -1 when the FD directory is unreadable or on unsupported platforms.
+func openFDCount(outputDir string) int {
+	var dir string
+	switch runtime.GOOS {
+	case "linux":
+		dir = "/proc/self/fd"
+	case "darwin":
+		dir = "/dev/fd"
+	default:
+		return -1
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return -1
+	}
+	count := 0
+	for _, e := range entries {
+		target, err := os.Readlink(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		// Count only FDs whose resolved path starts with outputDir.
+		if strings.HasPrefix(target, outputDir) {
+			count++
+		}
+	}
+	return count
+}
+
+// assertNoFDLeak snapshots the number of open FDs pointing inside outputDir
+// before and after calling fn, then asserts the count has not grown.
+// The check is skipped when either snapshot returns -1 (unsupported platform
+// or unreadable FD directory).
+func assertNoFDLeak(t *testing.T, outputDir string, fn func()) {
+	t.Helper()
+
+	// Force a GC so that any finalizer-closed FDs are flushed before
+	// snapshotting the baseline.
+	runtime.GC()
+
+	before := openFDCount(outputDir)
+	if before < 0 {
+		t.Skip("FD counting not supported on this platform")
+	}
+
+	fn()
+
+	// GC again so that any runtime-managed FDs are released.
+	runtime.GC()
+
+	after := openFDCount(outputDir)
+	if after < 0 {
+		t.Skip("FD counting not supported on this platform")
+	}
+
+	assert.Check(t, after <= before,
+		"file descriptor leak detected: before=%d after=%d", before, after)
+}
+
+// TestDownloadFiles_FilesClosed verifies that every *os.File opened inside
+// DownloadFiles is closed on both the success path and the error path.
+func TestDownloadFiles_FilesClosed(t *testing.T) {
+	// Run serially to prevent FD activity from other parallel tests from
+	// polluting the before/after snapshots.
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	// Upload a small set of objects to use as fixtures.
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	const numFiles = 5
+	keys := make(awss3.Keys, numFiles)
+	for i := 0; i < numFiles; i++ {
+		key := fmt.Sprintf("awstest/fdtest/%s.txt", ulid.MustNew())
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
+			Body:    strings.NewReader(fmt.Sprintf("fd-test-content-%d", i)),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
+			t.Fatalf("fixture upload failed: %v", err)
+		}
+		keys[i] = awss3.Key(key)
+	}
+
+	t.Run("success path: all FDs closed", func(t *testing.T) {
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			paths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, keys, outDir)
+			assert.NilError(t, err)
+			assert.Equal(t, numFiles, len(paths))
+		})
+	})
+
+	t.Run("error path: FDs closed even when key does not exist", func(t *testing.T) {
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/fdtest/missing-%s.txt", ulid.MustNew())),
+		}
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, missingKeys, outDir)
+			assert.Assert(t, err != nil)
+		})
+	})
+
+	t.Run("error path with FileNameReplacer: FDs closed on failure", func(t *testing.T) {
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/fdtest/missing-%s.txt", ulid.MustNew())),
+		}
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, missingKeys, outDir,
+				s3download.WithFileNameReplacerFunc(func(s3Key, base string) string {
+					return "renamed-" + base
+				}),
+			)
+			assert.Assert(t, err != nil)
+		})
+	})
+}
+
+// TestDownloadFilesParallel_FilesClosed verifies that every *os.File opened
+// inside DownloadFilesParallel is closed on both the success path and the
+// error path.
+func TestDownloadFilesParallel_FilesClosed(t *testing.T) {
+	// Run serially to prevent FD activity from other parallel tests from
+	// polluting the before/after snapshots.
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	const numFiles = 5
+	keys := make(awss3.Keys, numFiles)
+	for i := 0; i < numFiles; i++ {
+		key := fmt.Sprintf("awstest/fdtest-parallel/%s.txt", ulid.MustNew())
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
+			Body:    strings.NewReader(fmt.Sprintf("fd-test-content-parallel-%d", i)),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
+		}
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
+			t.Fatalf("fixture upload failed: %v", err)
+		}
+		keys[i] = awss3.Key(key)
+	}
+
+	t.Run("success path: all FDs closed", func(t *testing.T) {
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			paths, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, keys, outDir)
+			assert.NilError(t, err)
+			assert.Equal(t, numFiles, len(paths))
+		})
+	})
+
+	t.Run("error path: FDs closed even when key does not exist", func(t *testing.T) {
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/fdtest-parallel/missing-%s.txt", ulid.MustNew())),
+		}
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, outDir)
+			assert.Assert(t, err != nil)
+		})
+	})
+
+	t.Run("error path with FileNameReplacer: FDs closed on failure", func(t *testing.T) {
+		missingKeys := awss3.Keys{
+			awss3.Key(fmt.Sprintf("awstest/fdtest-parallel/missing-%s.txt", ulid.MustNew())),
+		}
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, missingKeys, outDir,
+				s3download.WithFileNameReplacerFunc(func(s3Key, base string) string {
+					return "renamed-" + base
+				}),
+			)
+			assert.Assert(t, err != nil)
+		})
+	})
+
+	t.Run("mixed: some keys exist, one does not — no FD leak", func(t *testing.T) {
+		mixedKeys := append(
+			awss3.Keys{keys[0], keys[1]},
+			awss3.Key(fmt.Sprintf("awstest/fdtest-parallel/missing-%s.txt", ulid.MustNew())),
+		)
+		outDir := t.TempDir()
+		assertNoFDLeak(t, outDir, func() {
+			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, mixedKeys, outDir)
+			assert.Assert(t, err != nil)
+		})
 	})
 }

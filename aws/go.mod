@@ -22,6 +22,7 @@ require (
 	github.com/tomtwinkle/utfbomremover v0.1.1
 	golang.org/x/sync v0.19.0
 	golang.org/x/text v0.34.0
+	gotest.tools/v3 v3.5.2
 )
 
 require (
@@ -42,6 +43,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
