@@ -13,14 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/88labs/go-utils/ulid"
-	"github.com/88labs/go-utils/utf8bom"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/88labs/go-utils/ulid"
+	"github.com/88labs/go-utils/utf8bom"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3"
@@ -51,14 +52,14 @@ func TestHeadObject(t *testing.T) {
 
 	createFixture := func(fileSize int) awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    bytes.NewReader(bytes.Repeat([]byte{1}, fileSize)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 		}
 		return awss3.Key(key)
@@ -111,14 +112,14 @@ func TestListObjects(t *testing.T) {
 
 	createFixture := func(prefix string) awss3.Key {
 		key := fmt.Sprintf("%s/awstest/%s.txt", prefix, ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader("test"),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 		}
 		return awss3.Key(key)
@@ -189,14 +190,14 @@ func TestGetObject(t *testing.T) {
 
 	createFixture := func() awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader("test"),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 		}
 		return awss3.Key(key)
@@ -234,14 +235,14 @@ func TestDeleteObject(t *testing.T) {
 
 	createFixture := func() awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader("test"),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 		}
 		return awss3.Key(key)
@@ -283,14 +284,14 @@ func TestDownloadFiles(t *testing.T) {
 	keys := make(awss3.Keys, 100)
 	for i := 0; i < 100; i++ {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader(getBodyText(i)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 			return
 		}
@@ -385,14 +386,14 @@ func TestDownloadFilesParallel(t *testing.T) {
 	keys := make(awss3.Keys, 100)
 	for i := 0; i < 100; i++ {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader(getBodyText(i)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 			return
 		}
@@ -532,14 +533,14 @@ func TestPresign(t *testing.T) {
 			t.Fatal(err)
 		}
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader("test"),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 			return ""
 		}
@@ -551,14 +552,14 @@ func TestPresign(t *testing.T) {
 			t.Fatal(err)
 		}
 		key := fmt.Sprintf("awstest/%s.pdf", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader("test"),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 			return ""
 		}
@@ -606,14 +607,14 @@ func TestCopy(t *testing.T) {
 			t.Fatal(err)
 		}
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader("test"),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 			t.FailNow()
 		}
@@ -711,14 +712,14 @@ func TestSelectCSVAll(t *testing.T) {
 			t.Fatal(err)
 		}
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader(string(body)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			t.Fatal(err)
 		}
 		waiter := s3.NewObjectExistsWaiter(s3Client)
@@ -947,14 +948,14 @@ func TestSelectCSVHeaders(t *testing.T) {
 			t.Fatal(err)
 		}
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    strings.NewReader(string(body)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			t.Fatal(err)
 		}
 		waiter := s3.NewObjectExistsWaiter(s3Client)
@@ -1124,7 +1125,8 @@ func TestUploadPart(t *testing.T) {
 
 		partNumber := int32(1)
 		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
+			strings.NewReader(content))
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 	})
@@ -1134,7 +1136,8 @@ func TestUploadPart(t *testing.T) {
 		uploadId := "non-existing-upload-id"
 		partNumber := int32(1)
 		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
+			strings.NewReader(content))
 		assert.Error(t, err)
 		assert.Nil(t, resp)
 	})
@@ -1160,7 +1163,8 @@ func TestCompleteMultipartUpload(t *testing.T) {
 
 		partNumber := int32(1)
 		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
+			strings.NewReader(content))
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 
@@ -1200,7 +1204,8 @@ func TestCompleteMultipartUpload(t *testing.T) {
 
 		partNumber := int32(1)
 		content := "Hello World"
-		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber, strings.NewReader(content))
+		resp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadId, partNumber,
+			strings.NewReader(content))
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 
