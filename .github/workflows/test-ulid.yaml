@@ -16,6 +16,9 @@ on:
 env:
   testdir : ./ulid
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:

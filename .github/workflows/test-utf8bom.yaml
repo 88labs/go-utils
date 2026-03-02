@@ -16,6 +16,9 @@ on:
 env:
   testdir : ./utf8bom
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:

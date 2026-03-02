@@ -16,6 +16,9 @@ on:
 env:
   testdir : ./hashutil
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
