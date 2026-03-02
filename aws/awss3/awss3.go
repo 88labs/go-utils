@@ -271,13 +271,20 @@ func DownloadFiles(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+		_, dlErr := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
 			Bucket:   bucketName.AWSString(),
 			Key:      s3Key.AWSString(),
 			WriterAt: f,
-		}); err != nil {
+		})
+		// Always close the file regardless of success or failure.
+		if closeErr := f.Close(); closeErr != nil && dlErr == nil {
+			dlErr = closeErr
+		}
+		if dlErr != nil {
+			// Remove the partially written file on failure.
+			_ = os.Remove(filePath)
 			var oe *smithy.OperationError
-			if errors.As(err, &oe) {
+			if errors.As(dlErr, &oe) {
 				var resErr *awshttp.ResponseError
 				if errors.As(oe.Err, &resErr) {
 					if resErr.Response.StatusCode == http.StatusNotFound {
@@ -285,7 +292,7 @@ func DownloadFiles(
 					}
 				}
 			}
-			return nil, err
+			return nil, dlErr
 		}
 	}
 	return paths, nil
@@ -347,9 +354,10 @@ func DownloadFilesParallel(
 		}
 		eg.Go(func() error {
 			ctx, cancel := context.WithCancel(ctx)
-			b := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+			defer cancel()
 			var gErr error
-			if err := backoff.Retry(func() error {
+			b := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+			dlErr := backoff.Retry(func() error {
 				if _, err := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
 					Bucket:   bucketName.AWSString(),
 					Key:      s3Key.AWSString(),
@@ -375,11 +383,18 @@ func DownloadFilesParallel(
 					return err
 				}
 				return nil
-			}, b); err != nil {
+			}, b)
+			// Always close the file regardless of success or failure.
+			if closeErr := f.Close(); closeErr != nil && dlErr == nil {
+				dlErr = closeErr
+			}
+			if dlErr != nil {
+				// Remove the partially written file on failure.
+				_ = os.Remove(filePath)
 				if gErr != nil {
 					return gErr
 				}
-				return err
+				return dlErr
 			}
 			return nil
 		})
