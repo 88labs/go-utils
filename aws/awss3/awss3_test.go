@@ -1152,8 +1152,10 @@ func TestCompleteMultipartUpload(t *testing.T) {
 	})
 }
 
-// openFDCount returns the number of file descriptors currently open by this
-// process. It works on Linux (/proc/self/fd) and macOS (/dev/fd).
+// openFDCount returns the number of regular-file file descriptors currently
+// open by this process. Sockets, pipes, and other non-regular FDs are excluded
+// so that HTTP connection-pool churn does not cause false positives.
+// It works on Linux (/proc/self/fd) and macOS (/dev/fd).
 // On unsupported platforms it returns -1 so callers can skip the assertion.
 func openFDCount() int {
 	var dir string
@@ -1169,7 +1171,23 @@ func openFDCount() int {
 	if err != nil {
 		return -1
 	}
-	return len(entries)
+	count := 0
+	for _, e := range entries {
+		// Each entry is a symlink to the actual file. Resolve it and check
+		// whether the target is a regular file.
+		target, err := os.Readlink(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		fi, err := os.Stat(target)
+		if err != nil {
+			continue
+		}
+		if fi.Mode().IsRegular() {
+			count++
+		}
+	}
+	return count
 }
 
 // assertNoFDLeak takes a before-snapshot of open FDs, runs fn, then asserts
