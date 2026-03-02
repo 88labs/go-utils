@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -75,15 +75,14 @@ func PutObject(
 func UploadManager(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader,
 	opts ...s3upload.OptionS3Upload,
-) (*manager.UploadOutput, error) {
+) (*transfermanager.UploadObjectOutput, error) {
 	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
-
-	uploader := manager.NewUploader(client)
 	if err != nil {
 		return nil, err
 	}
-	input := &s3.PutObjectInput{
+	uploader := transfermanager.New(client)
+	input := &transfermanager.UploadObjectInput{
 		Body:   body,
 		Bucket: bucketName.AWSString(),
 		Key:    key.AWSString(),
@@ -91,7 +90,7 @@ func UploadManager(
 	if c.S3Expires != nil {
 		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
 	}
-	return uploader.Upload(ctx, input)
+	return uploader.UploadObject(ctx, input)
 }
 
 // HeadObject
@@ -236,10 +235,9 @@ func DownloadFiles(
 	}
 
 	uniqKeys := keys.Unique()
-	option := func(d *manager.Downloader) {
-		d.BufferProvider = manager.NewPooledBufferedWriterReadFromProvider(5 * 1024 * 1024)
-	}
-	downloader := manager.NewDownloader(client, option)
+	downloader := transfermanager.New(client, func(o *transfermanager.Options) {
+		o.GetObjectBufferSize = 5 * 1024 * 1024
+	})
 	paths := make([]string, len(uniqKeys))
 
 	getFilePath := func(s3Key string) string {
@@ -273,9 +271,10 @@ func DownloadFiles(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
-			Bucket: bucketName.AWSString(),
-			Key:    s3Key.AWSString(),
+		if _, err := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+			Bucket:   bucketName.AWSString(),
+			Key:      s3Key.AWSString(),
+			WriterAt: f,
 		}); err != nil {
 			var oe *smithy.OperationError
 			if errors.As(err, &oe) {
@@ -309,10 +308,9 @@ func DownloadFilesParallel(
 	}
 
 	uniqKeys := keys.Unique()
-	option := func(d *manager.Downloader) {
-		d.BufferProvider = manager.NewPooledBufferedWriterReadFromProvider(5 * 1024 * 1024)
-	}
-	downloader := manager.NewDownloader(client, option)
+	downloader := transfermanager.New(client, func(o *transfermanager.Options) {
+		o.GetObjectBufferSize = 5 * 1024 * 1024
+	})
 	paths := make([]string, len(uniqKeys))
 
 	getFilePath := func(s3Key string) string {
@@ -352,9 +350,10 @@ func DownloadFilesParallel(
 			b := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
 			var gErr error
 			if err := backoff.Retry(func() error {
-				if _, err := downloader.Download(ctx, f, &s3.GetObjectInput{
-					Bucket: bucketName.AWSString(),
-					Key:    s3Key.AWSString(),
+				if _, err := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+					Bucket:   bucketName.AWSString(),
+					Key:      s3Key.AWSString(),
+					WriterAt: f,
 				}); err != nil {
 					var oe *smithy.OperationError
 					if errors.As(err, &oe) {

@@ -9,8 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/88labs/go-utils/ulid"
@@ -43,14 +42,14 @@ func TestGlobalOptionWithHeadObject(t *testing.T) {
 
 	createFixture := func(fileSize int) awss3.Key {
 		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
-		uploader := manager.NewUploader(s3Client)
-		input := s3.PutObjectInput{
+		uploader := transfermanager.New(s3Client)
+		input := &transfermanager.UploadObjectInput{
 			Body:    bytes.NewReader(bytes.Repeat([]byte{1}, fileSize)),
 			Bucket:  aws.String(TestBucket),
 			Key:     aws.String(key),
 			Expires: aws.Time(time.Now().Add(10 * time.Minute)),
 		}
-		if _, err := uploader.Upload(ctx, &input); err != nil {
+		if _, err := uploader.UploadObject(ctx, input); err != nil {
 			assert.NoError(t, err)
 		}
 		return awss3.Key(key)
