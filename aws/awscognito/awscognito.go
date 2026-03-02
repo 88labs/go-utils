@@ -40,7 +40,7 @@ func (c *Client) CognitoClient() *cognitoidentity.Client {
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func (c *Client) GetCredentialsForIdentity(
-	ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string,
+	ctx context.Context, identityId string, logins map[string]string,
 ) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
 	localProfile, _ := getLocalEndpoint(ctx)
 	res, err := c.raw.GetCredentialsForIdentity(
@@ -50,7 +50,6 @@ func (c *Client) GetCredentialsForIdentity(
 			CustomRoleArn: nil,
 			Logins:        logins,
 		}, func(options *cognitoidentity.Options) {
-			options.Region = region.String()
 			if localProfile != nil {
 				options.Credentials = aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 					return aws.Credentials{
@@ -86,7 +85,29 @@ func GetCredentialsForIdentity(
 		client = cognitoidentity.NewFromConfig(awsCfg)
 		cognitoidentityClientAtomic.Store(client)
 	}
-	return (&Client{raw: client}).GetCredentialsForIdentity(ctx, region, identityId, logins)
+	localProfile, _ := getLocalEndpoint(ctx)
+	res, err := client.GetCredentialsForIdentity(
+		ctx,
+		&cognitoidentity.GetCredentialsForIdentityInput{
+			IdentityId:    aws.String(identityId),
+			CustomRoleArn: nil,
+			Logins:        logins,
+		}, func(options *cognitoidentity.Options) {
+			options.Region = region.String()
+			if localProfile != nil {
+				options.Credentials = aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{
+						AccessKeyID:     localProfile.AccessKey,
+						SecretAccessKey: localProfile.SecretAccessKey,
+						SessionToken:    localProfile.SessionToken,
+					}, nil
+				})
+			}
+		})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 type LocalProfile struct {

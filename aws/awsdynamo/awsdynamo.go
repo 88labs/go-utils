@@ -86,6 +86,8 @@ func (c *Client) GetItem(ctx context.Context, tableName TableName, keyAttributeN
 }
 
 // BatchGetItem retrieves DynamoDB items in a batch process.
+// Note that the order of retrieval is not the order in which the keys are specified.
+// DynamoDB allows a maximum batch size of 100 items.
 func (c *Client) BatchGetItem(ctx context.Context, tableName TableName, keyAttributeName KeyAttributeName, keys []string) ([]map[string]types.AttributeValue, error) {
 	const MaxBatchSize = 100
 
@@ -125,6 +127,8 @@ func (c *Client) BatchGetItem(ctx context.Context, tableName TableName, keyAttri
 }
 
 // BatchWriteItem writes DynamoDB items in a batch process.
+// DynamoDB allows a maximum batch size of 25 items.
+// A wait time of 10ms is applied between batch writes.
 func (c *Client) BatchWriteItem(ctx context.Context, tableName TableName, items []any) error {
 	const (
 		MaxBatchSize  = 25
