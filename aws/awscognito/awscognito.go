@@ -15,27 +15,35 @@ import (
 
 var cognitoidentityClientAtomic atomic.Pointer[cognitoidentity.Client]
 
-// GetCredentialsForIdentity
+// Client wraps a *cognitoidentity.Client.
+type Client struct {
+	raw *cognitoidentity.Client
+}
+
+// NewClient creates a new, non-cached Cognito Identity client.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
+func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %w", err)
+	}
+	return &Client{raw: cognitoidentity.NewFromConfig(awsCfg)}, nil
+}
+
+// CognitoClient returns the underlying *cognitoidentity.Client.
+func (c *Client) CognitoClient() *cognitoidentity.Client {
+	return c.raw
+}
+
+// GetCredentialsForIdentity on Client
 // aws-sdk-go v2 GetCredentialsForIdentity
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
-func GetCredentialsForIdentity(
+func (c *Client) GetCredentialsForIdentity(
 	ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string,
 ) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
-	var client *cognitoidentity.Client
-	if v := cognitoidentityClientAtomic.Load(); v != nil {
-		client = v
-	} else {
-		// Cognito Client
-		awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
-		if err != nil {
-			return nil, fmt.Errorf("unable to load SDK config, %w", err)
-		}
-		client = cognitoidentity.NewFromConfig(awsCfg)
-		cognitoidentityClientAtomic.Store(client)
-	}
 	localProfile, _ := getLocalEndpoint(ctx)
-	res, err := client.GetCredentialsForIdentity(
+	res, err := c.raw.GetCredentialsForIdentity(
 		ctx,
 		&cognitoidentity.GetCredentialsForIdentityInput{
 			IdentityId:    aws.String(identityId),
@@ -57,6 +65,28 @@ func GetCredentialsForIdentity(
 		return nil, err
 	}
 	return res, nil
+}
+
+// GetCredentialsForIdentity
+// aws-sdk-go v2 GetCredentialsForIdentity
+//
+// Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
+func GetCredentialsForIdentity(
+	ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string,
+) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
+	var client *cognitoidentity.Client
+	if v := cognitoidentityClientAtomic.Load(); v != nil {
+		client = v
+	} else {
+		// Cognito Client
+		awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
+		if err != nil {
+			return nil, fmt.Errorf("unable to load SDK config, %w", err)
+		}
+		client = cognitoidentity.NewFromConfig(awsCfg)
+		cognitoidentityClientAtomic.Store(client)
+	}
+	return (&Client{raw: client}).GetCredentialsForIdentity(ctx, region, identityId, logins)
 }
 
 type LocalProfile struct {
