@@ -78,7 +78,6 @@ func UploadManager(
 ) (*transfermanager.UploadObjectOutput, error) {
 	c := s3upload.GetS3UploadConf(opts...)
 	client, err := GetClient(ctx, region) // nolint:typecheck
-
 	if err != nil {
 		return nil, err
 	}
