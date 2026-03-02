@@ -31,6 +31,7 @@ import (
 	"github.com/88labs/go-utils/aws/awss3/options/s3list"
 	"github.com/88labs/go-utils/aws/awss3/options/s3presigned"
 	"github.com/88labs/go-utils/aws/awss3/options/s3selectcsv"
+	"github.com/88labs/go-utils/aws/awss3/options/s3upload"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
 
@@ -173,6 +174,11 @@ func TestListObjects(t *testing.T) {
 				t.Errorf("%s not found", key)
 			}
 		}
+	})
+	t.Run("ListObjects error: non-existent bucket", func(t *testing.T) {
+		t.Parallel()
+		_, err := awss3.ListObjects(ctx, TestRegion, NonExistentBucket)
+		assert.Assert(t, err != nil)
 	})
 }
 
@@ -522,6 +528,27 @@ func TestPutObject(t *testing.T) {
 		assert.NilError(t, err)
 		assert.Equal(t, body, string(fileBody))
 	})
+	t.Run("PutObject with WithExpires option", func(t *testing.T) {
+		t.Parallel()
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		body := faker.Sentence()
+		_, err := awss3.PutObject(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body),
+			s3upload.WithS3Expires(10*time.Minute),
+		)
+		assert.NilError(t, err)
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), t.TempDir())
+		assert.NilError(t, err)
+		assert.Assert(t, len(filePaths) == 1)
+		fileBody, err := os.ReadFile(filePaths[0])
+		assert.NilError(t, err)
+		assert.Equal(t, body, string(fileBody))
+	})
+	t.Run("PutObject error: non-existent bucket", func(t *testing.T) {
+		t.Parallel()
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		_, err := awss3.PutObject(ctx, TestRegion, NonExistentBucket, awss3.Key(key), strings.NewReader("body"))
+		assert.Assert(t, err != nil)
+	})
 }
 
 func TestUploadManager(t *testing.T) {
@@ -545,6 +572,27 @@ func TestUploadManager(t *testing.T) {
 		fileBody, err := os.ReadFile(filePaths[0])
 		assert.NilError(t, err)
 		assert.Equal(t, body, string(fileBody))
+	})
+	t.Run("UploadManager with WithExpires option", func(t *testing.T) {
+		t.Parallel()
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		body := faker.Sentence()
+		_, err := awss3.UploadManager(ctx, TestRegion, TestBucket, awss3.Key(key), strings.NewReader(body),
+			s3upload.WithS3Expires(10*time.Minute),
+		)
+		assert.NilError(t, err)
+		filePaths, err := awss3.DownloadFiles(ctx, TestRegion, TestBucket, awss3.NewKeys(key), t.TempDir())
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(filePaths))
+		fileBody, err := os.ReadFile(filePaths[0])
+		assert.NilError(t, err)
+		assert.Equal(t, body, string(fileBody))
+	})
+	t.Run("UploadManager error: non-existent bucket", func(t *testing.T) {
+		t.Parallel()
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		_, err := awss3.UploadManager(ctx, TestRegion, NonExistentBucket, awss3.Key(key), strings.NewReader("body"))
+		assert.Assert(t, err != nil)
 	})
 }
 
@@ -609,6 +657,37 @@ func TestPresign(t *testing.T) {
 		assert.NilError(t, err)
 		assert.Assert(t, presign != "")
 	})
+	t.Run("Presign with WithExpires option", func(t *testing.T) {
+		t.Parallel()
+		key := uploadText()
+		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key,
+			s3presigned.WithPresignExpires(30*time.Minute),
+		)
+		assert.NilError(t, err)
+		assert.Assert(t, presign != "")
+	})
+	t.Run("Presign with WithPresignFileName attachment", func(t *testing.T) {
+		t.Parallel()
+		key := uploadText()
+		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key,
+			s3presigned.WithPresignFileName("download.txt"),
+			s3presigned.WithContentDispositionType(s3presigned.ContentDispositionTypeAttachment),
+		)
+		assert.NilError(t, err)
+		assert.Assert(t, presign != "")
+		assert.Equal(t, presign, "response-content-disposition")
+	})
+	t.Run("Presign with WithPresignFileName inline", func(t *testing.T) {
+		t.Parallel()
+		key := uploadText()
+		presign, err := awss3.Presign(ctx, TestRegion, TestBucket, key,
+			s3presigned.WithPresignFileName("view.txt"),
+			s3presigned.WithContentDispositionType(s3presigned.ContentDispositionTypeInline),
+		)
+		assert.NilError(t, err)
+		assert.Assert(t, presign != "")
+		assert.Assert(t, strings.Contains(presign, "response-content-disposition"))
+	})
 	t.Run("Presign NotFound", func(t *testing.T) {
 		t.Parallel()
 		_, err := awss3.Presign(ctx, TestRegion, TestBucket, "NOT_FOUND")
@@ -620,10 +699,21 @@ func TestPresign(t *testing.T) {
 func TestResponseContentDisposition(t *testing.T) {
 	t.Parallel()
 	const fileName = ",あいうえお　牡蠣喰家来 サシスセソ@+$_-^|+{}"
-	t.Run("success", func(t *testing.T) {
+	t.Run("attachment", func(t *testing.T) {
 		t.Parallel()
 		actual := awss3.ResponseContentDisposition(s3presigned.ContentDispositionTypeAttachment, fileName)
 		assert.Assert(t, actual != "")
+	})
+	t.Run("inline", func(t *testing.T) {
+		t.Parallel()
+		actual := awss3.ResponseContentDisposition(s3presigned.ContentDispositionTypeInline, fileName)
+		assert.Assert(t, actual != "")
+		assert.Assert(t, strings.Contains(actual, "inline"))
+	})
+	t.Run("ascii filename", func(t *testing.T) {
+		t.Parallel()
+		actual := awss3.ResponseContentDisposition(s3presigned.ContentDispositionTypeAttachment, "simple.txt")
+		assert.Equal(t, `attachment; filename*=UTF-8''simple.txt`, actual)
 	})
 }
 
@@ -680,7 +770,18 @@ func TestCopy(t *testing.T) {
 		key := createFixture(ctx)
 		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key))
 	})
-
+	t.Run("Copy with WithExpires option", func(t *testing.T) {
+		t.Parallel()
+		ctx := ctxawslocal.WithContext(
+			context.Background(),
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		)
+		key := createFixture(ctx)
+		key2 := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
+		assert.NilError(t, awss3.Copy(ctx, TestRegion, TestBucket, key, key2, s3upload.WithS3Expires(10*time.Minute)))
+	})
 	t.Run("Copy:NotFound", func(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
@@ -1025,6 +1126,20 @@ func TestPresignPutObject(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_presign_put_object_01.txt")
 		pURL, err := awss3.PresignPutObject(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.Assert(t, pURL != "")
+
+		err = uploadTxtByPresignedPutObjectURL(pURL)
+		assert.NilError(t, err)
+		err = confirmedUploadedObject(ctx, key)
+		assert.NilError(t, err)
+	})
+	t.Run("Presign with WithExpires option", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("test_presign_put_object_expires_01.txt")
+		pURL, err := awss3.PresignPutObject(ctx, TestRegion, TestBucket, key,
+			s3presigned.WithPresignExpires(30*time.Minute),
+		)
 		assert.NilError(t, err)
 		assert.Assert(t, pURL != "")
 
@@ -1413,5 +1528,126 @@ func TestDownloadFilesParallel_FilesClosed(t *testing.T) {
 			_, err := awss3.DownloadFilesParallel(ctx, TestRegion, TestBucket, mixedKeys, outDir)
 			assert.Assert(t, err != nil)
 		})
+	})
+}
+
+func TestKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("String", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("path/to/file.txt")
+		assert.Equal(t, "path/to/file.txt", key.String())
+	})
+	t.Run("AWSString", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("path/to/file.txt")
+		assert.Equal(t, aws.String("path/to/file.txt"), key.AWSString())
+	})
+	t.Run("BucketJoinAWSString", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key("path/to/file.txt")
+		bucket := awss3.BucketName("my-bucket")
+		assert.Equal(t, aws.String("my-bucket/path/to/file.txt"), key.BucketJoinAWSString(bucket))
+	})
+	t.Run("Ext lowercase", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, ".txt", awss3.Key("file.TXT").Ext())
+		assert.Equal(t, ".pdf", awss3.Key("path/to/file.PDF").Ext())
+	})
+	t.Run("Ext no extension", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "", awss3.Key("file").Ext())
+	})
+}
+
+func TestBucketName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("String", func(t *testing.T) {
+		t.Parallel()
+		bucket := awss3.BucketName("my-bucket")
+		assert.Equal(t, "my-bucket", bucket.String())
+	})
+	t.Run("AWSString", func(t *testing.T) {
+		t.Parallel()
+		bucket := awss3.BucketName("my-bucket")
+		assert.Equal(t, aws.String("my-bucket"), bucket.AWSString())
+	})
+}
+
+func TestNewKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates Keys from strings", func(t *testing.T) {
+		t.Parallel()
+		keys := awss3.NewKeys("a.txt", "b.txt", "c.txt")
+		assert.Equal(t, 3, len(keys))
+		assert.Equal(t, awss3.Key("a.txt"), keys[0])
+		assert.Equal(t, awss3.Key("b.txt"), keys[1])
+		assert.Equal(t, awss3.Key("c.txt"), keys[2])
+	})
+	t.Run("empty", func(t *testing.T) {
+		t.Parallel()
+		keys := awss3.NewKeys()
+		assert.Equal(t, 0, len(keys))
+	})
+}
+
+func TestKeys_Unique(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes duplicates", func(t *testing.T) {
+		t.Parallel()
+		keys := awss3.Keys{"a.txt", "b.txt", "a.txt", "c.txt", "b.txt"}
+		got := keys.Unique()
+		assert.Equal(t, awss3.Keys{"a.txt", "b.txt", "c.txt"}, got)
+	})
+	t.Run("no duplicates", func(t *testing.T) {
+		t.Parallel()
+		keys := awss3.Keys{"a.txt", "b.txt", "c.txt"}
+		got := keys.Unique()
+		assert.Equal(t, awss3.Keys{"a.txt", "b.txt", "c.txt"}, got)
+	})
+	t.Run("empty", func(t *testing.T) {
+		t.Parallel()
+		keys := awss3.Keys{}
+		got := keys.Unique()
+		assert.Equal(t, 0, len(got))
+	})
+	t.Run("all duplicates", func(t *testing.T) {
+		t.Parallel()
+		keys := awss3.Keys{"a.txt", "a.txt", "a.txt"}
+		got := keys.Unique()
+		assert.Equal(t, awss3.Keys{"a.txt"}, got)
+	})
+}
+
+func TestObjects_Find(t *testing.T) {
+	t.Parallel()
+
+	makeKey := func(s string) *string { return &s }
+	objects := awss3.Objects{
+		{Key: makeKey("path/to/file1.txt")},
+		{Key: makeKey("path/to/file2.txt")},
+		{Key: nil},
+	}
+
+	t.Run("found", func(t *testing.T) {
+		t.Parallel()
+		obj, ok := objects.Find("path/to/file1.txt")
+		assert.Equal(t, true, ok)
+		assert.Equal(t, "path/to/file1.txt", *obj.Key)
+	})
+	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+		_, ok := objects.Find("not/exist.txt")
+		assert.Equal(t, false, ok)
+	})
+	t.Run("nil key object is skipped", func(t *testing.T) {
+		t.Parallel()
+		// nil キーを持つオブジェクトは無視されるため panicしない
+		_, ok := objects.Find("")
+		assert.Equal(t, false, ok)
 	})
 }
