@@ -22,6 +22,148 @@ var (
 	ErrNotFound = errors.New("record not found")
 )
 
+// PutItem puts an item into DynamoDB. Upserts if it does not exist.
+func (c *Client) PutItem(ctx context.Context, tableName TableName, item any) error {
+	putItem, err := attributevalue.MarshalMap(item)
+	if err != nil {
+		return err
+	}
+	putItemInput := &dynamodb.PutItemInput{
+		Item:      putItem,
+		TableName: tableName.AWSString(),
+	}
+	if _, err := c.raw.PutItem(ctx, putItemInput); err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateItem updates attributes of an item in DynamoDB.
+func (c *Client) UpdateItem(ctx context.Context, tableName TableName, keyAttributeName KeyAttributeName, key string, update expression.UpdateBuilder) (*dynamodb.UpdateItemOutput, error) {
+	expr, err := expression.NewBuilder().WithUpdate(update).Build()
+	if err != nil {
+		return nil, err
+	}
+	updateItemInput := &dynamodb.UpdateItemInput{
+		Key: map[string]types.AttributeValue{
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: key},
+		},
+		TableName:                   tableName.AWSString(),
+		ExpressionAttributeNames:    expr.Names(),
+		ExpressionAttributeValues:   expr.Values(),
+		ReturnConsumedCapacity:      types.ReturnConsumedCapacityNone,
+		ReturnItemCollectionMetrics: types.ReturnItemCollectionMetricsNone,
+		ReturnValues:                types.ReturnValueAllNew,
+		UpdateExpression:            expr.Update(),
+	}
+	return c.raw.UpdateItem(ctx, updateItemInput)
+}
+
+// DeleteItem deletes a DynamoDB item.
+func (c *Client) DeleteItem(ctx context.Context, tableName TableName, keyAttributeName KeyAttributeName, key string) (*dynamodb.DeleteItemOutput, error) {
+	deleteItemInput := &dynamodb.DeleteItemInput{
+		Key: map[string]types.AttributeValue{
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: key},
+		},
+		TableName:                   tableName.AWSString(),
+		ReturnConsumedCapacity:      types.ReturnConsumedCapacityTotal,
+		ReturnItemCollectionMetrics: types.ReturnItemCollectionMetricsSize,
+		ReturnValues:                types.ReturnValueAllOld,
+	}
+	return c.raw.DeleteItem(ctx, deleteItemInput)
+}
+
+// GetItem gets an item from DynamoDB.
+func (c *Client) GetItem(ctx context.Context, tableName TableName, keyAttributeName KeyAttributeName, key string) (*dynamodb.GetItemOutput, error) {
+	getItemInput := &dynamodb.GetItemInput{
+		Key: map[string]types.AttributeValue{
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: key},
+		},
+		TableName:      tableName.AWSString(),
+		ConsistentRead: aws.Bool(true),
+	}
+	return c.raw.GetItem(ctx, getItemInput)
+}
+
+// BatchGetItem retrieves DynamoDB items in a batch process.
+func (c *Client) BatchGetItem(ctx context.Context, tableName TableName, keyAttributeName KeyAttributeName, keys []string) ([]map[string]types.AttributeValue, error) {
+	const MaxBatchSize = 100
+
+	reqKeys := make([]map[string]types.AttributeValue, len(keys))
+	for i, key := range keys {
+		reqKeys[i] = map[string]types.AttributeValue{
+			keyAttributeName.String(): &types.AttributeValueMemberS{Value: key},
+		}
+	}
+
+	resultItems := make([]map[string]types.AttributeValue, 0, len(keys))
+
+	start := 0
+	end := start + MaxBatchSize
+	for start < len(reqKeys) {
+		getReqs := make([]map[string]types.AttributeValue, 0, MaxBatchSize)
+		if end > len(reqKeys) {
+			end = len(reqKeys)
+		}
+		for _, v := range reqKeys[start:end] {
+			getReqs = append(getReqs, v)
+		}
+		getItems, err := c.raw.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
+			RequestItems: map[string]types.KeysAndAttributes{
+				tableName.String(): {Keys: getReqs},
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("received batch error %+#v for batch getting. %w", getItems, err)
+		}
+		resultItems = append(resultItems, getItems.Responses[tableName.String()]...)
+		start = end
+		end += MaxBatchSize
+	}
+
+	return resultItems, nil
+}
+
+// BatchWriteItem writes DynamoDB items in a batch process.
+func (c *Client) BatchWriteItem(ctx context.Context, tableName TableName, items []any) error {
+	const (
+		MaxBatchSize  = 25
+		WriteWaitTime = 10 * time.Millisecond
+	)
+
+	start := 0
+	end := start + MaxBatchSize
+	for start < len(items) {
+		writeReqs := make([]types.WriteRequest, 0, MaxBatchSize)
+		if end > len(items) {
+			end = len(items)
+		}
+		for _, v := range items[start:end] {
+			item, err := attributevalue.MarshalMap(v)
+			if err != nil {
+				return fmt.Errorf("couldn't marshal item %+#v for batch writing. %w", v, err)
+			} else {
+				writeReqs = append(
+					writeReqs,
+					types.WriteRequest{PutRequest: &types.PutRequest{Item: item}},
+				)
+			}
+		}
+		if _, err := c.raw.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]types.WriteRequest{tableName.String(): writeReqs},
+		}); err != nil {
+			return fmt.Errorf("received batch error %+#v for batch writing. %w", writeReqs, err)
+		}
+		if err := awstime.SleepWithContext(ctx, WriteWaitTime); err != nil {
+			return err
+		}
+		start = end
+		end += MaxBatchSize
+	}
+
+	return nil
+}
+
 // PutItem Put the item in DynamoDB Upsert if it does not exist
 //
 // Type parameters:

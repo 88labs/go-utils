@@ -14,8 +14,50 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
+	"github.com/88labs/go-utils/aws/awsdynamo/dynamooptions"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
+
+// Client wraps a *dynamodb.Client.
+type Client struct {
+	raw *dynamodb.Client
+}
+
+// NewClient creates a new, non-cached DynamoDB client.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
+func NewClient(ctx context.Context, region awsconfig.Region, opts ...dynamooptions.OptionDynamo) (*Client, error) {
+	c := dynamooptions.GetDynamoConf(opts...)
+	if localProfile, ok := getLocalEndpoint(ctx); ok {
+		rawClient, err := getClientLocal(ctx, *localProfile)
+		if err != nil {
+			return nil, err
+		}
+		return &Client{raw: rawClient}, nil
+	}
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()),
+		awsConfig.WithRetryer(func() aws.Retryer {
+			r := retry.AddWithMaxAttempts(retry.NewStandard(), c.MaxAttempts)
+			r = retry.AddWithMaxBackoffDelay(r, c.MaxBackoffDelay)
+			r = retry.AddWithErrorCodes(r,
+				string(types.BatchStatementErrorCodeEnumItemCollectionSizeLimitExceeded),
+				string(types.BatchStatementErrorCodeEnumRequestLimitExceeded),
+				string(types.BatchStatementErrorCodeEnumProvisionedThroughputExceeded),
+				string(types.BatchStatementErrorCodeEnumInternalServerError),
+				string(types.BatchStatementErrorCodeEnumThrottlingError),
+			)
+			return r
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{raw: dynamodb.NewFromConfig(awsCfg)}, nil
+}
+
+// DynamoDBClient returns the underlying *dynamodb.Client.
+func (c *Client) DynamoDBClient() *dynamodb.Client {
+	return c.raw
+}
 
 var dynamoDBClientAtomic atomic.Pointer[dynamodb.Client]
 
