@@ -25,6 +25,51 @@ var (
 	s3ClientAtomic atomic.Pointer[s3.Client]
 )
 
+// Client wraps an *s3.Client.
+type Client struct {
+	raw *s3.Client
+}
+
+// NewClient creates a new, non-cached S3 client.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
+func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
+	if localProfile, ok := getLocalEndpoint(ctx); ok {
+		c, err := getClientLocal(ctx, *localProfile)
+		if err != nil {
+			return nil, err
+		}
+		return &Client{raw: c}, nil
+	}
+	awsHttpClient := awshttp.NewBuildableClient()
+	if GlobalDialer != nil {
+		awsHttpClient.WithDialerOptions(func(dialer *net.Dialer) {
+			if GlobalDialer.Timeout != 0 {
+				dialer.Timeout = GlobalDialer.Timeout
+			}
+			if GlobalDialer.Deadline != nil {
+				dialer.Deadline = *GlobalDialer.Deadline
+			}
+			if GlobalDialer.KeepAlive != 0 {
+				dialer.KeepAlive = GlobalDialer.KeepAlive
+			}
+		})
+	}
+	awsCfg, err := awsConfig.LoadDefaultConfig(
+		ctx,
+		awsConfig.WithRegion(region.String()),
+		awsConfig.WithHTTPClient(awsHttpClient),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %w", err)
+	}
+	return &Client{raw: s3.NewFromConfig(awsCfg)}, nil
+}
+
+// S3Client returns the underlying *s3.Client.
+func (c *Client) S3Client() *s3.Client {
+	return c.raw
+}
+
 // GetClient
 // Get s3 client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks
