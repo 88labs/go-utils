@@ -16,6 +16,9 @@ on:
 env:
   testdir : ./cerrors
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:

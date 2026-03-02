@@ -16,6 +16,9 @@ on:
 env:
   testdir : ./emailvalidator
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
