@@ -41,6 +41,34 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*sqs.Client, error
 	return c, nil
 }
 
+// Client wraps a *sqs.Client.
+type Client struct {
+	raw *sqs.Client
+}
+
+// NewClient creates a new, non-cached SQS client.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
+func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
+	if localProfile, ok := getLocalEndpoint(ctx); ok {
+		c, err := getClientLocal(ctx, *localProfile)
+		if err != nil {
+			return nil, err
+		}
+		return &Client{raw: c}, nil
+	}
+	// SQS Client
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %w", err)
+	}
+	return &Client{raw: sqs.NewFromConfig(awsCfg)}, nil
+}
+
+// SQSClient returns the underlying *sqs.Client.
+func (c *Client) SQSClient() *sqs.Client {
+	return c.raw
+}
+
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*sqs.Client, error) {
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
 		awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
