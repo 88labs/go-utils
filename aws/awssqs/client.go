@@ -16,29 +16,53 @@ import (
 
 var sqsClientAtomic atomic.Pointer[sqs.Client]
 
-// GetClient
-// Get s3 client for aws-sdk-go v2.
-// Using ctxawslocal.WithContext, you can make requests for local mocks
+// Client is an SQS client that manages its own SDK client instance.
+// Unlike the package-level functions that use a singleton, each Client holds
+// its own *sqs.Client, enabling external lifecycle management.
+type Client struct {
+	client *sqs.Client
+}
+
+// NewClient creates a new Client for the given region.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
+func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
+	sdkClient, err := newSQSClient(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{client: sdkClient}, nil
+}
+
+// SQSClient returns the underlying *sqs.Client for advanced usage.
+func (c *Client) SQSClient() *sqs.Client {
+	return c.client
+}
+
+// GetClient returns the package-level singleton SQS client for aws-sdk-go v2.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
 func GetClient(ctx context.Context, region awsconfig.Region) (*sqs.Client, error) {
 	if v := sqsClientAtomic.Load(); v != nil {
 		return v, nil
 	}
+	sdkClient, err := newSQSClient(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	sqsClientAtomic.Store(sdkClient)
+	return sdkClient, nil
+}
+
+// newSQSClient creates a fresh *sqs.Client without touching the singleton.
+func newSQSClient(ctx context.Context, region awsconfig.Region) (*sqs.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		c, err := getClientLocal(ctx, *localProfile)
-		if err != nil {
-			return nil, err
-		}
-		sqsClientAtomic.Store(c)
-		return c, nil
+		return getClientLocal(ctx, *localProfile)
 	}
 	// SQS Client
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	c := sqs.NewFromConfig(awsCfg)
-	sqsClientAtomic.Store(c)
-	return c, nil
+	return sqs.NewFromConfig(awsCfg), nil
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*sqs.Client, error) {
