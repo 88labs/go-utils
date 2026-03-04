@@ -1,30 +1,13 @@
 package awss3
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
 	"errors"
-	"fmt"
 	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"path"
-	"path/filepath"
-	"strings"
-	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go"
-	awshttp "github.com/aws/smithy-go/transport/http"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/tomtwinkle/utfbomremover"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/text/transform"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3/options/s3download"
@@ -45,27 +28,18 @@ var ErrNotFound = errors.New("NotFound")
 //
 // Notes
 // https://aws.github.io/aws-sdk-go-v2/docs/sdk-utilities/s3/#unseekable-streaming-input
-// Amazon S3 requires the content length to be provided for all object’s uploaded to a bucket.
+// Amazon S3 requires the content length to be provided for all object's uploaded to a bucket.
 // Since the Body input parameter does not implement io.Seeker interface the client will not be able to compute the ContentLength parameter for the request.
 // The parameter must be provided by the application. The request will fail if the ContentLength parameter is not provided.
 func PutObject(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader,
 	opts ...s3upload.OptionS3Upload,
 ) (*s3.PutObjectOutput, error) {
-	c := s3upload.GetS3UploadConf(opts...)
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-	input := &s3.PutObjectInput{
-		Body:   body,
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	}
-	if c.S3Expires != nil {
-		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
-	}
-	return client.PutObject(ctx, input)
+	return (&Client{client: c}).PutObject(ctx, bucketName, key, body, opts...)
 }
 
 // UploadManager
@@ -76,21 +50,11 @@ func UploadManager(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, body io.Reader,
 	opts ...s3upload.OptionS3Upload,
 ) (*transfermanager.UploadObjectOutput, error) {
-	c := s3upload.GetS3UploadConf(opts...)
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-	uploader := transfermanager.New(client)
-	input := &transfermanager.UploadObjectInput{
-		Body:   body,
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	}
-	if c.S3Expires != nil {
-		input.Expires = aws.Time(time.Now().Add(*c.S3Expires))
-	}
-	return uploader.UploadObject(ctx, input)
+	return (&Client{client: c}).UploadManager(ctx, bucketName, key, body, opts...)
 }
 
 // HeadObject
@@ -100,40 +64,11 @@ func UploadManager(
 func HeadObject(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3head.OptionS3Head,
 ) (*s3.HeadObjectOutput, error) {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-
-	c := s3head.GetS3HeadConf(opts...)
-	if c.Timeout > 0 {
-		waiter := s3.NewObjectExistsWaiter(client, func(options *s3.ObjectExistsWaiterOptions) {
-			options.MinDelay = c.MinDelay
-			options.MaxDelay = c.MaxDelay
-			options.LogWaitAttempts = c.LogWaitAttempts
-		})
-		err := waiter.Wait(ctx, &s3.HeadObjectInput{
-			Bucket: bucketName.AWSString(),
-			Key:    key.AWSString(),
-		}, c.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("%w:%v", ErrNotFound, err)
-		}
-	}
-	res, err := client.HeadObject(
-		ctx,
-		&s3.HeadObjectInput{
-			Bucket: bucketName.AWSString(),
-			Key:    key.AWSString(),
-		})
-	if err != nil {
-		var nond *types.NotFound
-		if errors.As(err, &nond) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	return res, nil
+	return (&Client{client: c}).HeadObject(ctx, bucketName, key, opts...)
 }
 
 // ListObjects
@@ -143,28 +78,11 @@ func HeadObject(
 func ListObjects(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, opts ...s3list.OptionS3List,
 ) (Objects, error) {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-	c := s3list.GetS3ListConf(opts...)
-
-	input := &s3.ListObjectsV2Input{
-		Bucket: bucketName.AWSString(),
-	}
-	if c.Prefix != nil {
-		input.Prefix = c.Prefix
-	}
-	objects := make(Objects, 0)
-	paginator := s3.NewListObjectsV2Paginator(client, input)
-	for paginator.HasMorePages() {
-		output, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		objects = append(objects, output.Contents...)
-	}
-	return objects, nil
+	return (&Client{client: c}).ListObjects(ctx, bucketName, opts...)
 }
 
 // GetObjectWriter
@@ -172,29 +90,11 @@ func ListObjects(
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, w io.Writer) error {
-	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
-		return err
-	}
-
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
 	}
-	resp, err := client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	})
-	if err != nil {
-		var nond *types.NotFound
-		if errors.As(err, &nond) {
-			return ErrNotFound
-		}
-		return err
-	}
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		return err
-	}
-	return nil
+	return (&Client{client: c}).GetObjectWriter(ctx, bucketName, key, w)
 }
 
 // DeleteObject
@@ -203,19 +103,11 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key) (
 	*s3.DeleteObjectOutput, error,
 ) {
-	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
-		return nil, err
-	}
-
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-	input := &s3.DeleteObjectInput{
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	}
-	return client.DeleteObject(ctx, input)
+	return (&Client{client: c}).DeleteObject(ctx, bucketName, key)
 }
 
 // DownloadFiles
@@ -227,75 +119,11 @@ func DownloadFiles(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string,
 	opts ...s3download.OptionS3Download,
 ) ([]string, error) {
-	c := s3download.GetS3DownloadConf(opts...)
-
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-
-	uniqKeys := keys.Unique()
-	downloader := transfermanager.New(client, func(o *transfermanager.Options) {
-		o.GetObjectBufferSize = 5 * 1024 * 1024
-	})
-	paths := make([]string, len(uniqKeys))
-
-	getFilePath := func(s3Key string) string {
-		fileName := filepath.Base(s3Key)
-		if c.FileNameReplacer != nil {
-			fileName = c.FileNameReplacer(s3Key, fileName)
-		}
-		filePath := path.Join(outputDir, fileName)
-		var existsFileCount int
-		for {
-			if existsFileCount > 0 {
-				// If the file name is duplicated, add a sequential number to the suffix
-				ext := filepath.Ext(fileName)
-				newFileName := fmt.Sprintf("%s_%d%s", strings.TrimSuffix(fileName, ext), existsFileCount+1, ext)
-				filePath = path.Join(outputDir, newFileName)
-			}
-			if _, err := os.Stat(filePath); err != nil {
-				break
-			}
-			existsFileCount++
-		}
-		return filePath
-	}
-
-	for i := range uniqKeys {
-		i := i
-		s3Key := uniqKeys[i]
-		filePath := getFilePath(s3Key.String())
-		paths[i] = filePath
-		f, err := os.Create(filePath)
-		if err != nil {
-			return nil, err
-		}
-		_, dlErr := downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
-			Bucket:   bucketName.AWSString(),
-			Key:      s3Key.AWSString(),
-			WriterAt: f,
-		})
-		// Always close the file regardless of success or failure.
-		if closeErr := f.Close(); closeErr != nil && dlErr == nil {
-			dlErr = closeErr
-		}
-		if dlErr != nil {
-			// Remove the partially written file on failure.
-			_ = os.Remove(filePath)
-			var oe *smithy.OperationError
-			if errors.As(dlErr, &oe) {
-				var resErr *awshttp.ResponseError
-				if errors.As(oe.Err, &resErr) {
-					if resErr.Response.StatusCode == http.StatusNotFound {
-						return nil, ErrNotFound
-					}
-				}
-			}
-			return nil, dlErr
-		}
-	}
-	return paths, nil
+	return (&Client{client: c}).DownloadFiles(ctx, bucketName, keys, outputDir, opts...)
 }
 
 // DownloadFilesParallel
@@ -307,118 +135,11 @@ func DownloadFilesParallel(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, keys Keys, outputDir string,
 	opts ...s3download.OptionS3Download,
 ) ([]string, error) {
-	c := s3download.GetS3DownloadConf(opts...)
-
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-
-	uniqKeys := keys.Unique()
-	downloader := transfermanager.New(client, func(o *transfermanager.Options) {
-		o.GetObjectBufferSize = 5 * 1024 * 1024
-	})
-	paths := make([]string, len(uniqKeys))
-
-	resolveFilePath := func(s3Key string) string {
-		fileName := filepath.Base(s3Key)
-		if c.FileNameReplacer != nil {
-			fileName = c.FileNameReplacer(s3Key, fileName)
-		}
-		filePath := path.Join(outputDir, fileName)
-		var existsFileCount int
-		for {
-			if existsFileCount > 0 {
-				// If the file name is duplicated, add a sequential number to the suffix.
-				ext := filepath.Ext(fileName)
-				newFileName := fmt.Sprintf("%s_%d%s", strings.TrimSuffix(fileName, ext), existsFileCount+1, ext)
-				filePath = path.Join(outputDir, newFileName)
-			}
-			if _, err := os.Stat(filePath); err != nil {
-				break
-			}
-			existsFileCount++
-		}
-		return filePath
-	}
-
-	// Open all files serially before launching goroutines so that:
-	//   1. paths[i] is always the file for keys[i] (deterministic order).
-	//   2. If any os.Create fails, no goroutine has been launched yet, so we
-	//      can simply close the already-opened files and return.
-	files := make([]*os.File, len(uniqKeys))
-	for i, s3Key := range uniqKeys {
-		filePath := resolveFilePath(s3Key.String())
-		paths[i] = filePath
-		f, err := os.Create(filePath)
-		if err != nil {
-			// Close and remove any files already created.
-			for j := 0; j < i; j++ {
-				_ = files[j].Close()
-				_ = os.Remove(paths[j])
-			}
-			return nil, err
-		}
-		files[i] = f
-	}
-
-	var eg errgroup.Group
-	egCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	for i := range uniqKeys {
-		i := i
-		s3Key := uniqKeys[i]
-		f := files[i]
-		filePath := paths[i]
-		eg.Go(func() error {
-			var gErr error
-			b := backoff.WithContext(backoff.NewExponentialBackOff(), egCtx)
-			dlErr := backoff.Retry(func() error {
-				if _, err := downloader.DownloadObject(egCtx, &transfermanager.DownloadObjectInput{
-					Bucket:   bucketName.AWSString(),
-					Key:      s3Key.AWSString(),
-					WriterAt: f,
-				}); err != nil {
-					var oe *smithy.OperationError
-					if errors.As(err, &oe) {
-						var resErr *awshttp.ResponseError
-						if errors.As(oe.Err, &resErr) {
-							switch resErr.Response.StatusCode {
-							case http.StatusNotFound:
-								gErr = ErrNotFound
-								cancel()
-							case http.StatusBadRequest, http.StatusUnauthorized, http.StatusPaymentRequired,
-								http.StatusForbidden, http.StatusMethodNotAllowed, http.StatusUnprocessableEntity,
-								http.StatusMisdirectedRequest, http.StatusRequestURITooLong, http.StatusRequestEntityTooLarge,
-								http.StatusPreconditionFailed:
-								gErr = resErr.Err
-								cancel()
-							}
-						}
-					}
-					return err
-				}
-				return nil
-			}, b)
-			// Always close the file regardless of success or failure.
-			if closeErr := f.Close(); closeErr != nil && dlErr == nil {
-				dlErr = closeErr
-			}
-			if dlErr != nil {
-				// Remove the partially written file on failure.
-				_ = os.Remove(filePath)
-				if gErr != nil {
-					return gErr
-				}
-				return dlErr
-			}
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
-	return paths, nil
+	return (&Client{client: c}).DownloadFilesParallel(ctx, bucketName, keys, outputDir, opts...)
 }
 
 // Presign
@@ -430,49 +151,11 @@ func Presign(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
 	opts ...s3presigned.OptionS3Presigned,
 ) (string, error) {
-	if _, err := HeadObject(ctx, region, bucketName, key); err != nil {
-		return "", err
-	}
-
-	c := s3presigned.GetS3PresignedConf(opts...)
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return "", err
 	}
-
-	// @todo: not been able to test with and without option. create a separate function for input settings.
-	input := &s3.GetObjectInput{
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	}
-	if c.PresignFileName != "" {
-		input.ResponseContentDisposition = aws.String(ResponseContentDisposition(c.ContentDispositionType,
-			c.PresignFileName))
-	}
-	// Note: Fixed a bug in which the response is returned with `Content-Type:pdf` in case of PDF.
-	// convert to Content-Type: application/pdf.
-	if key.Ext() == ".pdf" {
-		input.ResponseContentType = aws.String("application/pdf")
-	}
-	ps := s3.NewPresignClient(client)
-	resp, err := ps.PresignGetObject(ctx, input, func(o *s3.PresignOptions) {
-		o.Expires = c.PresignExpires
-	})
-	if err != nil {
-		return "", err
-	}
-	return resp.URL, nil
-}
-
-func ResponseContentDisposition(tp s3presigned.ContentDispositionType, fileName string) string {
-	var dispositionType string
-	switch tp {
-	case s3presigned.ContentDispositionTypeAttachment:
-		dispositionType = "attachment"
-	case s3presigned.ContentDispositionTypeInline:
-		dispositionType = "inline"
-	}
-	return fmt.Sprintf(`%s; filename*=UTF-8''%s`, dispositionType, url.PathEscape(fileName))
+	return (&Client{client: c}).Presign(ctx, bucketName, key, opts...)
 }
 
 // Copy copies an Amazon S3 object from one bucket to same.
@@ -482,33 +165,11 @@ func Copy(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, srcKey, destKey Key,
 	opts ...s3upload.OptionS3Upload,
 ) error {
-	c := s3upload.GetS3UploadConf(opts...)
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
 	}
-	req := &s3.CopyObjectInput{
-		Bucket:            bucketName.AWSString(),
-		CopySource:        srcKey.BucketJoinAWSString(bucketName),
-		Key:               destKey.AWSString(),
-		MetadataDirective: types.MetadataDirectiveReplace,
-	}
-	if c.S3Expires != nil {
-		req.Expires = aws.Time(time.Now().Add(*c.S3Expires))
-	}
-	if _, err := client.CopyObject(ctx, req); err != nil {
-		var oe *smithy.OperationError
-		if errors.As(err, &oe) {
-			var resErr *awshttp.ResponseError
-			if errors.As(oe.Err, &resErr) {
-				if resErr.Response.StatusCode == http.StatusNotFound {
-					return ErrNotFound
-				}
-			}
-		}
-		return err
-	}
-	return nil
+	return (&Client{client: c}).Copy(ctx, bucketName, srcKey, destKey, opts...)
 }
 
 const (
@@ -522,71 +183,11 @@ func SelectCSVAll(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, w io.Writer,
 	opts ...s3selectcsv.OptionS3SelectCSV,
 ) error {
-	c := s3selectcsv.GetS3SelectCSVConf(opts...)
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
 	}
-
-	req := &s3.SelectObjectContentInput{
-		Bucket:         bucketName.AWSString(),
-		Key:            key.AWSString(),
-		ExpressionType: types.ExpressionTypeSql,
-		Expression:     aws.String(query),
-		InputSerialization: &types.InputSerialization{
-			CSV: &types.CSVInput{
-				AllowQuotedRecordDelimiter: c.CSVInput.AllowQuotedRecordDelimiter,
-				Comments:                   c.CSVInput.Comments,
-				FieldDelimiter:             c.CSVInput.FieldDelimiter,
-				FileHeaderInfo:             c.CSVInput.FileHeaderInfo,
-				QuoteCharacter:             c.CSVInput.QuoteCharacter,
-				QuoteEscapeCharacter:       c.CSVInput.QuoteEscapeCharacter,
-				RecordDelimiter:            c.CSVInput.RecordDelimiter,
-			},
-			CompressionType: c.CompressionType,
-		},
-		OutputSerialization: &types.OutputSerialization{
-			CSV: &types.CSVOutput{
-				FieldDelimiter:       c.CSVOutput.FieldDelimiter,
-				QuoteCharacter:       c.CSVOutput.QuoteCharacter,
-				QuoteEscapeCharacter: c.CSVOutput.QuoteEscapeCharacter,
-				QuoteFields:          c.CSVOutput.QuoteFields,
-				RecordDelimiter:      c.CSVOutput.RecordDelimiter,
-			},
-		},
-	}
-	if c.SkipByteSize != nil {
-		req.ScanRange = &types.ScanRange{Start: c.SkipByteSize}
-	}
-	resp, err := client.SelectObjectContent(ctx, req)
-	if err != nil {
-		if awsErr, ok := err.(*smithy.OperationError); ok {
-			// 最終行まで取得してしまった場合レコードが0件になってしまうのでInvalidRange errorが発生する
-			if awsErr.OperationName == "InvalidRange" {
-				return nil
-			}
-		}
-		return err
-	}
-	t := transform.NewWriter(w, utfbomremover.NewTransformer())
-	for event := range resp.GetStream().Events() {
-		switch v := event.(type) {
-		case *types.SelectObjectContentEventStreamMemberRecords:
-			// buffer毎にcall
-			if _, err := t.Write(v.Value.Payload); err != nil {
-				return err
-			}
-		case *types.SelectObjectContentEventStreamMemberStats:
-			// 終了時1回のみ呼ばれる
-			// v.Value.Details
-		case *types.SelectObjectContentEventStreamMemberEnd:
-			// SelectObjectContent completed
-		}
-	}
-	if err := resp.GetStream().Close(); err != nil {
-		return err
-	}
-	return nil
+	return (&Client{client: c}).SelectCSVAll(ctx, bucketName, key, query, w, opts...)
 }
 
 // SelectCSVHeaders
@@ -596,70 +197,34 @@ func SelectCSVHeaders(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
 	opts ...s3selectcsv.OptionS3SelectCSV,
 ) ([]string, error) {
-	c := s3selectcsv.GetS3SelectCSVConf(opts...)
-	opts = append(opts, s3selectcsv.WithCSVInput(types.CSVInput{
-		AllowQuotedRecordDelimiter: c.CSVInput.AllowQuotedRecordDelimiter,
-		Comments:                   c.CSVInput.Comments,
-		FieldDelimiter:             c.CSVInput.FieldDelimiter,
-		FileHeaderInfo:             types.FileHeaderInfoNone,
-		QuoteCharacter:             c.CSVInput.QuoteCharacter,
-		QuoteEscapeCharacter:       c.CSVInput.QuoteEscapeCharacter,
-		RecordDelimiter:            c.CSVInput.RecordDelimiter,
-	}))
-	var buf bytes.Buffer
-	if err := SelectCSVAll(ctx, region, bucketName, key, SelectCSVLimit1Query, &buf, opts...); err != nil {
-		return nil, err
-	}
-	r := csv.NewReader(&buf)
-	headers, err := r.Read()
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-	return headers, nil
+	return (&Client{client: c}).SelectCSVHeaders(ctx, bucketName, key, opts...)
 }
 
 func PresignPutObject(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
 	opts ...s3presigned.OptionS3Presigned,
 ) (string, error) {
-	c := s3presigned.GetS3PresignedConf(opts...)
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return "", err
 	}
-	input := &s3.PutObjectInput{
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	}
-	ps := s3.NewPresignClient(client)
-	resp, err := ps.PresignPutObject(ctx, input, func(o *s3.PresignOptions) {
-		o.Expires = c.PresignExpires
-	})
-	if err != nil {
-		return "", err
-	}
-	return resp.URL, nil
+	return (&Client{client: c}).PresignPutObject(ctx, bucketName, key, opts...)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
 func CreateMultipartUpload(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, opts ...s3upload.OptionS3Upload,
 ) (string, error) {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return "", err
 	}
-
-	input := &s3.CreateMultipartUploadInput{
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	}
-	resp, err := client.CreateMultipartUpload(ctx, input)
-	if err != nil {
-		return "", err
-	}
-
-	return *resp.UploadId, nil
+	_ = opts // opts not used by the SDK call; kept for API compatibility
+	return (&Client{client: c}).CreateMultipartUpload(ctx, bucketName, key)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html
@@ -667,24 +232,11 @@ func UploadPart(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string, partNumber int32,
 	body io.Reader,
 ) (*s3.UploadPartOutput, error) {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-
-	input := &s3.UploadPartInput{
-		Bucket:     bucketName.AWSString(),
-		Key:        key.AWSString(),
-		PartNumber: aws.Int32(partNumber),
-		UploadId:   aws.String(uploadID),
-		Body:       body,
-	}
-	resp, err := client.UploadPart(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return (&Client{client: c}).UploadPart(ctx, bucketName, key, uploadID, partNumber, body)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html
@@ -692,45 +244,20 @@ func CompleteMultipartUpload(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string,
 	completedParts []types.CompletedPart,
 ) (*s3.CompleteMultipartUploadOutput, error) {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return nil, err
 	}
-
-	input := &s3.CompleteMultipartUploadInput{
-		Bucket:   bucketName.AWSString(),
-		Key:      key.AWSString(),
-		UploadId: aws.String(uploadID),
-		MultipartUpload: &types.CompletedMultipartUpload{
-			Parts: completedParts,
-		},
-	}
-	resp, err := client.CompleteMultipartUpload(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return (&Client{client: c}).CompleteMultipartUpload(ctx, bucketName, key, uploadID, completedParts)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
 func AbortMultipartUpload(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, uploadID string,
 ) error {
-	client, err := GetClient(ctx, region) // nolint:typecheck
+	c, err := GetClient(ctx, region) // nolint:typecheck
 	if err != nil {
 		return err
 	}
-
-	input := &s3.AbortMultipartUploadInput{
-		Bucket:   bucketName.AWSString(),
-		Key:      key.AWSString(),
-		UploadId: aws.String(uploadID),
-	}
-	_, err = client.AbortMultipartUpload(ctx, input)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return (&Client{client: c}).AbortMultipartUpload(ctx, bucketName, key, uploadID)
 }

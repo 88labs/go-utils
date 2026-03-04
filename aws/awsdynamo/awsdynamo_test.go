@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 
@@ -268,4 +271,63 @@ func TestBatchWriteItem(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, len(testItems), len(out))
 	})
+}
+
+// TestNewClient_DynamoDBClient verifies that NewClient creates an independent client
+// and that DynamoDBClient() exposes the underlying SDK client.
+func TestNewClient_DynamoDBClient(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
+		ctxawslocal.WithAccessKey(TestAccessKey),
+		ctxawslocal.WithSecretAccessKey(TestSecretAccessKey),
+	)
+
+	client, err := awsdynamo.NewClient(ctx, TestRegion)
+	assert.NoError(t, err)
+	assert.NotNil(t, client.DynamoDBClient())
+}
+
+// TestNewClient_isIndependentFromSingleton verifies that a Client created via
+// NewClient can read an item that was written through the package-level singleton.
+// It calls the SDK directly via client.DynamoDBClient() to ensure the independent
+// client instance is actually exercised, not the singleton.
+func TestNewClient_isIndependentFromSingleton(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithDynamoEndpoint(TestDynamoEndpoint),
+		ctxawslocal.WithAccessKey(TestAccessKey),
+		ctxawslocal.WithSecretAccessKey(TestSecretAccessKey),
+	)
+
+	// Write via the package-level singleton.
+	item := Test{
+		ID:        ulid.MustNew().String(),
+		Name:      faker.Name(),
+		CreatedAt: attributevalue.UnixTime(time.Now()),
+	}
+	err := awsdynamo.PutItem(ctx, TestRegion, TestTable, item)
+	assert.NoError(t, err)
+
+	// Read back via the independently created client using the raw SDK call,
+	// so we verify the Client instance itself — not the package-level singleton.
+	client, err := awsdynamo.NewClient(ctx, TestRegion)
+	assert.NoError(t, err)
+	assert.NotNil(t, client.DynamoDBClient())
+
+	out, err := client.DynamoDBClient().GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(TestTable),
+		Key: map[string]types.AttributeValue{
+			"id": &types.AttributeValueMemberS{Value: item.ID},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, out.Item)
+
+	var got Test
+	assert.NoError(t, attributevalue.UnmarshalMap(out.Item, &got))
+	assert.Equal(t, item.ID, got.ID)
+	assert.Equal(t, item.Name, got.Name)
 }

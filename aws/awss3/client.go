@@ -25,6 +25,28 @@ var (
 	s3ClientAtomic atomic.Pointer[s3.Client]
 )
 
+// Client is an S3 client that manages its own SDK client instance.
+// Unlike the package-level functions that use a singleton, each Client holds
+// its own *s3.Client, enabling external lifecycle management.
+type Client struct {
+	client *s3.Client
+}
+
+// NewClient creates a new Client for the given region.
+// Using ctxawslocal.WithContext, you can make requests for local mocks.
+func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
+	sdkClient, err := newS3Client(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{client: sdkClient}, nil
+}
+
+// S3Client returns the underlying *s3.Client for advanced usage.
+func (c *Client) S3Client() *s3.Client {
+	return c.client
+}
+
 // GetClient
 // Get s3 client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks
@@ -32,13 +54,18 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error)
 	if v := s3ClientAtomic.Load(); v != nil {
 		return v, nil
 	}
+	sdkClient, err := newS3Client(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	s3ClientAtomic.Store(sdkClient)
+	return sdkClient, nil
+}
+
+// newS3Client creates a fresh *s3.Client without touching the singleton.
+func newS3Client(ctx context.Context, region awsconfig.Region) (*s3.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		customEndpointClient, err := getClientLocal(ctx, *localProfile)
-		if err != nil {
-			return nil, err
-		}
-		s3ClientAtomic.Store(customEndpointClient)
-		return customEndpointClient, err
+		return getClientLocal(ctx, *localProfile)
 	}
 	awsHttpClient := awshttp.NewBuildableClient()
 	if GlobalDialer != nil {
@@ -63,9 +90,7 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	c := s3.NewFromConfig(awsCfg)
-	s3ClientAtomic.Store(c)
-	return c, nil
+	return s3.NewFromConfig(awsCfg), nil
 }
 
 func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client, error) {

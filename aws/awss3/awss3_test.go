@@ -1660,3 +1660,111 @@ func TestObjects_Find(t *testing.T) {
 		assert.Equal(t, false, ok)
 	})
 }
+
+// TestNewClient_returnsWorkingClient verifies that NewClient constructs a client
+// that can successfully upload and inspect an object on S3.
+func TestNewClient_returnsWorkingClient(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	client, err := awss3.NewClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	key := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
+	_, err = client.PutObject(ctx, TestBucket, key, bytes.NewReader(bytes.Repeat([]byte{1}, 64)))
+	assert.NilError(t, err)
+
+	res, err := client.HeadObject(ctx, TestBucket, key)
+	assert.NilError(t, err)
+	assert.DeepEqual(t, aws.Int64(64), res.ContentLength)
+}
+
+// TestNewClient_S3Client_exposesUnderlyingSDKClient verifies that the underlying
+// *s3.Client can be retrieved for advanced usage.
+func TestNewClient_S3Client_exposesUnderlyingSDKClient(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	client, err := awss3.NewClient(ctx, TestRegion)
+	assert.NilError(t, err)
+	assert.Assert(t, client.S3Client() != nil)
+}
+
+// TestNewClient_isIndependentFromSingleton verifies that a Client created via
+// NewClient operates independently from the package-level singleton.
+// Two separate clients must be able to reach the same object.
+func TestNewClient_isIndependentFromSingleton(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	// Upload via the package-level singleton.
+	key := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
+	_, err := awss3.PutObject(ctx, TestRegion, TestBucket, key, bytes.NewReader([]byte("hello")))
+	assert.NilError(t, err)
+
+	// Read back via a separately created Client — must succeed without sharing state.
+	client, err := awss3.NewClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	res, err := client.HeadObject(ctx, TestBucket, key)
+	assert.NilError(t, err)
+	assert.DeepEqual(t, aws.Int64(5), res.ContentLength)
+}
+
+// TestNewClient_DeleteObject_objectIsGoneAfterDeletion verifies that an object
+// uploaded via NewClient is no longer accessible after DeleteObject.
+func TestNewClient_DeleteObject_objectIsGoneAfterDeletion(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	client, err := awss3.NewClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	key := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
+	_, err = client.PutObject(ctx, TestBucket, key, bytes.NewReader([]byte("hello")))
+	assert.NilError(t, err)
+
+	_, err = client.DeleteObject(ctx, TestBucket, key)
+	assert.NilError(t, err)
+
+	_, err = client.HeadObject(ctx, TestBucket, key)
+	assert.ErrorIs(t, err, awss3.ErrNotFound)
+}
+
+// TestNewClient_DeleteObject_notFoundReturnsErrNotFound verifies that deleting
+// a non-existent object returns ErrNotFound.
+func TestNewClient_DeleteObject_notFoundReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+
+	client, err := awss3.NewClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	_, err = client.DeleteObject(ctx, TestBucket, awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())))
+	assert.ErrorIs(t, err, awss3.ErrNotFound)
+}

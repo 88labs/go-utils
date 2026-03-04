@@ -2,10 +2,13 @@ package awssqs_test
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/errgroup"
@@ -44,6 +47,71 @@ func Cleanup() {
 		if err != nil {
 			log.Print(err)
 		}
+	}
+}
+
+// CleanupQueue2 はテスト後に TestQueue2 に残留したメッセージをすべて削除する。
+// TestNewClient_* テストが TestQueue2 に JSON メッセージを送信するため、
+// 後続の TestReceiveGobAndDeleteMessage が gob デコードに失敗しないよう必ず呼ぶ。
+// メッセージがなくなるまでループして確実に空にする。
+func CleanupQueue2() {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
+	)
+	for {
+		res, err := awssqs.ReceiveMessage(ctx, TestRegion, TestQueue2,
+			sqsreceive.WithWaitTimeSeconds(0),
+			sqsreceive.WithMaxNumberOfMessages(10))
+		if err != nil {
+			log.Print(err)
+			return
+		}
+		if len(res.Messages) == 0 {
+			return
+		}
+		for _, m := range res.Messages {
+			if err := awssqs.DeleteMessage(ctx, TestRegion, TestQueue2, m); err != nil {
+				log.Print(err)
+			}
+		}
+	}
+}
+
+// waitForMessages は queueURL に少なくとも wantCount 件の可視メッセージが溜まるまで
+// GetQueueAttributes をポーリングする。メッセージを受信・消費しないため、
+// 後続のテスト本体の ReceiveMessage に影響しない。
+// timeout 内に条件を満たさなければ t.Fatal する。
+func waitForMessages(t *testing.T, ctx context.Context, queueURL string, wantCount int, timeout time.Duration) {
+	t.Helper()
+	const interval = 200 * time.Millisecond
+	deadline := time.Now().Add(timeout)
+
+	sqsClient, err := awssqs.GetClient(ctx, TestRegion)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	for {
+		out, err := sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+			QueueUrl:       &queueURL,
+			AttributeNames: []types.QueueAttributeName{types.QueueAttributeNameApproximateNumberOfMessages},
+		})
+		if err == nil {
+			var count int
+			if v, ok := out.Attributes[string(types.QueueAttributeNameApproximateNumberOfMessages)]; ok {
+				fmt.Sscanf(v, "%d", &count) //nolint:errcheck
+			}
+			if count >= wantCount {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d message(s) in %s after %s", wantCount, queueURL, timeout)
+		}
+		time.Sleep(interval)
 	}
 }
 
@@ -152,6 +220,7 @@ func TestReceiveAndDeleteMessage(t *testing.T) {
 	}
 	var count int
 	createFixture := func(t *testing.T, ctx context.Context) {
+		t.Helper()
 		count++
 		message := TestMessageBody{
 			ID:   count,
@@ -159,7 +228,7 @@ func TestReceiveAndDeleteMessage(t *testing.T) {
 		}
 		_, err := awssqs.SendMessage(ctx, TestRegion, TestQueue, message)
 		assert.NoError(t, err)
-		time.Sleep(5 * time.Second)
+		waitForMessages(t, ctx, TestQueue, 1, 10*time.Second)
 	}
 
 	t.Run("Retrieve And DeleteMessage:1 message", func(t *testing.T) {
@@ -214,6 +283,85 @@ func TestReceiveAndDeleteMessage(t *testing.T) {
 	})
 }
 
+// TestNewClient_returnsWorkingClient verifies that NewClient constructs a client
+// that can successfully send and receive a message on SQS.
+func TestNewClient_returnsWorkingClient(t *testing.T) {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
+	)
+	t.Cleanup(CleanupQueue2)
+
+	client, err := awssqs.NewClient(ctx, TestRegion)
+	assert.NoError(t, err)
+
+	type Msg struct {
+		Value string `json:"value"`
+	}
+	msg := Msg{Value: faker.Name()}
+	res, err := client.SendMessage(ctx, TestQueue2, msg)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, res.MessageId)
+
+	waitForMessages(t, ctx, TestQueue2, 1, 10*time.Second)
+
+	recvRes, err := client.ReceiveMessage(ctx, TestQueue2, sqsreceive.WithWaitTimeSeconds(0))
+	assert.NoError(t, err)
+	if !assert.Greater(t, len(recvRes.Messages), 0) {
+		return
+	}
+	err = client.DeleteMessage(ctx, TestQueue2, recvRes.Messages[0])
+	assert.NoError(t, err)
+}
+
+// TestNewClient_SQSClient_exposesUnderlyingSDKClient verifies that the underlying
+// *sqs.Client can be retrieved for advanced usage.
+func TestNewClient_SQSClient_exposesUnderlyingSDKClient(t *testing.T) {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
+	)
+
+	client, err := awssqs.NewClient(ctx, TestRegion)
+	assert.NoError(t, err)
+	assert.NotNil(t, client.SQSClient())
+}
+
+// TestNewClient_isIndependentFromSingleton verifies that a Client created via
+// NewClient can receive a message that was sent through the package-level singleton.
+func TestNewClient_isIndependentFromSingleton(t *testing.T) {
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+		ctxawslocal.WithSQSEndpoint("http://127.0.0.1:29324"),
+	)
+	t.Cleanup(CleanupQueue2)
+
+	type Msg struct{ Value string }
+
+	// パッケージレベルのシングルトン経由で送信する。
+	_, err := awssqs.SendMessage(ctx, TestRegion, TestQueue2, Msg{Value: faker.Name()})
+	assert.NoError(t, err)
+
+	waitForMessages(t, ctx, TestQueue2, 1, 10*time.Second)
+
+	// 別途生成した Client 経由で受信 — 状態を共有せずに成功する必要がある。
+	client, err := awssqs.NewClient(ctx, TestRegion)
+	assert.NoError(t, err)
+
+	recvRes, err := client.ReceiveMessage(ctx, TestQueue2, sqsreceive.WithWaitTimeSeconds(0))
+	assert.NoError(t, err)
+	if !assert.Greater(t, len(recvRes.Messages), 0) {
+		return
+	}
+	err = client.DeleteMessage(ctx, TestQueue2, recvRes.Messages[0])
+	assert.NoError(t, err)
+}
 func TestReceiveGobAndDeleteMessage(t *testing.T) {
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
@@ -229,6 +377,7 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 	}
 	var count int
 	createFixture := func(t *testing.T, ctx context.Context) {
+		t.Helper()
 		count++
 		message := TestMessageBody{
 			ID:   count,
@@ -236,12 +385,13 @@ func TestReceiveGobAndDeleteMessage(t *testing.T) {
 		}
 		_, err := awssqs.SendMessageGob(ctx, TestRegion, TestQueue2, message)
 		assert.NoError(t, err)
-		time.Sleep(5 * time.Second)
+		waitForMessages(t, ctx, TestQueue2, 1, 10*time.Second)
 	}
 
 	t.Run("Retrieve And DeleteMessage:1 message", func(t *testing.T) {
 		createFixture(t, ctx)
-		items, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue2, TestMessageBody{}, sqsreceive.WithWaitTimeSeconds(0))
+		items, res, err := awssqs.ReceiveMessageGob(ctx, TestRegion, TestQueue2, TestMessageBody{},
+			sqsreceive.WithWaitTimeSeconds(0))
 		if !assert.NoError(t, err) {
 			return
 		}
