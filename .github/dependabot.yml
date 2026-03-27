@@ -11,6 +11,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/osext"
   schedule:
@@ -22,6 +24,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/sql-escape"
   schedule:
@@ -33,6 +37,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/tspb_cast"
   schedule:
@@ -44,6 +50,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/ulid"
   schedule:
@@ -55,6 +63,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/errgroup"
   schedule:
@@ -66,6 +76,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/envlookup"
   schedule:
@@ -73,6 +85,8 @@ updates:
     time: "12:00"
     timezone: Asia/Tokyo
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: gomod
   directory: "/aws"
   schedule:
@@ -84,6 +98,8 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
 - package-ecosystem: 'github-actions'
   directory: '/'
   schedule:
@@ -95,3 +111,5 @@ updates:
       patterns:
         - "*"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
