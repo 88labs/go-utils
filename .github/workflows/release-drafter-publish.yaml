@@ -20,6 +20,8 @@ jobs:
           filters: |
             aws:
               - 'aws/**'
+            backoff:
+              - 'backoff/**'
             cerrors:
               - 'cerrors/**'
             emailvalidator:
@@ -48,6 +50,15 @@ jobs:
           config-name: release-drafter-aws.yml
           name: aws/v$RESOLVED_VERSION
           tag: aws/v$RESOLVED_VERSION
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: release-drafter/release-drafter@139054aeaa9adc52ab36ddf67437541f039b88e2 # v7.1.1
+        if: steps.changes.outputs.backoff == 'true'
+        with:
+          config-name: release-drafter-backoff.yml
+          name: backoff/v$RESOLVED_VERSION
+          tag: backoff/v$RESOLVED_VERSION
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
