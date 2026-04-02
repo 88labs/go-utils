@@ -156,6 +156,44 @@ row, err := backoff.NewWithResult[*sql.Rows]().
 
 ---
 
+## Reusable Presets with `Configurator` (Go 1.26)
+
+Go 1.26 lifted the restriction on self-referential type parameter constraints,
+enabling the [`Configurator[C Configurator[C]]`] interface in this package.
+
+`Configurator` is satisfied by both `*Retryer` and `*ResultRetryer[T]`.  The
+self-referential constraint ensures each `With*` method returns the *same
+concrete type* `C`, so a single generic preset function applies to **both**
+retryer types without any duplication or loss of type information:
+
+```go
+// Define a preset once — works for any retryer type.
+func GRPCPolicy[C backoff.Configurator[C]](c C) C {
+    return c.
+        WithMaxRetries(4).
+        WithInitialInterval(100 * time.Millisecond).
+        WithMaxInterval(5 * time.Second).
+        WithRetryIf(func(err error) bool {
+            switch status.Code(err) {
+            case codes.Unavailable, codes.ResourceExhausted:
+                return true
+            }
+            return false
+        })
+}
+
+// Apply to *Retryer — returns *Retryer.
+err := GRPCPolicy(backoff.New()).Do(ctx, fn)
+
+// Apply to *ResultRetryer[*pb.Reply] — returns *ResultRetryer[*pb.Reply].
+reply, err := GRPCPolicy(backoff.NewWithResult[*pb.Reply]()).Do(ctx, fn)
+```
+
+The Go 1.26 self-referential constraint `C Configurator[C]` would not have
+been legal in Go 1.25 or earlier.
+
+---
+
 ## Validation
 
 **Per-option violations** are *programming errors* and **panic** immediately:

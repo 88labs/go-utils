@@ -414,6 +414,83 @@ func TestResultRetryer_MethodChainingPreservesGenericType(t *testing.T) {
 	}
 }
 
+// ── Configurator[C Configurator[C]] (Go 1.26) ────────────────────────────────
+
+// testPreset is a generic preset function using the Configurator interface.
+// It exercises the Go 1.26 self-referential constraint: C must satisfy
+// Configurator[C], so the With* methods return C, preserving the concrete type
+// through the chain.
+func testPreset[C backoff.Configurator[C]](c C) C {
+	return c.
+		WithMaxRetries(2).
+		WithInitialInterval(time.Millisecond).
+		WithMaxInterval(100 * time.Millisecond).
+		WithMultiplier(1.5).
+		WithJitter(0).
+		WithRetryIf(func(err error) bool { return !errors.Is(err, errPermanent) }).
+		WithOnRetry(func(_ int, _ error) {})
+}
+
+// TestConfigurator_Retryer verifies that *Retryer satisfies Configurator[*Retryer]
+// and that a generic preset function returns the correct concrete type.
+func TestConfigurator_Retryer(t *testing.T) {
+	r := testPreset(backoff.New())
+	var _ *backoff.Retryer = r // type is preserved through the generic preset
+
+	calls := 0
+	err := r.Do(context.Background(), func(_ context.Context) error {
+		calls++
+		if calls < 2 {
+			return errTransient
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 calls, got %d", calls)
+	}
+}
+
+// TestConfigurator_ResultRetryer verifies that *ResultRetryer[T] satisfies
+// Configurator[*ResultRetryer[T]] and returns the typed result on success.
+func TestConfigurator_ResultRetryer(t *testing.T) {
+	r := testPreset(backoff.NewWithResult[int]())
+	var _ *backoff.ResultRetryer[int] = r // type is preserved through the generic preset
+
+	calls := 0
+	result, err := r.Do(context.Background(), func(_ context.Context) (int, error) {
+		calls++
+		if calls < 2 {
+			return 0, errTransient
+		}
+		return 42, nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != 42 {
+		t.Fatalf("expected result 42, got %d", result)
+	}
+}
+
+// TestConfigurator_PresetRespectsNonRetryable ensures the RetryIf predicate
+// set by a generic preset is honoured at runtime.
+func TestConfigurator_PresetRespectsNonRetryable(t *testing.T) {
+	calls := 0
+	err := testPreset(backoff.New()).Do(context.Background(), func(_ context.Context) error {
+		calls++
+		return errPermanent // not retryable per testPreset's RetryIf
+	})
+	if !errors.Is(err, errPermanent) {
+		t.Fatalf("expected errPermanent, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected 1 call (no retry on permanent error), got %d", calls)
+	}
+}
+
 // ── Validation: With* panics ──────────────────────────────────────────────────
 
 func TestWithMaxRetries_Negative(t *testing.T) {

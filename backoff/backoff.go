@@ -60,6 +60,25 @@
 //	    Do(ctx, func(ctx context.Context) (*MyResponse, error) {
 //	        return client.GetData(ctx, req)
 //	    })
+//
+// # Reusable Presets with Configurator (Go 1.26)
+//
+// Go 1.26 lifted the restriction on self-referential type constraints, making
+// it possible to define [Configurator] — an interface whose With* methods
+// return the concrete type C.  Both [*Retryer] and [*ResultRetryer][T] satisfy
+// Configurator, so a single generic preset function applies to both:
+//
+//	func GRPCPolicy[C backoff.Configurator[C]](c C) C {
+//	    return c.
+//	        WithMaxRetries(3).
+//	        WithInitialInterval(100 * time.Millisecond).
+//	        WithMaxInterval(5 * time.Second).
+//	        WithRetryIf(isGRPCRetryable)
+//	}
+//
+//	// Works with both retryer types without duplication:
+//	err := GRPCPolicy(backoff.New()).Do(ctx, fn)
+//	result, err := GRPCPolicy(backoff.NewWithResult[*pb.Reply]()).Do(ctx, fn)
 package backoff
 
 import (
@@ -110,6 +129,54 @@ func (c config) validate() error {
 	}
 	return nil
 }
+
+// ── Configurator ──────────────────────────────────────────────────────────────
+
+// Configurator is a self-referential generic interface, enabled by the Go 1.26
+// relaxation of restrictions on type parameters that refer to the type being
+// constrained.  It is satisfied by both [*Retryer] and [*ResultRetryer][T].
+//
+// The self-reference `C Configurator[C]` guarantees that every With* method
+// returns the *same concrete type* C, so a generic preset function preserves
+// the exact retryer type through the chain:
+//
+//	type Configurator[C Configurator[C]] interface {
+//	    WithMaxRetries(n int) C
+//	    ...
+//	}
+//
+// This lets users write reusable policy functions once and apply them to any
+// retryer type:
+//
+//	func HTTPPolicy[C backoff.Configurator[C]](c C) C {
+//	    return c.
+//	        WithMaxRetries(4).
+//	        WithInitialInterval(200 * time.Millisecond).
+//	        WithMaxInterval(10 * time.Second).
+//	        WithRetryIf(func(err error) bool {
+//	            var e *HTTPError
+//	            return !errors.As(err, &e) || e.StatusCode >= 500
+//	        })
+//	}
+//
+//	// Apply the same preset to both retryer types:
+//	err          := HTTPPolicy(backoff.New()).Do(ctx, fn)
+//	result, err  := HTTPPolicy(backoff.NewWithResult[*Response]()).Do(ctx, fn)
+type Configurator[C Configurator[C]] interface {
+	WithMaxRetries(n int) C
+	WithInitialInterval(d time.Duration) C
+	WithMaxInterval(d time.Duration) C
+	WithMultiplier(m float64) C
+	WithJitter(j float64) C
+	WithRetryIf(fn func(error) bool) C
+	WithOnRetry(fn func(attempt int, err error)) C
+}
+
+// Compile-time assertions: verify that both concrete types implement Configurator.
+var (
+	_ Configurator[*Retryer]              = (*Retryer)(nil)
+	_ Configurator[*ResultRetryer[any]]   = (*ResultRetryer[any])(nil)
+)
 
 // ── Retryer ──────────────────────────────────────────────────────────────────
 
