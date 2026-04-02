@@ -11,5 +11,6 @@
 /osext @KamikazeZirou
 /sql-escape @KamikazeZirou
 /tspb_cast @KamikazeZirou
+/backoff @tomtwinkle
 /ulid @tomtwinkle
 /utf8bom @tomtwinkle
