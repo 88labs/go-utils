@@ -91,6 +91,7 @@ func TestDo_ContextCanceledDuringSleep(t *testing.T) {
 	},
 		backoff.WithMaxRetries(5),
 		backoff.WithInitialInterval(time.Hour), // long interval ensures sleep is interrupted
+		backoff.WithMaxInterval(2*time.Hour),
 	)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
@@ -304,8 +305,135 @@ func TestDo_BackoffIntervalsGrow(t *testing.T) {
 	}
 }
 
-func BenchmarkDo(b *testing.B) {
-	ctx := context.Background()
+// ── Option validation ───────────────────────────────────────────────────────
+
+func TestWithMaxRetries_Negative(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithMaxRetries(-1),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithInitialInterval_Zero(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithInitialInterval(0),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithInitialInterval_Negative(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithInitialInterval(-time.Millisecond),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithMaxInterval_Zero(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithMaxInterval(0),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithMaxInterval_Negative(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithMaxInterval(-time.Second),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithMultiplier_BelowOne(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithMultiplier(0.9),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithMultiplier_Zero(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithMultiplier(0),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithJitter_AboveOne(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithJitter(1.1),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithJitter_Negative(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithJitter(-0.1),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithRetryIf_Nil(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithRetryIf(nil),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestWithOnRetry_Nil(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithOnRetry(nil),
+	)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+// TestDo_MaxIntervalLessThanInitialInterval verifies the cross-field constraint
+// that maxInterval must be >= initialInterval.
+func TestDo_MaxIntervalLessThanInitialInterval(t *testing.T) {
+	err := backoff.Do(context.Background(), func(_ context.Context) error { return nil },
+		backoff.WithInitialInterval(10*time.Second),
+		backoff.WithMaxInterval(1*time.Second),
+	)
+	if err == nil {
+		t.Fatal("expected cross-field validation error, got nil")
+	}
+}
+
+// TestDo_ValidationErrorDoesNotCallFn verifies that fn is never invoked when
+// option validation fails.
+func TestDo_ValidationErrorDoesNotCallFn(t *testing.T) {
+	called := false
+	_ = backoff.Do(context.Background(), func(_ context.Context) error {
+		called = true
+		return nil
+	}, backoff.WithMaxRetries(-1))
+	if called {
+		t.Fatal("fn should not be called when option validation fails")
+	}
+}
+
+// ── Benchmark ───────────────────────────────────────────────────────────────
+
+func BenchmarkDo(b *testing.B) {	ctx := context.Background()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for range b.N {
