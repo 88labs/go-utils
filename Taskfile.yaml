@@ -4,13 +4,17 @@ dotenv: ['.env', '{{.ENV}}/.env.', '{{.HOME}}/.env']
 
 tasks:
   test:
-    deps: [test-aws,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tspb_cast,test-ulid,test-utf8bom]
+    deps: [test-aws,test-backoff,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tspb_cast,test-ulid,test-utf8bom]
   test-aws:
     dir: aws
     cmds:
       - docker compose up -d
       - defer: docker compose down
       - sleep 5
+      - go test ./...
+  test-backoff:
+    dir: backoff
+    cmds:
       - go test ./...
   test-cerrors:
     dir: cerrors
@@ -47,11 +51,15 @@ tasks:
 
   go-mod-tidy:
     deps: [
-      go-mod-tidy-aws,go-mod-tidy-cerrors,go-mod-tidy-envlookup,go-mod-tidy-errgroup,go-mod-tidy-osext,
+      go-mod-tidy-aws,go-mod-tidy-backoff,go-mod-tidy-cerrors,go-mod-tidy-envlookup,go-mod-tidy-errgroup,go-mod-tidy-osext,
       go-mod-tidy-sql-escape,go-mod-tidy-tspb_cast,go-mod-tidy-ulid,go-mod-tidy-utf8bom,
     ]
   go-mod-tidy-aws:
     dir: aws
+    cmds:
+      - go mod tidy
+  go-mod-tidy-backoff:
+    dir: backoff
     cmds:
       - go mod tidy
   go-mod-tidy-cerrors:
@@ -89,11 +97,15 @@ tasks:
 
   go-oif:
     deps: [
-      go-oif-aws,go-oif-cerrors,go-oif-envlookup,go-oif-errgroup,go-oif-osext,
+      go-oif-aws,go-oif-backoff,go-oif-cerrors,go-oif-envlookup,go-oif-errgroup,go-oif-osext,
       go-oif-sql-escape,go-oif-tspb_cast,go-oif-ulid,go-oif-utf8bom,
     ]
   go-oif-aws:
     dir: aws
+    cmds:
+      - go-oif ./...
+  go-oif-backoff:
+    dir: backoff
     cmds:
       - go-oif ./...
   go-oif-cerrors:
@@ -131,13 +143,17 @@ tasks:
 
   go-mod-updates:
     deps: [
-      go-mod-update-aws,go-mod-update-cerrors,go-mod-update-envlookup,go-mod-update-errgroup,go-mod-update-osext,
+      go-mod-update-aws,go-mod-update-backoff,go-mod-update-cerrors,go-mod-update-envlookup,go-mod-update-errgroup,go-mod-update-osext,
       go-mod-update-sql-escape,go-mod-update-tspb_cast,go-mod-update-ulid,go-mod-update-utf8bom,
     ]
     cmds:
       - task go-mod-tidy
   go-mod-update-aws:
     dir: aws
+    cmds:
+      - go get -u ./...
+  go-mod-update-backoff:
+    dir: backoff
     cmds:
       - go get -u ./...
   go-mod-update-cerrors:
