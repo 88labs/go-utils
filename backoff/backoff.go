@@ -449,9 +449,15 @@ func execute[T any](ctx context.Context, cfg config, fn func(context.Context) (T
 			timer := time.NewTimer(sleepDuration(cfg, attempt))
 			select {
 			case <-ctx.Done():
+				// Stop the timer to release its resources promptly.
+				// Since Go 1.23, timer.C is unbuffered and Stop() guarantees
+				// that no stale value remains in the channel, so no drain is
+				// needed after Stop().
 				timer.Stop()
 				return zero, ctx.Err()
 			case <-timer.C:
+				// Timer fired normally; the value was consumed by this receive,
+				// so nothing further needs to be done.
 			}
 		}
 
