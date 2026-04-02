@@ -2,22 +2,33 @@
 // operations that may fail transiently, such as HTTP requests, gRPC calls, and
 // database queries.
 //
+// # Overview
+//
+// Two entry points are provided, mirroring the design of sourcegraph/conc:
+//
+//   - [New] — retry an operation that returns only an error.
+//   - [NewWithResult] — retry an operation that returns a typed value alongside
+//     an error; the typed result is forwarded to the caller on success.
+//
+// Both return a configurable struct whose With* methods build up the retry
+// policy via method chaining.  Configuration methods panic immediately if they
+// receive an out-of-range argument — misconfiguration is a programming error,
+// not a runtime condition.
+//
 // # Algorithm
 //
-// The default strategy is "Full Jitter", as recommended by the AWS architecture
+// The default strategy is Full Jitter, as recommended by the AWS architecture
 // blog (https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/).
-// Full Jitter randomises retry timing across clients to prevent the
-// thundering-herd effect that arises when many callers fail simultaneously and
-// then retry in lockstep.
+// Full Jitter randomises retry timing across clients, preventing the
+// thundering-herd effect that arises when many callers retry in lockstep.
 //
-// The sleep duration before retry attempt i (1-indexed) is computed as:
+// The sleep duration before retry i (1-indexed) is:
 //
-//	cap   = min(maxInterval, initialInterval × multiplier^(i-1))
-//	sleep = cap×(1−jitter) + rand[0,cap)×jitter
+//	cap_i = min(maxInterval, initialInterval × multiplier^(i-1))
+//	sleep = cap_i×(1−jitter) + rand[0, cap_i)×jitter
 //
-// With the default jitter of 1.0 (Full Jitter), sleep is uniformly distributed
-// in [0, cap].  With jitter 0.0, sleep equals cap exactly (deterministic
-// exponential backoff with no randomness).
+// With jitter=1.0 (default), sleep is uniform in [0, cap_i].
+// With jitter=0.0, sleep equals cap_i deterministically.
 //
 // # Defaults
 //
@@ -29,37 +40,26 @@
 //	RetryIf:         all errors are retried
 //	OnRetry:         nil (no callback)
 //
-// # Option Validation
+// # Basic Usage — error only
 //
-// Each option function validates its argument before updating the configuration.
-// Do also performs cross-field validation (maxInterval >= initialInterval) after
-// all options have been applied.  Any validation failure causes Do to return an
-// error immediately without invoking fn.
+//	err := backoff.New().
+//	    WithMaxRetries(5).
+//	    WithInitialInterval(200 * time.Millisecond).
+//	    Do(ctx, func(ctx context.Context) error {
+//	        return client.Call(ctx, req)
+//	    })
 //
-// # Basic Usage
+// # Basic Usage — typed result
 //
-//	err := backoff.Do(ctx, func(ctx context.Context) error {
-//	    return client.Call(ctx, req)
-//	})
-//
-// # Custom Options
-//
-//	err := backoff.Do(ctx, func(ctx context.Context) error {
-//	    return client.Call(ctx, req)
-//	},
-//	    backoff.WithMaxRetries(5),
-//	    backoff.WithInitialInterval(200*time.Millisecond),
-//	    backoff.WithMaxInterval(10*time.Second),
-//	    backoff.WithMultiplier(1.5),
-//	    backoff.WithRetryIf(func(err error) bool {
-//	        // Only retry on 5xx; surface 4xx immediately.
+//	result, err := backoff.NewWithResult[*MyResponse]().
+//	    WithMaxRetries(5).
+//	    WithRetryIf(func(err error) bool {
 //	        var httpErr *HTTPError
-//	        return errors.As(err, &httpErr) && httpErr.StatusCode >= 500
-//	    }),
-//	    backoff.WithOnRetry(func(attempt int, err error) {
-//	        slog.Warn("retrying", "attempt", attempt, "error", err)
-//	    }),
-//	)
+//	        return !errors.As(err, &httpErr) || httpErr.StatusCode >= 500
+//	    }).
+//	    Do(ctx, func(ctx context.Context) (*MyResponse, error) {
+//	        return client.GetData(ctx, req)
+//	    })
 package backoff
 
 import (
@@ -78,8 +78,8 @@ const (
 	defaultJitter          = 1.0
 )
 
-// config holds the fully resolved backoff configuration after all options have
-// been applied.
+// config holds the fully resolved backoff parameters after all With* methods
+// have been applied.
 type config struct {
 	maxRetries      int
 	initialInterval time.Duration
@@ -101,251 +101,326 @@ func defaultConfig() config {
 	}
 }
 
-// Option is a functional option that mutates a backoff configuration.
-// Each Option validates its argument and returns a non-nil error if the value
-// is out of the allowed range.  Do returns that error immediately without
-// invoking fn, so callers should treat an Option error as a programming
-// mistake rather than a transient failure.
-type Option func(*config) error
-
-// WithMaxRetries sets the maximum number of retry attempts after the initial
-// call (default: 3).  The total number of times fn is invoked is at most
-// n+1 (one initial attempt plus up to n retries).
-//
-// Pass 0 to disable retries: fn is called exactly once regardless of the
-// error it returns.
-//
-// Constraint: n >= 0.
-func WithMaxRetries(n int) Option {
-	return func(c *config) error {
-		if n < 0 {
-			return fmt.Errorf("backoff: WithMaxRetries: n must be >= 0, got %d", n)
-		}
-		c.maxRetries = n
-		return nil
+// validate checks cross-field constraints that cannot be enforced by
+// individual With* methods in isolation.
+func (c config) validate() error {
+	if c.maxInterval < c.initialInterval {
+		return fmt.Errorf("backoff: maxInterval (%v) must be >= initialInterval (%v)",
+			c.maxInterval, c.initialInterval)
 	}
+	return nil
 }
 
-// WithInitialInterval sets the base wait duration applied before the first
-// retry (default: 100ms).  The interval for retry i grows as:
+// ── Retryer ──────────────────────────────────────────────────────────────────
+
+// Retryer retries an operation that returns only an error.
+// Create one with [New] and configure it using the With* methods.
+//
+// The configuration methods (With*) panic if called with invalid arguments.
+// Do returns an error if the cross-field constraint maxInterval >= initialInterval
+// is violated after all configuration is applied.
+//
+// A zero Retryer is not valid; always use [New].
+type Retryer struct {
+	cfg config
+}
+
+// New returns a new [Retryer] with default configuration.
+//
+// Use method chaining to customise the retry policy:
+//
+//	err := backoff.New().
+//	    WithMaxRetries(5).
+//	    WithInitialInterval(200 * time.Millisecond).
+//	    Do(ctx, func(ctx context.Context) error {
+//	        return client.Call(ctx, req)
+//	    })
+func New() *Retryer {
+	return &Retryer{cfg: defaultConfig()}
+}
+
+// WithMaxRetries sets the maximum number of retries after the initial attempt
+// (default: 3).  The operation is called at most n+1 times in total.
+// Pass 0 to run the operation exactly once with no retries.
+//
+// Panics if n < 0.
+func (r *Retryer) WithMaxRetries(n int) *Retryer {
+	if n < 0 {
+		panic(fmt.Sprintf("backoff: WithMaxRetries: n must be >= 0, got %d", n))
+	}
+	r.cfg.maxRetries = n
+	return r
+}
+
+// WithInitialInterval sets the base wait duration before the first retry
+// (default: 100ms).  The cap for retry i grows as:
 //
 //	cap_i = min(maxInterval, initialInterval × multiplier^(i-1))
 //
-// Smaller values make the backoff more aggressive; larger values give the
-// downstream system more time to recover before the first retry.
-//
-// Constraint: d > 0.
-func WithInitialInterval(d time.Duration) Option {
-	return func(c *config) error {
-		if d <= 0 {
-			return fmt.Errorf("backoff: WithInitialInterval: d must be > 0, got %v", d)
-		}
-		c.initialInterval = d
-		return nil
+// Panics if d <= 0.
+func (r *Retryer) WithInitialInterval(d time.Duration) *Retryer {
+	if d <= 0 {
+		panic(fmt.Sprintf("backoff: WithInitialInterval: d must be > 0, got %v", d))
 	}
+	r.cfg.initialInterval = d
+	return r
 }
 
 // WithMaxInterval caps the maximum wait duration between retries (default: 30s).
-// Once the exponentially computed cap exceeds maxInterval, every subsequent
-// retry waits at most maxInterval (subject to jitter).  This prevents
-// unbounded growth of wait times for operations with many retries.
+// Once the exponentially computed cap exceeds maxInterval, subsequent retries
+// wait at most maxInterval (subject to jitter).
 //
-// Constraint: d > 0 and d >= initialInterval (the latter checked by Do after
-// all options are applied).
-func WithMaxInterval(d time.Duration) Option {
-	return func(c *config) error {
-		if d <= 0 {
-			return fmt.Errorf("backoff: WithMaxInterval: d must be > 0, got %v", d)
-		}
-		c.maxInterval = d
-		return nil
+// The constraint maxInterval >= initialInterval is enforced by [Retryer.Do],
+// not here, because both values may be set in any order.
+//
+// Panics if d <= 0.
+func (r *Retryer) WithMaxInterval(d time.Duration) *Retryer {
+	if d <= 0 {
+		panic(fmt.Sprintf("backoff: WithMaxInterval: d must be > 0, got %v", d))
 	}
+	r.cfg.maxInterval = d
+	return r
 }
 
 // WithMultiplier sets the exponential growth factor applied to the interval cap
 // after each attempt (default: 2.0).
 //
-// Examples:
-//   - 2.0: intervals double each retry  → 100ms, 200ms, 400ms, 800ms, …
-//   - 1.5: intervals grow by 50%        → 100ms, 150ms, 225ms, 337ms, …
-//   - 1.0: constant interval (no growth) → 100ms, 100ms, 100ms, …
+//	2.0 → intervals double each retry:    100ms, 200ms, 400ms, 800ms, …
+//	1.5 → intervals grow by 50% each:     100ms, 150ms, 225ms, 337ms, …
+//	1.0 → constant interval (no growth):  100ms, 100ms, 100ms, …
 //
-// Constraint: m >= 1.0.  Values below 1.0 would shrink the interval on each
-// retry, which contradicts the purpose of exponential backoff.
-func WithMultiplier(m float64) Option {
-	return func(c *config) error {
-		if m < 1.0 {
-			return fmt.Errorf("backoff: WithMultiplier: m must be >= 1.0, got %v", m)
-		}
-		c.multiplier = m
-		return nil
+// Panics if m < 1.0.
+func (r *Retryer) WithMultiplier(m float64) *Retryer {
+	if m < 1.0 {
+		panic(fmt.Sprintf("backoff: WithMultiplier: m must be >= 1.0, got %v", m))
 	}
+	r.cfg.multiplier = m
+	return r
 }
 
-// WithJitter controls the degree of randomness added to computed wait times
-// (default: 1.0, Full Jitter).
+// WithJitter controls the degree of randomness added to wait times (default: 1.0).
 //
-// The sleep duration for retry i is:
+//	sleep = cap_i×(1−j) + rand[0, cap_i)×j
 //
-//	sleep = cap_i×(1−j) + rand[0,cap_i)×j
+//   - j = 1.0 (Full Jitter, default): sleep is uniform in [0, cap_i].
+//     Recommended for distributed systems to avoid thundering herds.
+//   - j = 0.0 (No Jitter): sleep equals cap_i deterministically.
+//     Useful in tests or when a predictable schedule is required.
+//   - 0 < j < 1 (Partial Jitter): cap_i×(1−j) is the deterministic floor.
 //
-// Where:
-//   - j = 1.0 (Full Jitter):     sleep is uniformly random in [0, cap_i].
-//     Recommended for distributed systems to prevent thundering herds.
-//   - j = 0.0 (No Jitter):       sleep equals cap_i exactly.
-//     Useful in tests or when a deterministic schedule is required.
-//   - 0.0 < j < 1.0 (Partial):   sleep is interpolated between the two
-//     extremes; cap_i×(1−j) is the deterministic floor.
-//
-// Constraint: j must be in [0.0, 1.0].
-func WithJitter(j float64) Option {
-	return func(c *config) error {
-		if j < 0.0 || j > 1.0 {
-			return fmt.Errorf("backoff: WithJitter: j must be in [0.0, 1.0], got %v", j)
-		}
-		c.jitter = j
-		return nil
+// Panics if j is outside [0.0, 1.0].
+func (r *Retryer) WithJitter(j float64) *Retryer {
+	if j < 0.0 || j > 1.0 {
+		panic(fmt.Sprintf("backoff: WithJitter: j must be in [0.0, 1.0], got %v", j))
 	}
+	r.cfg.jitter = j
+	return r
 }
 
-// WithRetryIf sets a predicate that determines whether a given error should
-// trigger a retry (default: all errors are retried).
+// WithRetryIf sets a predicate that determines whether a given error warrants a
+// retry (default: all errors are retried).  Return false to surface the error
+// immediately without further retries.
 //
-// Return false from fn to abort retrying immediately and surface the error to
-// the caller.  Typical use cases:
-//   - HTTP: only retry on 5xx status codes; surface 4xx immediately.
-//   - gRPC: retry on Unavailable/DeadlineExceeded; surface InvalidArgument.
-//   - DB:   retry on connection errors; surface constraint violations.
+// Typical patterns:
+//   - HTTP:  retry on 5xx; return false for 4xx.
+//   - gRPC:  retry on Unavailable/DeadlineExceeded; return false for InvalidArgument.
+//   - DB:    retry on connection errors; return false for constraint violations.
 //
-// fn receives the error returned by the operation.  It is never called with a
-// nil error because Do returns nil immediately on success.
-//
-// Constraint: fn must not be nil.
-func WithRetryIf(fn func(error) bool) Option {
-	return func(c *config) error {
-		if fn == nil {
-			return fmt.Errorf("backoff: WithRetryIf: fn must not be nil")
-		}
-		c.retryIf = fn
-		return nil
+// Panics if fn is nil.
+func (r *Retryer) WithRetryIf(fn func(error) bool) *Retryer {
+	if fn == nil {
+		panic("backoff: WithRetryIf: fn must not be nil")
 	}
+	r.cfg.retryIf = fn
+	return r
 }
 
-// WithOnRetry registers a hook that is called before each retry attempt.
+// WithOnRetry registers a hook invoked before each retry attempt.
 //
-// attempt is 1-indexed: attempt=1 indicates that fn has failed once and the
-// first retry is about to be executed.  The hook is NOT called after the final
-// failure (when the retry budget is exhausted or WithRetryIf returns false),
-// so the number of hook invocations equals the number of retries that actually
-// occur, not the total number of failures.
+// attempt is 1-indexed: attempt=1 means fn has failed once and the first retry
+// is about to start.  The hook is NOT called after the final failure, so the
+// number of invocations equals the number of retries that actually occur.
 //
-// Typical uses:
-//   - Logging: record which attempt failed and why.
-//   - Metrics: increment a retry counter for observability.
-//   - Tracing: annotate a span with retry information.
+// Typical uses: logging, metrics, distributed tracing.  The hook runs
+// synchronously and should not block for a significant amount of time.
 //
-// The hook is called synchronously in the same goroutine as Do; it should not
-// block for a significant amount of time.
-//
-// Constraint: fn must not be nil.
-func WithOnRetry(fn func(attempt int, err error)) Option {
-	return func(c *config) error {
-		if fn == nil {
-			return fmt.Errorf("backoff: WithOnRetry: fn must not be nil")
-		}
-		c.onRetry = fn
-		return nil
+// Panics if fn is nil.
+func (r *Retryer) WithOnRetry(fn func(attempt int, err error)) *Retryer {
+	if fn == nil {
+		panic("backoff: WithOnRetry: fn must not be nil")
 	}
+	r.cfg.onRetry = fn
+	return r
 }
 
-// Do calls fn and retries it on error using exponential backoff with jitter.
+// Do calls fn and retries it on error according to the configured policy.
 //
-// # Termination Conditions
+// Retrying stops when the first of the following conditions is met:
+//  1. fn returns nil — Do returns nil (success).
+//  2. ctx is done — Do returns ctx.Err().  Checked both before each sleep and
+//     after each fn call, so cancellation inside fn is detected promptly.
+//  3. WithRetryIf returns false — Do returns the error immediately.
+//  4. The retry budget is exhausted — Do returns the last error from fn.
 //
-// Do stops and returns when the first of the following conditions is met:
-//
-//  1. fn returns nil — Do returns nil immediately (success).
-//  2. ctx is cancelled or its deadline is exceeded — Do returns ctx.Err().
-//     This is checked both before each sleep and after each fn invocation, so
-//     a context cancelled inside fn is detected promptly even when fn does not
-//     propagate the context error itself.
-//  3. WithRetryIf(fn) returns false for the error — Do returns the error
-//     returned by fn without further retries.
-//  4. The retry budget is exhausted (fn has been called maxRetries+1 times in
-//     total) — Do returns the last non-nil error from fn.
-//
-// # Validation
-//
-// Before invoking fn, Do applies all options in order.  If any option returns
-// an error (e.g. WithMaxRetries(-1)), or if the resolved configuration fails
-// the cross-field constraint maxInterval >= initialInterval, Do returns that
-// error immediately without calling fn.
-//
-// # Concurrency
-//
-// Do is safe to call concurrently from multiple goroutines.  Each call
-// maintains its own state and timer; no shared mutable state is accessed.
-func Do(ctx context.Context, fn func(ctx context.Context) error, opts ...Option) error {
-	c := defaultConfig()
-	for _, opt := range opts {
-		if err := opt(&c); err != nil {
-			return err
-		}
+// Do returns an error without calling fn if the cross-field constraint
+// maxInterval >= initialInterval is violated.
+func (r *Retryer) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	if err := r.cfg.validate(); err != nil {
+		return err
 	}
-	if c.maxInterval < c.initialInterval {
-		return fmt.Errorf("backoff: maxInterval (%v) must be >= initialInterval (%v)", c.maxInterval, c.initialInterval)
-	}
+	_, err := execute[struct{}](ctx, r.cfg, func(ctx context.Context) (struct{}, error) {
+		return struct{}{}, fn(ctx)
+	})
+	return err
+}
 
-	var lastErr error
-	for attempt := range c.maxRetries + 1 {
+// ── ResultRetryer ─────────────────────────────────────────────────────────────
+
+// ResultRetryer retries an operation that returns a typed result (T, error).
+// On success, the typed value returned by fn is forwarded to the caller.
+// Create one with [NewWithResult] and configure it using the With* methods.
+//
+// ResultRetryer has the same configuration API as [Retryer]; each With* method
+// returns *ResultRetryer[T] to preserve the generic type through method chains.
+//
+// A zero ResultRetryer is not valid; always use [NewWithResult].
+type ResultRetryer[T any] struct {
+	r Retryer
+}
+
+// NewWithResult returns a new [ResultRetryer][T] with default configuration.
+//
+// Use method chaining to customise the retry policy:
+//
+//	result, err := backoff.NewWithResult[*MyResponse]().
+//	    WithMaxRetries(5).
+//	    WithRetryIf(func(err error) bool {
+//	        var httpErr *HTTPError
+//	        return !errors.As(err, &httpErr) || httpErr.StatusCode >= 500
+//	    }).
+//	    Do(ctx, func(ctx context.Context) (*MyResponse, error) {
+//	        return client.GetData(ctx, req)
+//	    })
+func NewWithResult[T any]() *ResultRetryer[T] {
+	return &ResultRetryer[T]{r: Retryer{cfg: defaultConfig()}}
+}
+
+// WithMaxRetries sets the maximum number of retries (default: 3).
+// Panics if n < 0.
+func (r *ResultRetryer[T]) WithMaxRetries(n int) *ResultRetryer[T] {
+	r.r.WithMaxRetries(n)
+	return r
+}
+
+// WithInitialInterval sets the base wait duration before the first retry
+// (default: 100ms). Panics if d <= 0.
+func (r *ResultRetryer[T]) WithInitialInterval(d time.Duration) *ResultRetryer[T] {
+	r.r.WithInitialInterval(d)
+	return r
+}
+
+// WithMaxInterval caps the maximum wait duration between retries (default: 30s).
+// Panics if d <= 0.
+func (r *ResultRetryer[T]) WithMaxInterval(d time.Duration) *ResultRetryer[T] {
+	r.r.WithMaxInterval(d)
+	return r
+}
+
+// WithMultiplier sets the exponential growth factor (default: 2.0).
+// Panics if m < 1.0.
+func (r *ResultRetryer[T]) WithMultiplier(m float64) *ResultRetryer[T] {
+	r.r.WithMultiplier(m)
+	return r
+}
+
+// WithJitter controls the randomness of wait times (default: 1.0, Full Jitter).
+// Panics if j is outside [0.0, 1.0].
+func (r *ResultRetryer[T]) WithJitter(j float64) *ResultRetryer[T] {
+	r.r.WithJitter(j)
+	return r
+}
+
+// WithRetryIf sets a predicate that determines whether an error warrants a retry
+// (default: all errors retried). Panics if fn is nil.
+func (r *ResultRetryer[T]) WithRetryIf(fn func(error) bool) *ResultRetryer[T] {
+	r.r.WithRetryIf(fn)
+	return r
+}
+
+// WithOnRetry registers a hook invoked before each retry attempt.
+// Panics if fn is nil.
+func (r *ResultRetryer[T]) WithOnRetry(fn func(attempt int, err error)) *ResultRetryer[T] {
+	r.r.WithOnRetry(fn)
+	return r
+}
+
+// Do calls fn and retries it on error, returning the typed result from fn on
+// success.  On any terminal failure the zero value of T is returned alongside
+// the error.
+//
+// Termination conditions and validation behaviour are identical to [Retryer.Do].
+func (r *ResultRetryer[T]) Do(ctx context.Context, fn func(ctx context.Context) (T, error)) (T, error) {
+	if err := r.r.cfg.validate(); err != nil {
+		var zero T
+		return zero, err
+	}
+	return execute[T](ctx, r.r.cfg, fn)
+}
+
+// ── shared retry loop ─────────────────────────────────────────────────────────
+
+// execute is the shared retry loop used by both Retryer.Do and ResultRetryer.Do.
+// It is generic over T so that the zero value can be returned on failure without
+// allocations for the non-result path (T = struct{}).
+func execute[T any](ctx context.Context, cfg config, fn func(context.Context) (T, error)) (T, error) {
+	var (
+		zero    T
+		lastErr error
+	)
+	for attempt := range cfg.maxRetries + 1 {
 		if attempt > 0 {
-			timer := time.NewTimer(sleepDuration(c, attempt))
+			timer := time.NewTimer(sleepDuration(cfg, attempt))
 			select {
 			case <-ctx.Done():
 				timer.Stop()
-				return ctx.Err()
+				return zero, ctx.Err()
 			case <-timer.C:
 			}
 		}
 
-		lastErr = fn(ctx)
-		if lastErr == nil {
-			return nil
+		result, err := fn(ctx)
+		if err == nil {
+			return result, nil
 		}
+		lastErr = err
 
-		// Respect context cancellation even if fn did not propagate it.
+		// Respect context cancellation even when fn does not propagate it.
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return zero, ctx.Err()
 		}
 
-		// Non-retryable error: surface immediately.
-		if !c.retryIf(lastErr) {
-			return lastErr
+		// Non-retryable error: surface immediately without further retries.
+		if !cfg.retryIf(lastErr) {
+			return zero, lastErr
 		}
 
-		// Fire the callback for every failure that will be followed by a retry.
-		if c.onRetry != nil && attempt < c.maxRetries {
-			c.onRetry(attempt+1, lastErr)
+		// Notify the caller before every retry, but not after the final failure.
+		if cfg.onRetry != nil && attempt < cfg.maxRetries {
+			cfg.onRetry(attempt+1, lastErr)
 		}
 	}
-
-	return lastErr
+	return zero, lastErr
 }
 
-// sleepDuration returns the wait time before retry number attempt (1-indexed).
-//
-// Formula:
+// sleepDuration returns the wait time before retry attempt (1-indexed).
 //
 //	cap   = min(maxInterval, initialInterval × multiplier^(attempt-1))
-//	sleep = cap×(1−jitter) + rand[0,cap)×jitter
-//
-// With jitter=1.0 (Full Jitter): sleep is uniform in [0, cap].
-// With jitter=0.0 (No Jitter):   sleep equals cap deterministically.
-func sleepDuration(c config, attempt int) time.Duration {
+//	sleep = cap×(1−jitter) + rand[0, cap)×jitter
+func sleepDuration(cfg config, attempt int) time.Duration {
 	cap := min(
-		float64(c.maxInterval),
-		float64(c.initialInterval)*math.Pow(c.multiplier, float64(attempt-1)),
+		float64(cfg.maxInterval),
+		float64(cfg.initialInterval)*math.Pow(cfg.multiplier, float64(attempt-1)),
 	)
-	sleep := cap*(1-c.jitter) + rand.Float64()*cap*c.jitter
+	sleep := cap*(1-cfg.jitter) + rand.Float64()*cap*cfg.jitter
 	return time.Duration(sleep)
 }

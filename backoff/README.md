@@ -1,143 +1,208 @@
 # backoff
 
-Package `backoff` provides a generic Exponential Backoff with Jitter implementation
-for retrying operations that may fail transiently — HTTP requests, gRPC calls,
-database queries, or any other fallible I/O.
+`backoff` implements **Exponential Backoff with Full Jitter** for retrying
+operations that may fail transiently — HTTP requests, gRPC calls, database
+queries, or any function that returns an error.
 
-The default strategy is **Full Jitter**, as recommended by the
-[AWS Architecture Blog](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/).
-Full Jitter distributes retry timing uniformly at random across clients, which
-prevents the thundering-herd effect that arises when many callers fail
-simultaneously and then retry in lockstep.
+The API is intentionally minimal and inspired by
+[sourcegraph/conc](https://github.com/sourcegraph/conc):
+
+- **[`New()`]** — retry an operation that returns only an `error`.
+- **[`NewWithResult[T]()`]** — retry an operation that returns a typed value
+  alongside an `error`; the result is forwarded to the caller on success.
+
+---
 
 ## Algorithm
+
+The sleep duration before retry *i* (1-indexed) is:
 
 ```
 cap_i = min(maxInterval, initialInterval × multiplier^(i-1))
 sleep = cap_i × (1 − jitter) + rand[0, cap_i) × jitter
 ```
 
-| jitter | Behaviour |
-|--------|-----------|
-| `1.0` (Full Jitter, default) | sleep is uniformly random in `[0, cap_i]` |
-| `0.0` (No Jitter) | sleep equals `cap_i` exactly — deterministic |
-| `0 < j < 1` (Partial Jitter) | `cap_i×(1−j)` is the deterministic floor; randomness is scaled by `j` |
+With the default `jitter = 1.0` (Full Jitter), `sleep` is uniformly
+distributed in `[0, cap_i]`, which is the strategy recommended by the
+[AWS Architecture Blog](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
+for preventing thundering-herd effects in distributed systems.
+
+---
 
 ## Defaults
 
-| Option | Default |
-|--------|---------|
-| `MaxRetries` | `3` (4 total attempts) |
-| `InitialInterval` | `100ms` |
-| `MaxInterval` | `30s` |
-| `Multiplier` | `2.0` |
-| `Jitter` | `1.0` (Full Jitter) |
-| `RetryIf` | retry all errors |
-| `OnRetry` | none |
+| Parameter         | Default | Description                                  |
+|-------------------|---------|----------------------------------------------|
+| `MaxRetries`      | `3`     | Up to 4 total calls (1 initial + 3 retries)  |
+| `InitialInterval` | `100ms` | Base cap before the first retry              |
+| `MaxInterval`     | `30s`   | Upper bound on the sleep cap                 |
+| `Multiplier`      | `2.0`   | Exponential growth factor                    |
+| `Jitter`          | `1.0`   | Full Jitter — uniform in `[0, cap_i]`        |
+| `RetryIf`         | all     | All errors are retried by default            |
+| `OnRetry`         | `nil`   | No callback                                  |
+
+---
 
 ## Usage
 
-### Minimal
+### Error-only retry
 
 ```go
-err := backoff.Do(ctx, func(ctx context.Context) error {
-    return client.Call(ctx, req)
-})
+import (
+    "context"
+    "time"
+
+    "github.com/88labs/go-utils/backoff"
+)
+
+err := backoff.New().
+    WithMaxRetries(5).
+    WithInitialInterval(200 * time.Millisecond).
+    Do(ctx, func(ctx context.Context) error {
+        return client.Call(ctx, req)
+    })
 ```
 
-### All options
+### Typed-result retry
 
 ```go
-err := backoff.Do(ctx, func(ctx context.Context) error {
-    return client.Call(ctx, req)
-},
-    backoff.WithMaxRetries(5),
-    backoff.WithInitialInterval(200*time.Millisecond),
-    backoff.WithMaxInterval(10*time.Second),
-    backoff.WithMultiplier(1.5),
-    backoff.WithJitter(1.0),
-    backoff.WithRetryIf(func(err error) bool {
-        // Only retry server errors; surface client errors immediately.
+result, err := backoff.NewWithResult[*MyResponse]().
+    WithMaxRetries(5).
+    WithRetryIf(func(err error) bool {
         var httpErr *HTTPError
         return !errors.As(err, &httpErr) || httpErr.StatusCode >= 500
-    }),
-    backoff.WithOnRetry(func(attempt int, err error) {
-        slog.Warn("retrying request", "attempt", attempt, "error", err)
-    }),
-)
+    }).
+    Do(ctx, func(ctx context.Context) (*MyResponse, error) {
+        return client.GetData(ctx, req)
+    })
 ```
 
-### Skip retries for non-transient errors
+### HTTP request
 
 ```go
-// HTTP: retry 5xx, surface 4xx immediately.
-backoff.WithRetryIf(func(err error) bool {
-    var httpErr *HTTPError
-    return !errors.As(err, &httpErr) || httpErr.StatusCode >= 500
-})
+type Response struct{ Body []byte }
 
-// gRPC: retry Unavailable and DeadlineExceeded only.
-backoff.WithRetryIf(func(err error) bool {
-    code := status.Code(err)
-    return code == codes.Unavailable || code == codes.DeadlineExceeded
-})
-
-// DB: retry connection errors, not constraint violations.
-backoff.WithRetryIf(func(err error) bool {
-    return errors.Is(err, driver.ErrBadConn)
-})
+resp, err := backoff.NewWithResult[*Response]().
+    WithMaxRetries(4).
+    WithInitialInterval(100 * time.Millisecond).
+    WithMaxInterval(5 * time.Second).
+    WithRetryIf(func(err error) bool {
+        var e *HTTPError
+        if errors.As(err, &e) {
+            return e.StatusCode >= 500 // retry server errors only
+        }
+        return true
+    }).
+    WithOnRetry(func(attempt int, err error) {
+        log.Printf("HTTP retry #%d: %v", attempt, err)
+    }).
+    Do(ctx, func(ctx context.Context) (*Response, error) {
+        return httpClient.Do(ctx, req)
+    })
 ```
 
-### Logging and metrics
+### gRPC call
 
 ```go
-backoff.WithOnRetry(func(attempt int, err error) {
-    slog.Warn("operation failed, will retry",
-        "attempt", attempt,
-        "error",   err,
-    )
-    retryCounter.Add(ctx, 1)
-})
+import "google.golang.org/grpc/codes"
+import "google.golang.org/grpc/status"
+
+resp, err := backoff.NewWithResult[*pb.Reply]().
+    WithMaxRetries(3).
+    WithRetryIf(func(err error) bool {
+        switch status.Code(err) {
+        case codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted:
+            return true
+        default:
+            return false
+        }
+    }).
+    Do(ctx, func(ctx context.Context) (*pb.Reply, error) {
+        return grpcClient.Call(ctx, req)
+    })
 ```
+
+### Database query
+
+```go
+row, err := backoff.NewWithResult[*sql.Rows]().
+    WithMaxRetries(3).
+    WithInitialInterval(50 * time.Millisecond).
+    WithRetryIf(func(err error) bool {
+        return isTransientDBError(err) // e.g. connection reset, lock timeout
+    }).
+    Do(ctx, func(ctx context.Context) (*sql.Rows, error) {
+        return db.QueryContext(ctx, query, args...)
+    })
+```
+
+---
 
 ## Options
 
-| Option | Constraint | Default | Description |
-|--------|-----------|---------|-------------|
-| `WithMaxRetries(n int)` | `n >= 0` | `3` | Maximum number of retries. Total attempts = n+1. Pass `0` to disable retries. |
-| `WithInitialInterval(d Duration)` | `d > 0` | `100ms` | Base wait duration before the first retry. |
-| `WithMaxInterval(d Duration)` | `d > 0`, `d >= initialInterval` | `30s` | Upper bound on the wait duration between retries. |
-| `WithMultiplier(m float64)` | `m >= 1.0` | `2.0` | Exponential growth factor. `2.0` doubles the interval each retry. |
-| `WithJitter(j float64)` | `0.0 <= j <= 1.0` | `1.0` | Fraction of randomness. `1.0` = Full Jitter, `0.0` = No Jitter. |
-| `WithRetryIf(fn func(error) bool)` | `fn != nil` | retry all | Predicate to decide whether to retry a given error. |
-| `WithOnRetry(fn func(int, error))` | `fn != nil` | none | Hook called before each retry (1-indexed attempt number). Not called on the final failure. |
+| Method                     | Default  | Constraint           | Description                                        |
+|----------------------------|----------|----------------------|----------------------------------------------------|
+| `WithMaxRetries(n)`        | `3`      | `n >= 0`             | Maximum retries after the first attempt            |
+| `WithInitialInterval(d)`   | `100ms`  | `d > 0`              | Base wait cap before the first retry               |
+| `WithMaxInterval(d)`       | `30s`    | `d > 0`              | Upper bound on the wait cap                        |
+| `WithMultiplier(m)`        | `2.0`    | `m >= 1.0`           | Exponential growth factor                          |
+| `WithJitter(j)`            | `1.0`    | `0.0 <= j <= 1.0`    | Randomness factor (0 = none, 1 = Full Jitter)      |
+| `WithRetryIf(fn)`          | all      | `fn != nil`          | Predicate deciding whether to retry an error       |
+| `WithOnRetry(fn)`          | `nil`    | `fn != nil`          | Callback invoked before each retry (1-indexed)     |
 
-## Option Validation
+> **Cross-field constraint:** `maxInterval >= initialInterval`.  
+> This is enforced by `Do`, not by individual `With*` calls, because both
+> values can be set in any order.
 
-Each option validates its argument and returns an error immediately if the
-value is out of range.  `Do` also enforces the cross-field constraint
-`maxInterval >= initialInterval` after all options are applied.
+---
+
+## Validation
+
+**Per-option violations** are *programming errors* and **panic** immediately:
 
 ```go
-// These all return an error from Do without calling fn:
-backoff.Do(ctx, fn, backoff.WithMaxRetries(-1))
-backoff.Do(ctx, fn, backoff.WithInitialInterval(0))
-backoff.Do(ctx, fn, backoff.WithMaxInterval(-1*time.Second))
-backoff.Do(ctx, fn, backoff.WithMultiplier(0.5))
-backoff.Do(ctx, fn, backoff.WithJitter(1.5))
-backoff.Do(ctx, fn, backoff.WithRetryIf(nil))
-backoff.Do(ctx, fn, backoff.WithOnRetry(nil))
+// panics: "backoff: WithMaxRetries: n must be >= 0, got -1"
+backoff.New().WithMaxRetries(-1)
 
-// Cross-field violation:
-backoff.Do(ctx, fn,
-    backoff.WithInitialInterval(10*time.Second),
-    backoff.WithMaxInterval(1*time.Second), // maxInterval < initialInterval
-)
+// panics: "backoff: WithInitialInterval: d must be > 0, got 0s"
+backoff.New().WithInitialInterval(0)
+
+// panics: "backoff: WithJitter: j must be in [0.0, 1.0], got 1.5"
+backoff.New().WithJitter(1.5)
 ```
 
-## Context Cancellation
+**Cross-field violations** are returned as an `error` from `Do`:
 
-`Do` respects context cancellation both **before each sleep** (so a cancelled
-context is noticed even when the sleep interval is very long) and **after each
-`fn` invocation** (so a context cancelled inside `fn` is surfaced promptly even
-if `fn` does not propagate the error itself).
+```go
+err := backoff.New().
+    WithInitialInterval(10 * time.Second).
+    WithMaxInterval(1 * time.Second). // invalid: maxInterval < initialInterval
+    Do(ctx, fn)
+// err == "backoff: maxInterval (1s) must be >= initialInterval (10s)"
+```
+
+---
+
+## Context cancellation
+
+`Do` respects `ctx` cancellation in two places:
+
+1. **Before each sleep** — `ctx.Done()` is checked in a `select`; a closed
+   context exits immediately with `ctx.Err()`.
+2. **After each `fn` call** — if `fn` returns an error *and* `ctx.Err() != nil`,
+   `Do` returns `ctx.Err()` rather than the error from `fn`.
+
+This ensures that a cancelled context is always surfaced promptly, even when
+`fn` does not propagate the context cancellation itself.
+
+```go
+ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+defer cancel()
+
+err := backoff.New().
+    WithMaxRetries(10).
+    Do(ctx, func(ctx context.Context) error {
+        return client.Call(ctx, req) // context is forwarded to the call
+    })
+// err is context.DeadlineExceeded when the timeout fires
+```
