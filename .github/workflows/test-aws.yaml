@@ -44,13 +44,7 @@ jobs:
       elasticmq:
         image: softwaremill/elasticmq:latest
         ports:
-          - 29324:29324
-        env:
-          JAVA_OPTS: "-Dconfig.override_with_env_vars=true"
-          CONFIG_FORCE_node-address_port: 29324
-          CONFIG_FORCE_rest-sqs_bind-port: 29324
-          CONFIG_FORCE_queues_test-queue_fifo: false
-          CONFIG_FORCE_queues_test-2-queue_fifo: false
+          - 29324:9324
       dynamodb:
         image: amazon/dynamodb-local:latest
         ports:
@@ -113,6 +107,31 @@ jobs:
           mc --quiet anonymous set upload s3/test
           mc --quiet anonymous set download s3/test
           mc --quiet policy set-json /policies/policy_test.json s3/test
+      - name: Migrate ElasticMQ
+        timeout-minutes: 1
+        working-directory: ${{ env.testdir }}
+        env:
+          AWS_ACCESS_KEY_ID: DUMMYACCESSKEYEXAMPLE
+          AWS_SECRET_ACCESS_KEY: DUMMYSECRETKEYEXAMPLE
+          AWS_DEFAULT_REGION: ap-northeast-1
+          AWS_EC2_METADATA_DISABLED: true
+          AWS_PAGER: ""
+        shell: bash
+        run: |
+          echo "Waiting for ElasticMQ to be ready..."
+          until aws sqs list-queues --endpoint-url http://127.0.0.1:29324 --output json >/dev/null; do
+            echo '...waiting...'
+            sleep 2
+          done
+
+          echo "ElasticMQ is ready. Creating queues..."
+          for queue in test-queue test-2-queue; do
+            aws sqs create-queue \
+              --queue-name "${queue}" \
+              --attributes VisibilityTimeout=10,DelaySeconds=5,ReceiveMessageWaitTimeSeconds=0 \
+              --endpoint-url http://127.0.0.1:29324 \
+              --output json >/dev/null
+          done
       - name: Test
         working-directory: ${{ env.testdir }}
         run: |

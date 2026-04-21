@@ -295,20 +295,32 @@ func TestNewClient_returnsWorkingClient(t *testing.T) {
 	t.Cleanup(CleanupQueue2)
 
 	client, err := awssqs.NewClient(ctx, TestRegion)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	type Msg struct {
 		Value string `json:"value"`
 	}
 	msg := Msg{Value: faker.Name()}
 	res, err := client.SendMessage(ctx, TestQueue2, msg)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if !assert.NotNil(t, res) {
+		return
+	}
 	assert.NotEmpty(t, res.MessageId)
 
 	waitForMessages(t, ctx, TestQueue2, 1, 10*time.Second)
 
 	recvRes, err := client.ReceiveMessage(ctx, TestQueue2, sqsreceive.WithWaitTimeSeconds(0))
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if !assert.NotNil(t, recvRes) {
+		return
+	}
 	if !assert.Greater(t, len(recvRes.Messages), 0) {
 		return
 	}
