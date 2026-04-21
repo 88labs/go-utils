@@ -119,7 +119,7 @@ jobs:
         shell: bash
         run: |
           echo "Waiting for ElasticMQ to be ready..."
-          until aws sqs list-queues --endpoint-url http://127.0.0.1:29324 --output json >/dev/null; do
+          until aws sqs list-queues --endpoint-url http://127.0.0.1:29324 --output json >/dev/null 2>&1; do
             echo '...waiting...'
             sleep 2
           done
@@ -128,7 +128,7 @@ jobs:
           for queue in test-queue test-2-queue; do
             aws sqs create-queue \
               --queue-name "${queue}" \
-              --attributes VisibilityTimeout=10,DelaySeconds=5,ReceiveMessageWaitTimeSeconds=0 \
+              --attributes VisibilityTimeout=10,ReceiveMessageWaitTimeSeconds=0 \
               --endpoint-url http://127.0.0.1:29324 \
               --output json >/dev/null
           done
