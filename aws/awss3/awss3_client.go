@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -44,7 +45,15 @@ import (
 func (c *Client) PutObject(
 	ctx context.Context, bucketName BucketName, key Key, body io.Reader,
 	opts ...s3upload.OptionS3Upload,
-) (*s3.PutObjectOutput, error) {
+) (res *s3.PutObjectOutput, err error) {
+	done := c.logOperation(ctx, "PutObject",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	conf := s3upload.GetS3UploadConf(opts...)
 	input := &s3.PutObjectInput{
 		Body:   body,
@@ -54,14 +63,23 @@ func (c *Client) PutObject(
 	if conf.S3Expires != nil {
 		input.Expires = aws.Time(time.Now().Add(*conf.S3Expires))
 	}
-	return c.client.PutObject(ctx, input)
+	res, err = c.client.PutObject(ctx, input)
+	return res, err
 }
 
 // UploadManager uploads an object using the transfer manager.
 func (c *Client) UploadManager(
 	ctx context.Context, bucketName BucketName, key Key, body io.Reader,
 	opts ...s3upload.OptionS3Upload,
-) (*transfermanager.UploadObjectOutput, error) {
+) (res *transfermanager.UploadObjectOutput, err error) {
+	done := c.logOperation(ctx, "UploadManager",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	conf := s3upload.GetS3UploadConf(opts...)
 	uploader := transfermanager.New(c.client)
 	input := &transfermanager.UploadObjectInput{
@@ -72,11 +90,27 @@ func (c *Client) UploadManager(
 	if conf.S3Expires != nil {
 		input.Expires = aws.Time(time.Now().Add(*conf.S3Expires))
 	}
-	return uploader.UploadObject(ctx, input)
+	res, err = uploader.UploadObject(ctx, input)
+	return res, err
 }
 
 // HeadObject retrieves metadata from an object without returning the object itself.
 func (c *Client) HeadObject(
+	ctx context.Context, bucketName BucketName, key Key, opts ...s3head.OptionS3Head,
+) (res *s3.HeadObjectOutput, err error) {
+	done := c.logOperation(ctx, "HeadObject",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
+	res, err = c.headObject(ctx, bucketName, key, opts...)
+	return res, err
+}
+
+func (c *Client) headObject(
 	ctx context.Context, bucketName BucketName, key Key, opts ...s3head.OptionS3Head,
 ) (*s3.HeadObjectOutput, error) {
 	conf := s3head.GetS3HeadConf(opts...)
@@ -113,15 +147,26 @@ func (c *Client) HeadObject(
 // ListObjects lists objects in a bucket.
 func (c *Client) ListObjects(
 	ctx context.Context, bucketName BucketName, opts ...s3list.OptionS3List,
-) (Objects, error) {
+) (objects Objects, err error) {
 	conf := s3list.GetS3ListConf(opts...)
+	attrs := []slog.Attr{
+		slog.String("bucket", bucketName.String()),
+	}
+	if conf.Prefix != nil {
+		attrs = append(attrs, slog.String("prefix", *conf.Prefix))
+	}
+	done := c.logOperation(ctx, "ListObjects", attrs...)
+	defer func() {
+		done(err, slog.Int("object_count", len(objects)))
+	}()
+
 	input := &s3.ListObjectsV2Input{
 		Bucket: bucketName.AWSString(),
 	}
 	if conf.Prefix != nil {
 		input.Prefix = conf.Prefix
 	}
-	objects := make(Objects, 0)
+	objects = make(Objects, 0)
 	paginator := s3.NewListObjectsV2Paginator(c.client, input)
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(ctx)
@@ -135,7 +180,15 @@ func (c *Client) ListObjects(
 
 // GetObjectWriter downloads an object and writes its content to w.
 func (c *Client) GetObjectWriter(ctx context.Context, bucketName BucketName, key Key, w io.Writer) (err error) {
-	if _, err = c.HeadObject(ctx, bucketName, key); err != nil {
+	done := c.logOperation(ctx, "GetObjectWriter",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
+	if _, err = c.headObject(ctx, bucketName, key); err != nil {
 		return err
 	}
 	resp, err := c.client.GetObject(ctx, &s3.GetObjectInput{
@@ -160,16 +213,25 @@ func (c *Client) GetObjectWriter(ctx context.Context, bucketName BucketName, key
 
 // DeleteObject deletes an object from a bucket.
 func (c *Client) DeleteObject(ctx context.Context, bucketName BucketName, key Key) (
-	*s3.DeleteObjectOutput, error,
+	res *s3.DeleteObjectOutput, err error,
 ) {
-	if _, err := c.HeadObject(ctx, bucketName, key); err != nil {
+	done := c.logOperation(ctx, "DeleteObject",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
+	if _, err = c.headObject(ctx, bucketName, key); err != nil {
 		return nil, err
 	}
 	input := &s3.DeleteObjectInput{
 		Bucket: bucketName.AWSString(),
 		Key:    key.AWSString(),
 	}
-	return c.client.DeleteObject(ctx, input)
+	res, err = c.client.DeleteObject(ctx, input)
+	return res, err
 }
 
 // DownloadFiles downloads multiple objects and saves them to a directory.
@@ -177,13 +239,23 @@ func (c *Client) DeleteObject(ctx context.Context, bucketName BucketName, key Ke
 func (c *Client) DownloadFiles(
 	ctx context.Context, bucketName BucketName, keys Keys, outputDir string,
 	opts ...s3download.OptionS3Download,
-) ([]string, error) {
+) (paths []string, err error) {
+	done := c.logOperation(ctx, "DownloadFiles",
+		slog.String("bucket", bucketName.String()),
+		slog.Int("key_count", len(keys)),
+		slog.String("output_dir", outputDir),
+	)
+	downloadedCount := 0
+	defer func() {
+		done(err, slog.Int("downloaded_file_count", downloadedCount))
+	}()
+
 	conf := s3download.GetS3DownloadConf(opts...)
 	uniqKeys := keys.Unique()
 	downloader := transfermanager.New(c.client, func(o *transfermanager.Options) {
 		o.GetObjectBufferSize = 5 * 1024 * 1024
 	})
-	paths := make([]string, len(uniqKeys))
+	paths = make([]string, len(uniqKeys))
 
 	getFilePath := func(s3Key string) string {
 		fileName := filepath.Base(s3Key)
@@ -236,6 +308,7 @@ func (c *Client) DownloadFiles(
 			}
 			return nil, dlErr
 		}
+		downloadedCount++
 	}
 	return paths, nil
 }
@@ -245,13 +318,23 @@ func (c *Client) DownloadFiles(
 func (c *Client) DownloadFilesParallel(
 	ctx context.Context, bucketName BucketName, keys Keys, outputDir string,
 	opts ...s3download.OptionS3Download,
-) ([]string, error) {
+) (paths []string, err error) {
+	done := c.logOperation(ctx, "DownloadFilesParallel",
+		slog.String("bucket", bucketName.String()),
+		slog.Int("key_count", len(keys)),
+		slog.String("output_dir", outputDir),
+	)
+	downloadedCount := 0
+	defer func() {
+		done(err, slog.Int("downloaded_file_count", downloadedCount))
+	}()
+
 	conf := s3download.GetS3DownloadConf(opts...)
 	uniqKeys := keys.Unique()
 	downloader := transfermanager.New(c.client, func(o *transfermanager.Options) {
 		o.GetObjectBufferSize = 5 * 1024 * 1024
 	})
-	paths := make([]string, len(uniqKeys))
+	paths = make([]string, len(uniqKeys))
 
 	resolveFilePath := func(s3Key string) string {
 		fileName := filepath.Base(s3Key)
@@ -343,6 +426,7 @@ func (c *Client) DownloadFilesParallel(
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
+	downloadedCount = len(paths)
 	return paths, nil
 }
 
@@ -351,11 +435,19 @@ func (c *Client) DownloadFilesParallel(
 func (c *Client) Presign(
 	ctx context.Context, bucketName BucketName, key Key,
 	opts ...s3presigned.OptionS3Presigned,
-) (string, error) {
-	if _, err := c.HeadObject(ctx, bucketName, key); err != nil {
+) (url string, err error) {
+	conf := s3presigned.GetS3PresignedConf(opts...)
+	done := c.logOperation(ctx, "Presign",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err, slog.Duration("expires", conf.PresignExpires))
+	}()
+
+	if _, err = c.headObject(ctx, bucketName, key); err != nil {
 		return "", err
 	}
-	conf := s3presigned.GetS3PresignedConf(opts...)
 	input := &s3.GetObjectInput{
 		Bucket: bucketName.AWSString(),
 		Key:    key.AWSString(),
@@ -374,14 +466,24 @@ func (c *Client) Presign(
 	if err != nil {
 		return "", err
 	}
-	return resp.URL, nil
+	url = resp.URL
+	return url, nil
 }
 
 // Copy copies an Amazon S3 object within the same bucket.
 func (c *Client) Copy(
 	ctx context.Context, bucketName BucketName, srcKey, destKey Key,
 	opts ...s3upload.OptionS3Upload,
-) error {
+) (err error) {
+	done := c.logOperation(ctx, "Copy",
+		slog.String("bucket", bucketName.String()),
+		slog.String("src_key", srcKey.String()),
+		slog.String("dest_key", destKey.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	conf := s3upload.GetS3UploadConf(opts...)
 	req := &s3.CopyObjectInput{
 		Bucket:            bucketName.AWSString(),
@@ -410,6 +512,21 @@ func (c *Client) Copy(
 // SelectCSVAll executes a SQL expression against S3 Select and writes results to w.
 // SQL Reference: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html
 func (c *Client) SelectCSVAll(
+	ctx context.Context, bucketName BucketName, key Key, query string, w io.Writer,
+	opts ...s3selectcsv.OptionS3SelectCSV,
+) (err error) {
+	done := c.logOperation(ctx, "SelectCSVAll",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
+	return c.selectCSVAll(ctx, bucketName, key, query, w, opts...)
+}
+
+func (c *Client) selectCSVAll(
 	ctx context.Context, bucketName BucketName, key Key, query string, w io.Writer,
 	opts ...s3selectcsv.OptionS3SelectCSV,
 ) error {
@@ -474,7 +591,15 @@ func (c *Client) SelectCSVAll(
 func (c *Client) SelectCSVHeaders(
 	ctx context.Context, bucketName BucketName, key Key,
 	opts ...s3selectcsv.OptionS3SelectCSV,
-) ([]string, error) {
+) (headers []string, err error) {
+	done := c.logOperation(ctx, "SelectCSVHeaders",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err, slog.Int("header_count", len(headers)))
+	}()
+
 	conf := s3selectcsv.GetS3SelectCSVConf(opts...)
 	opts = append(opts, s3selectcsv.WithCSVInput(types.CSVInput{
 		AllowQuotedRecordDelimiter: conf.CSVInput.AllowQuotedRecordDelimiter,
@@ -486,11 +611,11 @@ func (c *Client) SelectCSVHeaders(
 		RecordDelimiter:            conf.CSVInput.RecordDelimiter,
 	}))
 	var buf bytes.Buffer
-	if err := c.SelectCSVAll(ctx, bucketName, key, SelectCSVLimit1Query, &buf, opts...); err != nil {
+	if err = c.selectCSVAll(ctx, bucketName, key, SelectCSVLimit1Query, &buf, opts...); err != nil {
 		return nil, err
 	}
 	r := csv.NewReader(&buf)
-	headers, err := r.Read()
+	headers, err = r.Read()
 	if err != nil {
 		return nil, err
 	}
@@ -501,8 +626,16 @@ func (c *Client) SelectCSVHeaders(
 func (c *Client) PresignPutObject(
 	ctx context.Context, bucketName BucketName, key Key,
 	opts ...s3presigned.OptionS3Presigned,
-) (string, error) {
+) (url string, err error) {
 	conf := s3presigned.GetS3PresignedConf(opts...)
+	done := c.logOperation(ctx, "PresignPutObject",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err, slog.Duration("expires", conf.PresignExpires))
+	}()
+
 	input := &s3.PutObjectInput{
 		Bucket: bucketName.AWSString(),
 		Key:    key.AWSString(),
@@ -514,14 +647,23 @@ func (c *Client) PresignPutObject(
 	if err != nil {
 		return "", err
 	}
-	return resp.URL, nil
+	url = resp.URL
+	return url, nil
 }
 
 // CreateMultipartUpload initiates a multipart upload.
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
 func (c *Client) CreateMultipartUpload(
 	ctx context.Context, bucketName BucketName, key Key,
-) (string, error) {
+) (uploadID string, err error) {
+	done := c.logOperation(ctx, "CreateMultipartUpload",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	input := &s3.CreateMultipartUploadInput{
 		Bucket: bucketName.AWSString(),
 		Key:    key.AWSString(),
@@ -530,7 +672,8 @@ func (c *Client) CreateMultipartUpload(
 	if err != nil {
 		return "", err
 	}
-	return *resp.UploadId, nil
+	uploadID = *resp.UploadId
+	return uploadID, nil
 }
 
 // UploadPart uploads a part in a multipart upload.
@@ -538,7 +681,16 @@ func (c *Client) CreateMultipartUpload(
 func (c *Client) UploadPart(
 	ctx context.Context, bucketName BucketName, key Key, uploadID string, partNumber int32,
 	body io.Reader,
-) (*s3.UploadPartOutput, error) {
+) (res *s3.UploadPartOutput, err error) {
+	done := c.logOperation(ctx, "UploadPart",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+		slog.Int64("part_number", int64(partNumber)),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	input := &s3.UploadPartInput{
 		Bucket:     bucketName.AWSString(),
 		Key:        key.AWSString(),
@@ -550,7 +702,8 @@ func (c *Client) UploadPart(
 	if err != nil {
 		return nil, err
 	}
-	return resp, nil
+	res = resp
+	return res, nil
 }
 
 // CompleteMultipartUpload completes a multipart upload.
@@ -558,7 +711,16 @@ func (c *Client) UploadPart(
 func (c *Client) CompleteMultipartUpload(
 	ctx context.Context, bucketName BucketName, key Key, uploadID string,
 	completedParts []types.CompletedPart,
-) (*s3.CompleteMultipartUploadOutput, error) {
+) (res *s3.CompleteMultipartUploadOutput, err error) {
+	done := c.logOperation(ctx, "CompleteMultipartUpload",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+		slog.Int("part_count", len(completedParts)),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	input := &s3.CompleteMultipartUploadInput{
 		Bucket:   bucketName.AWSString(),
 		Key:      key.AWSString(),
@@ -571,19 +733,28 @@ func (c *Client) CompleteMultipartUpload(
 	if err != nil {
 		return nil, err
 	}
-	return resp, nil
+	res = resp
+	return res, nil
 }
 
 // AbortMultipartUpload aborts a multipart upload.
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
 func (c *Client) AbortMultipartUpload(
 	ctx context.Context, bucketName BucketName, key Key, uploadID string,
-) error {
+) (err error) {
+	done := c.logOperation(ctx, "AbortMultipartUpload",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
 	input := &s3.AbortMultipartUploadInput{
 		Bucket:   bucketName.AWSString(),
 		Key:      key.AWSString(),
 		UploadId: aws.String(uploadID),
 	}
-	_, err := c.client.AbortMultipartUpload(ctx, input)
+	_, err = c.client.AbortMultipartUpload(ctx, input)
 	return err
 }

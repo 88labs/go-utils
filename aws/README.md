@@ -187,6 +187,36 @@ _, err = client.DeleteObject(ctx, bucket, awss3.Key("key.txt"))
 raw := client.S3Client()
 ```
 
+#### Logging
+
+Logging is opt-in. By default, `awss3` does not emit any logs.
+
+When configured, wrapper methods emit structured `slog` records with fields such as `component`, `operation`, `bucket`, `key`, and `duration`.
+
+```go
+import (
+    "log/slog"
+    "os"
+
+    "go.uber.org/zap"
+)
+
+// Package-level helpers use the global logger.
+awss3.GlobalLogger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+_, err := awss3.HeadObject(ctx, region, bucket, awss3.Key("path/to/key.txt"))
+
+// Clients can receive a logger explicitly.
+client, err := awss3.NewClient(ctx, region,
+    awss3.WithLogger(slog.New(slog.NewTextHandler(os.Stdout, nil))),
+)
+
+// Zap can be used via the built-in bridge helpers.
+zapLogger := zap.NewExample()
+
+client, err = awss3.NewClient(ctx, region, awss3.WithZapLogger(zapLogger))
+awss3.GlobalLogger = awss3.NewLoggerFromZap(zapLogger)
+```
+
 #### Error handling
 
 ```go
