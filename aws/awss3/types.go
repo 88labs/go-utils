@@ -1,6 +1,7 @@
 package awss3
 
 import (
+	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,11 @@ func (k Key) AWSString() *string {
 
 func (k Key) BucketJoinAWSString(bucketName BucketName) *string {
 	return aws.String(path.Join(bucketName.String(), k.String()))
+}
+
+func (k Key) bucketJoinEscapedAWSString(bucketName BucketName) *string {
+	escapedKey := strings.ReplaceAll(url.PathEscape(k.String()), "%2F", "/")
+	return aws.String(bucketName.String() + "/" + escapedKey)
 }
 
 func (k Key) Ext() string {

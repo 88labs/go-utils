@@ -385,7 +385,7 @@ func (c *Client) Copy(
 	conf := s3upload.GetS3UploadConf(opts...)
 	req := &s3.CopyObjectInput{
 		Bucket:            bucketName.AWSString(),
-		CopySource:        srcKey.BucketJoinAWSString(bucketName),
+		CopySource:        srcKey.bucketJoinEscapedAWSString(bucketName),
 		Key:               destKey.AWSString(),
 		MetadataDirective: types.MetadataDirectiveReplace,
 	}
