@@ -39,7 +39,7 @@ func PutObject(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).PutObject(ctx, bucketName, key, body, opts...)
+	return packageClientFromSDK(c).PutObject(ctx, bucketName, key, body, opts...)
 }
 
 // UploadManager
@@ -54,7 +54,7 @@ func UploadManager(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).UploadManager(ctx, bucketName, key, body, opts...)
+	return packageClientFromSDK(c).UploadManager(ctx, bucketName, key, body, opts...)
 }
 
 // HeadObject
@@ -68,7 +68,7 @@ func HeadObject(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).HeadObject(ctx, bucketName, key, opts...)
+	return packageClientFromSDK(c).HeadObject(ctx, bucketName, key, opts...)
 }
 
 // ListObjects
@@ -82,7 +82,7 @@ func ListObjects(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).ListObjects(ctx, bucketName, opts...)
+	return packageClientFromSDK(c).ListObjects(ctx, bucketName, opts...)
 }
 
 // GetObjectWriter
@@ -94,7 +94,7 @@ func GetObjectWriter(ctx context.Context, region awsconfig.Region, bucketName Bu
 	if err != nil {
 		return err
 	}
-	return (&Client{client: c}).GetObjectWriter(ctx, bucketName, key, w)
+	return packageClientFromSDK(c).GetObjectWriter(ctx, bucketName, key, w)
 }
 
 // DeleteObject
@@ -107,7 +107,7 @@ func DeleteObject(ctx context.Context, region awsconfig.Region, bucketName Bucke
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).DeleteObject(ctx, bucketName, key)
+	return packageClientFromSDK(c).DeleteObject(ctx, bucketName, key)
 }
 
 // DownloadFiles
@@ -123,7 +123,7 @@ func DownloadFiles(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).DownloadFiles(ctx, bucketName, keys, outputDir, opts...)
+	return packageClientFromSDK(c).DownloadFiles(ctx, bucketName, keys, outputDir, opts...)
 }
 
 // DownloadFilesParallel
@@ -139,7 +139,7 @@ func DownloadFilesParallel(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).DownloadFilesParallel(ctx, bucketName, keys, outputDir, opts...)
+	return packageClientFromSDK(c).DownloadFilesParallel(ctx, bucketName, keys, outputDir, opts...)
 }
 
 // Presign
@@ -155,7 +155,7 @@ func Presign(
 	if err != nil {
 		return "", err
 	}
-	return (&Client{client: c}).Presign(ctx, bucketName, key, opts...)
+	return packageClientFromSDK(c).Presign(ctx, bucketName, key, opts...)
 }
 
 // Copy copies an Amazon S3 object from one bucket to same.
@@ -169,7 +169,7 @@ func Copy(
 	if err != nil {
 		return err
 	}
-	return (&Client{client: c}).Copy(ctx, bucketName, srcKey, destKey, opts...)
+	return packageClientFromSDK(c).Copy(ctx, bucketName, srcKey, destKey, opts...)
 }
 
 const (
@@ -187,7 +187,7 @@ func SelectCSVAll(
 	if err != nil {
 		return err
 	}
-	return (&Client{client: c}).SelectCSVAll(ctx, bucketName, key, query, w, opts...)
+	return packageClientFromSDK(c).SelectCSVAll(ctx, bucketName, key, query, w, opts...)
 }
 
 // SelectCSVHeaders
@@ -201,7 +201,7 @@ func SelectCSVHeaders(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).SelectCSVHeaders(ctx, bucketName, key, opts...)
+	return packageClientFromSDK(c).SelectCSVHeaders(ctx, bucketName, key, opts...)
 }
 
 func PresignPutObject(
@@ -212,7 +212,7 @@ func PresignPutObject(
 	if err != nil {
 		return "", err
 	}
-	return (&Client{client: c}).PresignPutObject(ctx, bucketName, key, opts...)
+	return packageClientFromSDK(c).PresignPutObject(ctx, bucketName, key, opts...)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
@@ -224,7 +224,7 @@ func CreateMultipartUpload(
 		return "", err
 	}
 	_ = opts // opts not used by the SDK call; kept for API compatibility
-	return (&Client{client: c}).CreateMultipartUpload(ctx, bucketName, key)
+	return packageClientFromSDK(c).CreateMultipartUpload(ctx, bucketName, key)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html
@@ -236,7 +236,7 @@ func UploadPart(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).UploadPart(ctx, bucketName, key, uploadID, partNumber, body)
+	return packageClientFromSDK(c).UploadPart(ctx, bucketName, key, uploadID, partNumber, body)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html
@@ -248,7 +248,7 @@ func CompleteMultipartUpload(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: c}).CompleteMultipartUpload(ctx, bucketName, key, uploadID, completedParts)
+	return packageClientFromSDK(c).CompleteMultipartUpload(ctx, bucketName, key, uploadID, completedParts)
 }
 
 // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
@@ -259,5 +259,5 @@ func AbortMultipartUpload(
 	if err != nil {
 		return err
 	}
-	return (&Client{client: c}).AbortMultipartUpload(ctx, bucketName, key, uploadID)
+	return packageClientFromSDK(c).AbortMultipartUpload(ctx, bucketName, key, uploadID)
 }
