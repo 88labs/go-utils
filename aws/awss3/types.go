@@ -35,6 +35,9 @@ func (k Key) BucketJoinAWSString(bucketName BucketName) *string {
 }
 
 func (k Key) bucketJoinEscapedAWSString(bucketName BucketName) *string {
+	// CopySource is bucket/key, so the slash characters that separate S3 path
+	// segments must remain literal even though PathEscape encodes reserved
+	// characters inside each segment.
 	escapedKey := strings.ReplaceAll(url.PathEscape(k.String()), "%2F", "/")
 	return aws.String(bucketName.String() + "/" + escapedKey)
 }
