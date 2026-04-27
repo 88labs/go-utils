@@ -798,6 +798,121 @@ func TestCopy(t *testing.T) {
 	})
 }
 
+func TestReservedCharacterKeys(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	ensureBucket := func(t testing.TB) {
+		t.Helper()
+		s3Client, err := awss3.GetClient(ctx, TestRegion)
+		assert.NilError(t, err)
+
+		_, err = s3Client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(TestBucket)})
+		if err == nil {
+			return
+		}
+
+		_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(TestBucket)})
+		assert.NilError(t, err)
+	}
+
+	newKey := func(prefix string) awss3.Key {
+		return awss3.Key(fmt.Sprintf("awstest/%s/%s&$@=;:+,?  reserved.txt", prefix, ulid.MustNew()))
+	}
+	readObject := func(t testing.TB, key awss3.Key) string {
+		t.Helper()
+		var buf bytes.Buffer
+		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, key, &buf)
+		assert.NilError(t, err)
+		return buf.String()
+	}
+	uploadByPresignedPutObjectURL := func(t testing.TB, presignedURL, body string) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodPut, presignedURL, strings.NewReader(body))
+		assert.NilError(t, err)
+
+		req.Header.Set("Content-Type", "text/plain")
+		resp, err := http.DefaultClient.Do(req)
+		assert.NilError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	ensureBucket(t)
+
+	t.Run("PutObject", func(t *testing.T) {
+		t.Parallel()
+		key := newKey("put-object")
+		body := faker.Sentence()
+
+		_, err := awss3.PutObject(ctx, TestRegion, TestBucket, key, strings.NewReader(body))
+		assert.NilError(t, err)
+		assert.Equal(t, body, readObject(t, key))
+	})
+
+	t.Run("UploadManager", func(t *testing.T) {
+		t.Parallel()
+		key := newKey("upload-manager")
+		body := faker.Sentence()
+
+		_, err := awss3.UploadManager(ctx, TestRegion, TestBucket, key, strings.NewReader(body))
+		assert.NilError(t, err)
+		assert.Equal(t, body, readObject(t, key))
+	})
+
+	t.Run("PresignPutObject", func(t *testing.T) {
+		t.Parallel()
+		key := newKey("presign-put-object")
+		body := faker.Sentence()
+
+		pURL, err := awss3.PresignPutObject(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.Assert(t, pURL != "")
+
+		uploadByPresignedPutObjectURL(t, pURL, body)
+		assert.Equal(t, body, readObject(t, key))
+	})
+
+	t.Run("Multipart upload", func(t *testing.T) {
+		t.Parallel()
+		key := newKey("multipart-upload")
+		body := "This is a multipart upload body."
+
+		uploadID, err := awss3.CreateMultipartUpload(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.Assert(t, uploadID != "")
+
+		partResp, err := awss3.UploadPart(ctx, TestRegion, TestBucket, key, uploadID, 1, strings.NewReader(body))
+		assert.NilError(t, err)
+		assert.Assert(t, partResp != nil)
+
+		_, err = awss3.CompleteMultipartUpload(ctx, TestRegion, TestBucket, key, uploadID, []types.CompletedPart{
+			{ETag: partResp.ETag, PartNumber: aws.Int32(1)},
+		})
+		assert.NilError(t, err)
+		assert.Equal(t, body, readObject(t, key))
+	})
+
+	t.Run("Copy", func(t *testing.T) {
+		t.Parallel()
+		srcKey := newKey("copy-src")
+		destKey := newKey("copy-dest")
+		body := faker.Sentence()
+
+		_, err := awss3.UploadManager(ctx, TestRegion, TestBucket, srcKey, strings.NewReader(body))
+		assert.NilError(t, err)
+
+		err = awss3.Copy(ctx, TestRegion, TestBucket, srcKey, destKey)
+		assert.NilError(t, err)
+		assert.Equal(t, body, readObject(t, destKey))
+	})
+}
+
 func TestSelectCSVAll(t *testing.T) {
 	t.Parallel()
 	type TestCSV string
