@@ -71,6 +71,44 @@ func TestNewClient_WithZapLogger_logsHeadObject(t *testing.T) {
 	assert.Equal(t, fields["key"], key.String())
 }
 
+func TestNewClient_WithNilLogger_usesNoopLogger(t *testing.T) {
+	ctx := newLoggingTestContext()
+	key := uploadLoggingFixture(t, ctx, 16)
+
+	var buf bytes.Buffer
+	awss3.GlobalLogger = slog.New(slog.NewJSONHandler(&buf, nil))
+	t.Cleanup(func() {
+		awss3.GlobalLogger = nil
+	})
+
+	client, err := awss3.NewClient(ctx, TestRegion, awss3.WithLogger(nil))
+	assert.NilError(t, err)
+
+	res, err := client.HeadObject(ctx, TestBucket, key)
+	assert.NilError(t, err)
+	assert.DeepEqual(t, aws.Int64(16), res.ContentLength)
+	assert.Equal(t, strings.TrimSpace(buf.String()), "")
+}
+
+func TestNewClient_WithNilZapLogger_usesNoopLogger(t *testing.T) {
+	ctx := newLoggingTestContext()
+	key := uploadLoggingFixture(t, ctx, 24)
+
+	var buf bytes.Buffer
+	awss3.GlobalLogger = slog.New(slog.NewJSONHandler(&buf, nil))
+	t.Cleanup(func() {
+		awss3.GlobalLogger = nil
+	})
+
+	client, err := awss3.NewClient(ctx, TestRegion, awss3.WithZapLogger(nil))
+	assert.NilError(t, err)
+
+	res, err := client.HeadObject(ctx, TestBucket, key)
+	assert.NilError(t, err)
+	assert.DeepEqual(t, aws.Int64(24), res.ContentLength)
+	assert.Equal(t, strings.TrimSpace(buf.String()), "")
+}
+
 func newLoggingTestContext() context.Context {
 	return ctxawslocal.WithContext(
 		context.Background(),

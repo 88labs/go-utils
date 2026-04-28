@@ -193,6 +193,8 @@ Logging is opt-in. By default, `awss3` does not emit any logs.
 
 When configured, wrapper methods emit structured `slog` records with fields such as `component`, `operation`, `bucket`, `key`, and `duration`.
 
+Passing `nil` to `WithLogger`, `WithZapLogger`, or `NewLoggerFromZap` falls back to a no-op logger.
+
 ```go
 import (
     "log/slog"

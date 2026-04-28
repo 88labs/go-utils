@@ -1,11 +1,14 @@
 package awss3
 
 import (
+	"io"
 	"log/slog"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 )
+
+var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // ClientOption configures a Client created with NewClient.
 type ClientOption interface {
@@ -29,30 +32,31 @@ func defaultClientConfig() clientConfig {
 }
 
 // WithLogger configures a Client to emit structured logs via slog.
-// Panics if logger is nil.
+// When logger is nil, a no-op logger is used.
 func WithLogger(logger *slog.Logger) ClientOption {
-	if logger == nil {
-		panic("awss3: WithLogger: logger must not be nil")
-	}
 	return clientOptionFunc(func(cfg *clientConfig) {
-		cfg.logger = logger
+		cfg.logger = normalizeLogger(logger)
 	})
 }
 
 // WithZapLogger configures a Client to emit structured logs via a zap logger.
-// Panics if logger is nil.
+// When logger is nil, a no-op logger is used.
 func WithZapLogger(logger *zap.Logger) ClientOption {
-	if logger == nil {
-		panic("awss3: WithZapLogger: logger must not be nil")
-	}
 	return WithLogger(NewLoggerFromZap(logger))
 }
 
 // NewLoggerFromZap bridges a zap logger into slog so it can be used with awss3.
-// Panics if logger is nil.
+// When logger is nil, a no-op logger is returned.
 func NewLoggerFromZap(logger *zap.Logger) *slog.Logger {
 	if logger == nil {
-		panic("awss3: NewLoggerFromZap: logger must not be nil")
+		return noopLogger
 	}
 	return slog.New(zapslog.NewHandler(logger.Core()))
+}
+
+func normalizeLogger(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return noopLogger
+	}
+	return logger
 }

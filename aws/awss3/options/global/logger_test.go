@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -25,11 +24,6 @@ import (
 )
 
 func TestGlobalLoggerWithHeadObject(t *testing.T) {
-	if _, ok := os.LookupEnv("CI"); ok {
-		t.Skip("Skip the test in CI environment.")
-		return
-	}
-
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
@@ -60,11 +54,6 @@ func TestGlobalLoggerWithHeadObject(t *testing.T) {
 }
 
 func TestGlobalLoggerWithZapBridgeLogsHeadObject(t *testing.T) {
-	if _, ok := os.LookupEnv("CI"); ok {
-		t.Skip("Skip the test in CI environment.")
-		return
-	}
-
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
 		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
