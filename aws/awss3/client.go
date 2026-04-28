@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync/atomic"
 
@@ -21,7 +22,10 @@ import (
 
 var (
 	// GlobalDialer Global http dialer settings for awss3 library
-	GlobalDialer   *s3dialer.ConfGlobalDialer
+	GlobalDialer *s3dialer.ConfGlobalDialer
+	// GlobalLogger is used by package-level helpers such as PutObject and HeadObject.
+	// It is nil by default, which disables logging.
+	GlobalLogger   *slog.Logger
 	s3ClientAtomic atomic.Pointer[s3.Client]
 )
 
@@ -30,16 +34,21 @@ var (
 // its own *s3.Client, enabling external lifecycle management.
 type Client struct {
 	client *s3.Client
+	logger *slog.Logger
 }
 
 // NewClient creates a new Client for the given region.
 // Using ctxawslocal.WithContext, you can make requests for local mocks.
-func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
+func NewClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*Client, error) {
+	cfg := defaultClientConfig()
+	for _, opt := range opts {
+		opt.apply(&cfg)
+	}
 	sdkClient, err := newS3Client(ctx, region)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{client: sdkClient}, nil
+	return &Client{client: sdkClient, logger: cfg.logger}, nil
 }
 
 // S3Client returns the underlying *s3.Client for advanced usage.
@@ -126,6 +135,13 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client,
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
 		o.UsePathStyle = true
 	}), nil
+}
+
+func packageClientFromSDK(sdkClient *s3.Client) *Client {
+	return &Client{
+		client: sdkClient,
+		logger: GlobalLogger,
+	}
 }
 
 type LocalProfile struct {
