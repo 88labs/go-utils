@@ -10,16 +10,6 @@ type Option interface {
 
 type Tag map[string]string
 
-type Extra map[string]any
-
-func NewExtra() Extra {
-	return make(Extra)
-}
-
-func (e Extra) Set(key string, value any) {
-	e[key] = value
-}
-
 type Contexts map[string]sentry.Context
 
 func NewContexts() Contexts {
@@ -36,7 +26,6 @@ type config struct {
 	Attachments     []*sentry.Attachment
 	Tag             Tag
 	Contexts        Contexts
-	Extra           Extra
 	User            *sentry.User
 	Fingerprint     []string
 	EventProcessors []sentry.EventProcessor
@@ -48,7 +37,6 @@ type (
 	OptionAttachments     []*sentry.Attachment
 	OptionTag             Tag
 	OptionContexts        Contexts
-	OptionExtra           Extra
 	OptionUser            sentry.User
 	OptionFingerprint     []string
 	OptionEventProcessors []sentry.EventProcessor
@@ -110,16 +98,6 @@ func (o OptionContexts) Apply(c *config) {
 // Sets the contexts to be sent with the event.
 func WithContexts(c Contexts) OptionContexts {
 	return OptionContexts(c)
-}
-
-func (o OptionExtra) Apply(c *config) {
-	c.Extra = Extra(o)
-}
-
-// WithExtra
-// Sets the extra data to be sent with the event.
-func WithExtra(extra Extra) OptionExtra {
-	return OptionExtra(extra)
 }
 
 func (o OptionUser) Apply(c *config) {
