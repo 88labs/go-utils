@@ -116,12 +116,6 @@ func (o OptionExtra) Apply(c *config) {
 	c.Extra = Extra(o)
 }
 
-// WithExtra
-// Sets the extra data to be sent with the event.
-func WithExtra(extra Extra) OptionExtra {
-	return OptionExtra(extra)
-}
-
 func (o OptionUser) Apply(c *config) {
 	u := sentry.User(o)
 	c.User = &u

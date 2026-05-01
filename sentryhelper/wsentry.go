@@ -29,9 +29,6 @@ func CaptureException(ctx context.Context, exception error, opts ...Option) {
 			if conf.Tag != nil {
 				scope.SetTags(conf.Tag)
 			}
-			if conf.Extra != nil {
-				scope.SetExtras(conf.Extra)
-			}
 			if conf.Contexts != nil {
 				scope.SetContexts(conf.Contexts)
 			}
@@ -67,9 +64,6 @@ func CaptureMessage(ctx context.Context, message string, opts ...Option) {
 			}
 			if conf.Tag != nil {
 				scope.SetTags(conf.Tag)
-			}
-			if conf.Extra != nil {
-				scope.SetExtras(conf.Extra)
 			}
 			if conf.Contexts != nil {
 				scope.SetContexts(conf.Contexts)
