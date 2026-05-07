@@ -20,7 +20,7 @@ require (
 	github.com/go-faker/faker/v4 v4.7.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tomtwinkle/utfbomremover v0.1.1
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	go.uber.org/zap/exp v0.3.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/text v0.36.0
