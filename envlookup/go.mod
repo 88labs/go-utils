@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/88labs/go-utils/aws v0.206.0
-	github.com/go-faker/faker/v4 v4.7.0
+	github.com/go-faker/faker/v4 v4.8.0
 	gotest.tools v2.2.0+incompatible
 )
 
