@@ -22,6 +22,8 @@ func ToCommonErrorCode(statusCode int) cerrors.ErrorCode {
 		return cerrors.UnavailableErr
 	case http.StatusTooManyRequests:
 		return cerrors.ResourceExhaustedErr
+	case http.StatusConflict:
+		return cerrors.AlreadyExists
 	default:
 		return cerrors.UnknownErr
 	}
@@ -43,6 +45,8 @@ func ToHttpStatusCode(errCode cerrors.ErrorCode) int {
 		return http.StatusServiceUnavailable
 	case cerrors.ResourceExhaustedErr:
 		return http.StatusTooManyRequests
+	case cerrors.AlreadyExists:
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
