@@ -73,6 +73,13 @@ func TestToCommonErrorCode(t *testing.T) {
 			want: cerrors.ResourceExhaustedErr,
 		},
 		{
+			name: "StatusConflict",
+			args: args{
+				http.StatusConflict,
+			},
+			want: cerrors.AlreadyExists,
+		},
+		{
 			name: "StatusInternalServerError",
 			args: args{
 				http.StatusInternalServerError,
@@ -132,6 +139,11 @@ func TestToHttpStatusCode(t *testing.T) {
 			name: "ResourceExhaustedErr",
 			args: args{cerrors.ResourceExhaustedErr},
 			want: http.StatusTooManyRequests,
+		},
+		{
+			name: "AlreadyExists",
+			args: args{cerrors.AlreadyExists},
+			want: http.StatusConflict,
 		},
 		{
 			name: "UnknownErr",
