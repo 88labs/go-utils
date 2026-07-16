@@ -3,7 +3,7 @@ module github.com/88labs/go-utils/envlookup
 go 1.25.0
 
 require (
-	github.com/88labs/go-utils/aws v0.212.0
+	github.com/88labs/go-utils/aws v0.213.0
 	github.com/go-faker/faker/v4 v4.9.0
 	gotest.tools v2.2.0+incompatible
 )
@@ -11,5 +11,5 @@ require (
 require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 )
