@@ -44,6 +44,8 @@ jobs:
               - 'utf8bom/**'
             hashutil:
               - 'hashutil/**'
+            jitter:
+              - 'jitter/**'
       - uses: release-drafter/release-drafter@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e # v7.5.1
         if: steps.changes.outputs.aws == 'true'
         with:
@@ -161,4 +163,12 @@ jobs:
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      - uses: release-drafter/release-drafter@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e # v7.5.1
+        if: steps.changes.outputs.jitter == 'true'
+        with:
+          config-name: release-drafter-jitter.yml
+          name: jitter/v$RESOLVED_VERSION
+          tag: jitter/v$RESOLVED_VERSION
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
