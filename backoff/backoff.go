@@ -85,8 +85,9 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"math/rand/v2"
 	"time"
+
+	"github.com/88labs/go-utils/jitter"
 )
 
 const (
@@ -174,8 +175,8 @@ type Configurator[C Configurator[C]] interface {
 
 // Compile-time assertions: verify that both concrete types implement Configurator.
 var (
-	_ Configurator[*Retryer]              = (*Retryer)(nil)
-	_ Configurator[*ResultRetryer[any]]   = (*ResultRetryer[any])(nil)
+	_ Configurator[*Retryer]            = (*Retryer)(nil)
+	_ Configurator[*ResultRetryer[any]] = (*ResultRetryer[any])(nil)
 )
 
 // ── Retryer ──────────────────────────────────────────────────────────────────
@@ -267,13 +268,13 @@ func (r *Retryer) WithMultiplier(m float64) *Retryer {
 
 // WithJitter controls the degree of randomness added to wait times (default: 1.0).
 //
-//	sleep = cap_i×(1−j) + rand[0, cap_i)×j
+//		sleep = cap_i×(1−j) + rand[0, cap_i)×j
 //
-//   - j = 1.0 (Full Jitter, default): sleep is uniform in [0, cap_i].
-//     Recommended for distributed systems to avoid thundering herds.
-//   - j = 0.0 (No Jitter): sleep equals cap_i deterministically.
-//     Useful in tests or when a predictable schedule is required.
-//   - 0 < j < 1 (Partial Jitter): cap_i×(1−j) is the deterministic floor.
+//	  - j = 1.0 (Full Jitter, default): sleep is uniform in [0, cap_i].
+//	    Recommended for distributed systems to avoid thundering herds.
+//	  - j = 0.0 (No Jitter): sleep equals cap_i deterministically.
+//	    Useful in tests or when a predictable schedule is required.
+//	  - 0 < j < 1 (Partial Jitter): cap_i×(1−j) is the deterministic floor.
 //
 // Panics if j is outside [0.0, 1.0].
 func (r *Retryer) WithJitter(j float64) *Retryer {
@@ -487,13 +488,12 @@ func execute[T any](ctx context.Context, cfg config, fn func(context.Context) (T
 
 // sleepDuration returns the wait time before retry attempt (1-indexed).
 //
-//	cap   = min(maxInterval, initialInterval × multiplier^(attempt-1))
-//	sleep = cap×(1−jitter) + rand[0, cap)×jitter
+//	limit = min(maxInterval, initialInterval × multiplier^(attempt-1))
+//	sleep = limit×(1−jitter) + rand[0, limit)×jitter
 func sleepDuration(cfg config, attempt int) time.Duration {
-	cap := min(
+	limit := min(
 		float64(cfg.maxInterval),
 		float64(cfg.initialInterval)*math.Pow(cfg.multiplier, float64(attempt-1)),
 	)
-	sleep := cap*(1-cfg.jitter) + rand.Float64()*cap*cfg.jitter
-	return time.Duration(sleep)
+	return jitter.Apply(time.Duration(limit), cfg.jitter)
 }
