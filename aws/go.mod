@@ -3,19 +3,19 @@ module github.com/88labs/go-utils/aws
 go 1.26.0
 
 require (
-	github.com/88labs/go-utils/ulid v0.9.0
+	github.com/88labs/go-utils/ulid v0.9.1
 	github.com/88labs/go-utils/utf8bom v0.6.0
-	github.com/aws/aws-sdk-go-v2 v1.43.1
-	github.com/aws/aws-sdk-go-v2/config v1.32.32
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.31
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.55
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.55
-	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.3.6
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.36.1
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.62.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.1
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.46.1
-	github.com/aws/smithy-go v1.27.5
+	github.com/aws/aws-sdk-go-v2 v1.43.3
+	github.com/aws/aws-sdk-go-v2/config v1.32.34
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.33
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.57
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.57
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.3.8
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.62.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.3
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.46.3
+	github.com/aws/smithy-go v1.27.6
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/go-faker/faker/v4 v4.10.1
 	github.com/stretchr/testify v1.11.1
@@ -28,25 +28,25 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.33 // indirect
-	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.36.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.14 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.25 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.32 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.33 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.33.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.45.1 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.34 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.34 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.34 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.35 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.36.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.27 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.34 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.35 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.5.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.33.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.45.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
-	github.com/oklog/ulid/v2 v2.1.1 // indirect
+	github.com/oklog/ulid/v2 v2.1.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
