@@ -12,6 +12,7 @@ import (
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
+	"github.com/88labs/go-utils/aws/internal/awstrace"
 )
 
 var cognitoidentityClientAtomic atomic.Pointer[cognitoidentity.Client]
@@ -26,8 +27,14 @@ type Client struct {
 // NewClient creates a new Client for the given region.
 // Using ctxawslocal.WithContext, you can redirect requests to a local mock
 // (e.g. LocalStack) by setting the Cognito endpoint and credentials in the context.
-func NewClient(ctx context.Context, region awsconfig.Region) (*Client, error) {
-	sdkClient, err := newCognitoClient(ctx, region)
+func NewClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*Client, error) {
+	cfg := clientConfig{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt.apply(&cfg)
+		}
+	}
+	sdkClient, err := newCognitoClient(ctx, region, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -62,14 +69,24 @@ func (c *Client) GetCredentialsForIdentity(
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func GetCredentialsForIdentity(
-	ctx context.Context, region awsconfig.Region, identityId string, logins map[string]string,
+	ctx context.Context,
+	region awsconfig.Region,
+	identityId string,
+	logins map[string]string,
+	opts ...ClientOption,
 ) (*cognitoidentity.GetCredentialsForIdentityOutput, error) {
 	var sdkClient *cognitoidentity.Client
 	if v := cognitoidentityClientAtomic.Load(); v != nil {
 		sdkClient = v
 	} else {
 		var err error
-		sdkClient, err = newCognitoClient(ctx, region)
+		cfg := clientConfig{}
+		for _, opt := range opts {
+			if opt != nil {
+				opt.apply(&cfg)
+			}
+		}
+		sdkClient, err = newCognitoClient(ctx, region, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -79,18 +96,22 @@ func GetCredentialsForIdentity(
 }
 
 // newCognitoClient creates a fresh *cognitoidentity.Client without touching the singleton.
-func newCognitoClient(ctx context.Context, region awsconfig.Region) (*cognitoidentity.Client, error) {
+func newCognitoClient(ctx context.Context, region awsconfig.Region, cfg clientConfig) (*cognitoidentity.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		return getClientLocal(ctx, region, *localProfile)
+		return getClientLocal(ctx, region, *localProfile, cfg)
 	}
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return cognitoidentity.NewFromConfig(awsCfg), nil
+	return cognitoidentity.NewFromConfig(awsCfg, func(o *cognitoidentity.Options) {
+		if cfg.traceEnabled {
+			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+		}
+	}), nil
 }
 
-func getClientLocal(ctx context.Context, region awsconfig.Region, localProfile LocalProfile) (
+func getClientLocal(ctx context.Context, region awsconfig.Region, localProfile LocalProfile, cfg clientConfig) (
 	*cognitoidentity.Client, error,
 ) {
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
@@ -108,6 +129,9 @@ func getClientLocal(ctx context.Context, region awsconfig.Region, localProfile L
 	}
 	return cognitoidentity.NewFromConfig(awsCfg, func(o *cognitoidentity.Options) {
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
+		if cfg.traceEnabled {
+			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+		}
 	}), nil
 }
 

@@ -24,6 +24,55 @@ Each package exposes both **package-level functions** (backed by a per-process s
 - Go 1.24+
 - aws-sdk-go v2
 
+### Tracing
+
+S3, DynamoDB, SQS, and Cognito clients can enable AWS SDK OpenTelemetry
+instrumentation with `WithTrace`. The supplied provider may be an OTel SDK
+provider or Datadog's OTel-compatible provider. A Datadog v2 span in the
+request context is bridged as the parent of the AWS span. The shared
+[`tracers` package](../tracers) normalizes OpenTelemetry and Datadog trace
+context to W3C `traceparent` and `tracestate` values.
+
+Configure a propagator that supports W3C Trace Context before constructing
+these clients. OpenTelemetry's default global propagator is a no-op; without
+this configuration, AWS spans are created but `traceparent` is not injected
+into outbound requests.
+
+```go
+import (
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+)
+
+otel.SetTextMapPropagator(propagation.TraceContext{})
+provider := otel.GetTracerProvider()
+
+s3Client, err := awss3.NewClient(ctx, region, awss3.WithTrace(provider))
+sqsClient, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(provider))
+dynamoClient, err := awsdynamo.NewClient(ctx, region, awsdynamo.WithTrace(provider))
+cognitoClient, err := awscognito.NewClient(ctx, region, awscognito.WithTrace(provider))
+```
+
+`WithTrace(nil)` uses the globally configured OpenTelemetry `TracerProvider`.
+When a request context contains a Datadog v2 span but no valid OpenTelemetry
+`SpanContext`, the bridge converts that span's W3C propagation fields into the
+parent context used by the AWS span. The bridge does not create or finish
+Datadog spans.
+
+Package-level helpers use singleton clients. Initialize each singleton with
+`WithTrace` before its first request; options passed after initialization do
+not reconfigure an existing client. S3 and SQS are initialized through
+`GetClient`, while DynamoDB operations and Cognito's package-level helper
+accept `WithTrace` directly.
+
+```go
+_, err := awss3.GetClient(ctx, region, awss3.WithTrace(provider))
+_, err = awssqs.GetClient(ctx, region, awssqs.WithTrace(provider))
+err = awsdynamo.PutItem(ctx, region, table, item, awsdynamo.WithTrace(provider))
+_, err = awscognito.GetCredentialsForIdentity(ctx, region, identityID, logins,
+    awscognito.WithTrace(provider))
+```
+
 ---
 
 ## Packages

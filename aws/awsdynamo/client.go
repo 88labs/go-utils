@@ -12,10 +12,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awsdynamo/dynamooptions"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
+	"github.com/88labs/go-utils/aws/internal/awstrace"
 )
 
 var dynamoDBClientAtomic atomic.Pointer[dynamodb.Client]
@@ -34,11 +36,20 @@ type Client struct {
 // Using ctxawslocal.WithContext, you can make requests for local mocks.
 func NewClient(ctx context.Context, region awsconfig.Region, opts ...dynamooptions.OptionDynamo) (*Client, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
-	sdkClient, err := newDynamoDBClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	sdkClient, err := newDynamoDBClient(
+		ctx, region, c.MaxAttempts, c.MaxBackoffDelay, c.TraceProvider(), c.TraceEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{client: sdkClient}, nil
+}
+
+// WithTrace enables OpenTelemetry tracing for an independently created
+// DynamoDB client. A nil provider uses the globally configured provider.
+// Datadog v2 spans in request contexts are also accepted as trace parents.
+func WithTrace(provider oteltrace.TracerProvider) dynamooptions.OptionDynamo {
+	return dynamooptions.WithTrace(provider)
 }
 
 // DynamoDBClient returns the underlying *dynamodb.Client for advanced usage.
@@ -47,12 +58,37 @@ func (c *Client) DynamoDBClient() *dynamodb.Client {
 }
 
 func GetClient(
-	ctx context.Context, region awsconfig.Region, limitAttempts int, limitBackOffDelay time.Duration,
+	ctx context.Context,
+	region awsconfig.Region,
+	limitAttempts int,
+	limitBackOffDelay time.Duration,
+	opts ...dynamooptions.OptionDynamo,
+) (*dynamodb.Client, error) {
+	c := dynamooptions.GetDynamoConf(opts...)
+	return getClientWithConfig(
+		ctx,
+		region,
+		limitAttempts,
+		limitBackOffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
+}
+
+func getClientWithConfig(
+	ctx context.Context,
+	region awsconfig.Region,
+	limitAttempts int,
+	limitBackOffDelay time.Duration,
+	traceProvider oteltrace.TracerProvider,
+	traceEnabled bool,
 ) (*dynamodb.Client, error) {
 	if v := dynamoDBClientAtomic.Load(); v != nil {
 		return v, nil
 	}
-	sdkClient, err := newDynamoDBClient(ctx, region, limitAttempts, limitBackOffDelay)
+	sdkClient, err := newDynamoDBClient(
+		ctx, region, limitAttempts, limitBackOffDelay, traceProvider, traceEnabled,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -62,10 +98,15 @@ func GetClient(
 
 // newDynamoDBClient creates a fresh *dynamodb.Client without touching the singleton.
 func newDynamoDBClient(
-	ctx context.Context, region awsconfig.Region, limitAttempts int, limitBackOffDelay time.Duration,
+	ctx context.Context,
+	region awsconfig.Region,
+	limitAttempts int,
+	limitBackOffDelay time.Duration,
+	traceProvider oteltrace.TracerProvider,
+	traceEnabled bool,
 ) (*dynamodb.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		return getClientLocal(ctx, *localProfile)
+		return getClientLocal(ctx, *localProfile, traceProvider, traceEnabled)
 	}
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(region.String()),
 		awsConfig.WithRetryer(func() aws.Retryer {
@@ -84,10 +125,19 @@ func newDynamoDBClient(
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return dynamodb.NewFromConfig(awsCfg), nil
+	return dynamodb.NewFromConfig(awsCfg, func(o *dynamodb.Options) {
+		if traceEnabled {
+			awstrace.AppendMiddlewares(&o.APIOptions, traceProvider)
+		}
+	}), nil
 }
 
-func getClientLocal(ctx context.Context, localProfile LocalProfile) (*dynamodb.Client, error) {
+func getClientLocal(
+	ctx context.Context,
+	localProfile LocalProfile,
+	traceProvider oteltrace.TracerProvider,
+	traceEnabled bool,
+) (*dynamodb.Client, error) {
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
 		awsConfig.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
@@ -103,6 +153,9 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*dynamodb.C
 	}
 	return dynamodb.NewFromConfig(awsCfg, func(o *dynamodb.Options) {
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
+		if traceEnabled {
+			awstrace.AppendMiddlewares(&o.APIOptions, traceProvider)
+		}
 	}), nil
 }
 
