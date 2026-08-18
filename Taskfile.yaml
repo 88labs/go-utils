@@ -4,7 +4,7 @@ dotenv: ['.env', '{{.ENV}}/.env.', '{{.HOME}}/.env']
 
 tasks:
   test:
-    deps: [test-aws,test-backoff,test-jitter,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tspb_cast,test-ulid,test-utf8bom]
+    deps: [test-aws,test-backoff,test-jitter,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tracers,test-tspb_cast,test-ulid,test-utf8bom]
   test-aws:
     dir: aws
     cmds:
@@ -40,6 +40,10 @@ tasks:
     dir: sql-escape
     cmds:
       - go test ./...
+  test-tracers:
+    dir: tracers
+    cmds:
+      - go test ./...
   test-tspb_cast:
     dir: tspb_cast
     cmds:
@@ -56,7 +60,7 @@ tasks:
   go-mod-tidy:
     deps: [
       go-mod-tidy-aws,go-mod-tidy-backoff,go-mod-tidy-jitter,go-mod-tidy-cerrors,go-mod-tidy-envlookup,go-mod-tidy-errgroup,go-mod-tidy-osext,
-      go-mod-tidy-sql-escape,go-mod-tidy-tspb_cast,go-mod-tidy-ulid,go-mod-tidy-utf8bom,
+      go-mod-tidy-sql-escape,go-mod-tidy-tracers,go-mod-tidy-tspb_cast,go-mod-tidy-ulid,go-mod-tidy-utf8bom,
     ]
   go-mod-tidy-aws:
     dir: aws
@@ -90,6 +94,10 @@ tasks:
     dir: sql-escape
     cmds:
       - go mod tidy
+  go-mod-tidy-tracers:
+    dir: tracers
+    cmds:
+      - go mod tidy
   go-mod-tidy-tspb_cast:
     dir: tspb_cast
     cmds:
@@ -106,7 +114,7 @@ tasks:
   go-oif:
     deps: [
       go-oif-aws,go-oif-backoff,go-oif-jitter,go-oif-cerrors,go-oif-envlookup,go-oif-errgroup,go-oif-osext,
-      go-oif-sql-escape,go-oif-tspb_cast,go-oif-ulid,go-oif-utf8bom,
+      go-oif-sql-escape,go-oif-tracers,go-oif-tspb_cast,go-oif-ulid,go-oif-utf8bom,
     ]
   go-oif-aws:
     dir: aws
@@ -140,6 +148,10 @@ tasks:
     dir: sql-escape
     cmds:
       - go-oif ./...
+  go-oif-tracers:
+    dir: tracers
+    cmds:
+      - go-oif ./...
   go-oif-tspb_cast:
     dir: tspb_cast
     cmds:
@@ -156,7 +168,7 @@ tasks:
   go-mod-updates:
     deps: [
       go-mod-update-aws,go-mod-update-backoff,go-mod-update-cerrors,go-mod-update-envlookup,go-mod-update-errgroup,go-mod-update-osext,
-      go-mod-update-sql-escape,go-mod-update-tspb_cast,go-mod-update-ulid,go-mod-update-utf8bom,go-mod-update-jitter,
+      go-mod-update-sql-escape,go-mod-update-tracers,go-mod-update-tspb_cast,go-mod-update-ulid,go-mod-update-utf8bom,go-mod-update-jitter,
     ]
     cmds:
       - task go-mod-tidy
@@ -190,6 +202,10 @@ tasks:
       - go get -u ./...
   go-mod-update-sql-escape:
     dir: sql-escape
+    cmds:
+      - go get -u ./...
+  go-mod-update-tracers:
+    dir: tracers
     cmds:
       - go get -u ./...
   go-mod-update-tspb_cast:
