@@ -34,7 +34,14 @@ func PutItem[T any](
 	opts ...dynamooptions.OptionDynamo,
 ) error {
 	c := dynamooptions.GetDynamoConf(opts...)
-	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	client, err := getClientWithConfig(
+		ctx,
+		region,
+		c.MaxAttempts,
+		c.MaxBackoffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
 	if err != nil {
 		return err
 	}
@@ -69,7 +76,14 @@ func UpdateItem[T any, K ~string](
 	opts ...dynamooptions.OptionDynamo,
 ) (*T, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
-	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	client, err := getClientWithConfig(
+		ctx,
+		region,
+		c.MaxAttempts,
+		c.MaxBackoffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +133,14 @@ func DeleteItem[T any, K ~string](
 	opts ...dynamooptions.OptionDynamo,
 ) (*T, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
-	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	client, err := getClientWithConfig(
+		ctx,
+		region,
+		c.MaxAttempts,
+		c.MaxBackoffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +183,14 @@ func GetItem[T any, K ~string](
 	opts ...dynamooptions.OptionDynamo,
 ) (*T, error) {
 	c := dynamooptions.GetDynamoConf(opts...)
-	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	client, err := getClientWithConfig(
+		ctx,
+		region,
+		c.MaxAttempts,
+		c.MaxBackoffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +235,14 @@ func BatchGetItem[T any, K ~string](
 	const MaxBatchSize = 100
 
 	c := dynamooptions.GetDynamoConf(opts...)
-	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	client, err := getClientWithConfig(
+		ctx,
+		region,
+		c.MaxAttempts,
+		c.MaxBackoffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +308,14 @@ func BatchWriteItem[T any](
 	)
 
 	c := dynamooptions.GetDynamoConf(opts...)
-	client, err := GetClient(ctx, region, c.MaxAttempts, c.MaxBackoffDelay)
+	client, err := getClientWithConfig(
+		ctx,
+		region,
+		c.MaxAttempts,
+		c.MaxBackoffDelay,
+		c.TraceProvider(),
+		c.TraceEnabled(),
+	)
 	if err != nil {
 		return err
 	}

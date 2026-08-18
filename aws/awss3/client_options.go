@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 )
@@ -16,7 +17,9 @@ type ClientOption interface {
 }
 
 type clientConfig struct {
-	logger *slog.Logger
+	logger        *slog.Logger
+	traceProvider oteltrace.TracerProvider
+	traceEnabled  bool
 }
 
 type clientOptionFunc func(*clientConfig)
@@ -43,6 +46,16 @@ func WithLogger(logger *slog.Logger) ClientOption {
 // When logger is nil, a no-op logger is used.
 func WithZapLogger(logger *zap.Logger) ClientOption {
 	return WithLogger(NewLoggerFromZap(logger))
+}
+
+// WithTrace enables OpenTelemetry tracing for AWS SDK requests created by the
+// client. A nil provider uses the globally configured OpenTelemetry provider.
+// Datadog v2 spans in request contexts are also accepted as trace parents.
+func WithTrace(provider oteltrace.TracerProvider) ClientOption {
+	return clientOptionFunc(func(cfg *clientConfig) {
+		cfg.traceProvider = provider
+		cfg.traceEnabled = true
+	})
 }
 
 // NewLoggerFromZap bridges a zap logger into slog so it can be used with awss3.

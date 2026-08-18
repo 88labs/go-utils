@@ -18,6 +18,7 @@ import (
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awss3/options/global/s3dialer"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
+	"github.com/88labs/go-utils/aws/internal/awstrace"
 )
 
 var (
@@ -42,9 +43,11 @@ type Client struct {
 func NewClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*Client, error) {
 	cfg := defaultClientConfig()
 	for _, opt := range opts {
-		opt.apply(&cfg)
+		if opt != nil {
+			opt.apply(&cfg)
+		}
 	}
-	sdkClient, err := newS3Client(ctx, region)
+	sdkClient, err := newS3Client(ctx, region, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +59,23 @@ func (c *Client) S3Client() *s3.Client {
 	return c.client
 }
 
-// GetClient
-// Get s3 client for aws-sdk-go v2.
+// GetClient gets the package-level S3 client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks
-func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error) {
+//
+// Options are used only when the singleton is initialized. Initialize it with
+// WithTrace before calling package-level helpers when those helpers should be
+// traced.
+func GetClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*s3.Client, error) {
 	if v := s3ClientAtomic.Load(); v != nil {
 		return v, nil
 	}
-	sdkClient, err := newS3Client(ctx, region)
+	cfg := defaultClientConfig()
+	for _, opt := range opts {
+		if opt != nil {
+			opt.apply(&cfg)
+		}
+	}
+	sdkClient, err := newS3Client(ctx, region, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -72,9 +84,9 @@ func GetClient(ctx context.Context, region awsconfig.Region) (*s3.Client, error)
 }
 
 // newS3Client creates a fresh *s3.Client without touching the singleton.
-func newS3Client(ctx context.Context, region awsconfig.Region) (*s3.Client, error) {
+func newS3Client(ctx context.Context, region awsconfig.Region, cfg clientConfig) (*s3.Client, error) {
 	if localProfile, ok := getLocalEndpoint(ctx); ok {
-		return getClientLocal(ctx, *localProfile)
+		return getClientLocal(ctx, *localProfile, cfg)
 	}
 	awsHttpClient := awshttp.NewBuildableClient()
 	if GlobalDialer != nil {
@@ -99,10 +111,14 @@ func newS3Client(ctx context.Context, region awsconfig.Region) (*s3.Client, erro
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-	return s3.NewFromConfig(awsCfg), nil
+	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if cfg.traceEnabled {
+			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+		}
+	}), nil
 }
 
-func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client, error) {
+func getClientLocal(ctx context.Context, localProfile LocalProfile, cfg clientConfig) (*s3.Client, error) {
 	awsHttpClient := awshttp.NewBuildableClient()
 	if GlobalDialer != nil {
 		awsHttpClient.WithDialerOptions(func(dialer *net.Dialer) {
@@ -134,6 +150,9 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile) (*s3.Client,
 	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
 		o.UsePathStyle = true
+		if cfg.traceEnabled {
+			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+		}
 	}), nil
 }
 
