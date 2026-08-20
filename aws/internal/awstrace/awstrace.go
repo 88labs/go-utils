@@ -33,6 +33,20 @@ func addDatadogTraceBridge(stack *middleware.Stack) error {
 	return stack.Initialize.Add(datadogTraceBridge{}, middleware.Before)
 }
 
+// ContextWithDatadogParent adds a Datadog span as an OpenTelemetry parent when
+// the context does not already contain a valid OpenTelemetry SpanContext.
+func ContextWithDatadogParent(ctx context.Context) context.Context {
+	if oteltrace.SpanContextFromContext(ctx).IsValid() {
+		return ctx
+	}
+
+	spanContext, ok := datadogSpanContext(ctx)
+	if !ok {
+		return ctx
+	}
+	return oteltrace.ContextWithSpanContext(ctx, spanContext)
+}
+
 type datadogTraceBridge struct{}
 
 func (datadogTraceBridge) ID() string {
@@ -44,15 +58,7 @@ func (datadogTraceBridge) HandleInitialize(
 	in middleware.InitializeInput,
 	next middleware.InitializeHandler,
 ) (middleware.InitializeOutput, middleware.Metadata, error) {
-	if oteltrace.SpanContextFromContext(ctx).IsValid() {
-		return next.HandleInitialize(ctx, in)
-	}
-
-	spanContext, ok := datadogSpanContext(ctx)
-	if ok {
-		ctx = oteltrace.ContextWithSpanContext(ctx, spanContext)
-	}
-	return next.HandleInitialize(ctx, in)
+	return next.HandleInitialize(ContextWithDatadogParent(ctx), in)
 }
 
 func datadogSpanContext(ctx context.Context) (oteltrace.SpanContext, bool) {

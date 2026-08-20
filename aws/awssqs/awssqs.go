@@ -27,7 +27,21 @@ func SendMessage(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: sdkClient}).SendMessage(ctx, queueURL, message, opts...)
+	return packageClientFromSDK(sdkClient).SendMessage(ctx, queueURL, message, opts...)
+}
+
+// SendMessageBatch sends a batch of already encoded SQS messages.
+func SendMessageBatch(
+	ctx context.Context,
+	region awsconfig.Region,
+	queueURL QueueURL,
+	entries []types.SendMessageBatchRequestEntry,
+) (*sqs.SendMessageBatchOutput, error) {
+	sdkClient, err := GetClient(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	return packageClientFromSDK(sdkClient).SendMessageBatch(ctx, queueURL, entries)
 }
 
 // SendMessageGob
@@ -43,7 +57,7 @@ func SendMessageGob(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: sdkClient}).SendMessageGob(ctx, queueURL, message, opts...)
+	return packageClientFromSDK(sdkClient).SendMessageGob(ctx, queueURL, message, opts...)
 }
 
 // ReceiveMessage
@@ -58,7 +72,7 @@ func ReceiveMessage(
 	if err != nil {
 		return nil, err
 	}
-	return (&Client{client: sdkClient}).ReceiveMessage(ctx, queueURL, opts...)
+	return packageClientFromSDK(sdkClient).ReceiveMessage(ctx, queueURL, opts...)
 }
 
 // ReceiveMessageGob
@@ -118,5 +132,21 @@ func DeleteMessage(ctx context.Context, region awsconfig.Region, queueURL QueueU
 	if err != nil {
 		return err
 	}
-	return (&Client{client: sdkClient}).DeleteMessage(ctx, queueURL, message)
+	return packageClientFromSDK(sdkClient).DeleteMessage(ctx, queueURL, message)
+}
+
+// ProcessMessage processes one received message and deletes it only when the
+// handler returns nil.
+func ProcessMessage(
+	ctx context.Context,
+	region awsconfig.Region,
+	queueURL QueueURL,
+	message types.Message,
+	handler MessageHandler,
+) error {
+	sdkClient, err := GetClient(ctx, region)
+	if err != nil {
+		return err
+	}
+	return packageClientFromSDK(sdkClient).ProcessMessage(ctx, queueURL, message, handler)
 }
