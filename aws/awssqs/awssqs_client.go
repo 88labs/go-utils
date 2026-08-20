@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -31,9 +32,16 @@ const (
 	traceStateMessageAttribute  = "tracestate"
 	maxMessageAttributes        = 10
 	traceMessageAttributeCount  = 2
+	defaultCreateSpanPrefix     = "create"
 	defaultSendSpanPrefix       = "send"
 	defaultProcessSpanPrefix    = "process"
 	defaultDeleteSpanPrefix     = "delete"
+
+	messagingSystem           = "aws_sqs"
+	messagingOperationCreate  = "create"
+	messagingOperationSend    = "send"
+	messagingOperationProcess = "process"
+	messagingOperationSettle  = "settle"
 )
 
 var (
@@ -61,7 +69,12 @@ func (c *Client) SendMessage(
 	ctx context.Context, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption,
 ) (*sqs.SendMessageOutput, error) {
 	conf := sqssend.GetConf(opts...)
-	sendCtx, span, err := c.startSpan(ctx, c.sendSpanName(queueURL), oteltrace.WithSpanKind(oteltrace.SpanKindProducer))
+	sendCtx, span, err := c.startSpan(
+		ctx,
+		c.sendSpanName(queueURL),
+		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
+		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, 0, false, nil)...),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +96,12 @@ func (c *Client) SendMessageGob(
 	ctx context.Context, queueURL QueueURL, message any, opts ...sqssend.SendMessageOption,
 ) (*sqs.SendMessageOutput, error) {
 	conf := sqssend.GetConf(opts...)
-	sendCtx, span, err := c.startSpan(ctx, c.sendSpanName(queueURL), oteltrace.WithSpanKind(oteltrace.SpanKindProducer))
+	sendCtx, span, err := c.startSpan(
+		ctx,
+		c.sendSpanName(queueURL),
+		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
+		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, 0, false, nil)...),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -132,20 +150,31 @@ func (c *Client) sendMessageBody(
 func (c *Client) SendMessageBatch(
 	ctx context.Context, queueURL QueueURL, entries []types.SendMessageBatchRequestEntry,
 ) (*sqs.SendMessageBatchOutput, error) {
-	sendCtx, span, err := c.startSpan(ctx, c.sendSpanName(queueURL), oteltrace.WithSpanKind(oteltrace.SpanKindProducer))
+	prepared, links, err := c.prepareBatchEntries(ctx, queueURL, entries)
+	if err != nil {
+		return nil, err
+	}
+
+	spanOptions := []oteltrace.SpanStartOption{
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(messagingSpanAttributes(
+			queueURL,
+			messagingOperationSend,
+			messagingOperationSend,
+			len(entries),
+			true,
+			nil,
+		)...),
+	}
+	if len(links) > 0 {
+		spanOptions = append(spanOptions, oteltrace.WithLinks(links...))
+	}
+	sendCtx, span, err := c.startSpan(ctx, c.sendSpanName(queueURL), spanOptions...)
 	if err != nil {
 		return nil, err
 	}
 	if span != nil {
 		defer span.End()
-	}
-
-	prepared := make([]types.SendMessageBatchRequestEntry, len(entries))
-	for i := range entries {
-		prepared[i], err = c.prepareBatchEntry(sendCtx, queueURL, entries[i], span)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	sqsRes, err := c.client.SendMessageBatch(sendCtx, &sqs.SendMessageBatchInput{
@@ -156,45 +185,71 @@ func (c *Client) SendMessageBatch(
 		recordSpanError(span, err)
 		return nil, err
 	}
+	if len(sqsRes.Failed) > 0 {
+		recordSpanError(span, batchSendError(sqsRes.Failed))
+	}
 	return sqsRes, nil
+}
+
+func (c *Client) prepareBatchEntries(
+	ctx context.Context, queueURL QueueURL, entries []types.SendMessageBatchRequestEntry,
+) ([]types.SendMessageBatchRequestEntry, []oteltrace.Link, error) {
+	prepared := make([]types.SendMessageBatchRequestEntry, len(entries))
+	links := make([]oteltrace.Link, 0, len(entries))
+	for i := range entries {
+		entry, link, err := c.prepareBatchEntry(ctx, queueURL, entries[i])
+		if err != nil {
+			return nil, nil, err
+		}
+		prepared[i] = entry
+		if link.SpanContext.IsValid() {
+			links = append(links, link)
+		}
+	}
+	return prepared, links, nil
 }
 
 func (c *Client) prepareBatchEntry(
 	ctx context.Context,
 	queueURL QueueURL,
 	entry types.SendMessageBatchRequestEntry,
-	batchSpan oteltrace.Span,
-) (types.SendMessageBatchRequestEntry, error) {
+) (types.SendMessageBatchRequestEntry, oteltrace.Link, error) {
 	prepared := entry
 	if !c.config.traceEnabled {
 		attributes, err := c.messageAttributes(ctx, entry.MessageAttributes)
 		if err != nil {
-			recordSpanError(batchSpan, err)
-			return types.SendMessageBatchRequestEntry{}, err
+			return types.SendMessageBatchRequestEntry{}, oteltrace.Link{}, err
 		}
 		prepared.MessageAttributes = attributes
-		return prepared, nil
+		return prepared, oteltrace.Link{}, nil
 	}
 
 	entryCtx, entrySpan, err := c.startSpan(
 		ctx,
-		c.sendSpanName(queueURL),
+		c.createSpanName(queueURL),
 		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
+		oteltrace.WithAttributes(messagingSpanAttributes(
+			queueURL,
+			messagingOperationCreate,
+			messagingOperationCreate,
+			0,
+			false,
+			nil,
+		)...),
 	)
 	if err != nil {
-		recordSpanError(batchSpan, err)
-		return types.SendMessageBatchRequestEntry{}, err
+		return types.SendMessageBatchRequestEntry{}, oteltrace.Link{}, err
 	}
 	attributes, err := c.messageAttributes(entryCtx, entry.MessageAttributes)
 	if err != nil {
 		recordSpanError(entrySpan, err)
 		entrySpan.End()
-		recordSpanError(batchSpan, err)
-		return types.SendMessageBatchRequestEntry{}, err
+		return types.SendMessageBatchRequestEntry{}, oteltrace.Link{}, err
 	}
+	link := oteltrace.Link{SpanContext: entrySpan.SpanContext()}
 	entrySpan.End()
 	prepared.MessageAttributes = attributes
-	return prepared, nil
+	return prepared, link, nil
 }
 
 // ReceiveMessage receives messages from SQS.
@@ -233,14 +288,19 @@ func (c *Client) ProcessMessage(
 		return c.DeleteMessage(ctx, queueURL, message)
 	}
 
-	sourceSpanContext, hasSourceContext, err := extractMessageSpanContext(message)
-	if err != nil {
-		return err
-	}
+	sourceSpanContext, hasSourceContext, extractionErr := extractMessageSpanContext(message)
 	spanOptions := []oteltrace.SpanStartOption{
 		oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
+		oteltrace.WithAttributes(messagingSpanAttributes(
+			queueURL,
+			messagingOperationProcess,
+			messagingOperationProcess,
+			0,
+			false,
+			message.MessageId,
+		)...),
 	}
-	if hasSourceContext {
+	if extractionErr == nil && hasSourceContext {
 		spanOptions = append(spanOptions, oteltrace.WithLinks(oteltrace.Link{
 			SpanContext: sourceSpanContext,
 		}))
@@ -251,6 +311,9 @@ func (c *Client) ProcessMessage(
 	}
 	defer span.End()
 
+	if extractionErr != nil {
+		recordSpanError(span, extractionErr)
+	}
 	if err := handler(processCtx, message); err != nil {
 		recordSpanError(span, err)
 		return err
@@ -268,6 +331,14 @@ func (c *Client) DeleteMessage(ctx context.Context, queueURL QueueURL, message t
 		ctx,
 		c.deleteSpanName(queueURL),
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(messagingSpanAttributes(
+			queueURL,
+			"delete",
+			messagingOperationSettle,
+			0,
+			false,
+			message.MessageId,
+		)...),
 	)
 	if err != nil {
 		return err
@@ -315,6 +386,10 @@ func (c *Client) sendSpanName(queueURL QueueURL) string {
 		return c.config.sendSpanName
 	}
 	return defaultSendSpanPrefix + " " + queueName(queueURL)
+}
+
+func (c *Client) createSpanName(queueURL QueueURL) string {
+	return defaultCreateSpanPrefix + " " + queueName(queueURL)
 }
 
 func (c *Client) processSpanName(queueURL QueueURL) string {
@@ -368,6 +443,29 @@ func (c *Client) messageAttributes(
 	attributes[traceParentMessageAttribute] = stringMessageAttribute(traceParent)
 	attributes[traceStateMessageAttribute] = stringMessageAttribute(traceState)
 	return attributes, nil
+}
+
+func messagingSpanAttributes(
+	queueURL QueueURL,
+	operationName, operationType string,
+	batchMessageCount int,
+	includeBatchMessageCount bool,
+	messageID *string,
+) []attribute.KeyValue {
+	attributes := []attribute.KeyValue{
+		attribute.String("messaging.system", messagingSystem),
+		attribute.String("messaging.operation.name", operationName),
+		attribute.String("messaging.operation.type", operationType),
+		attribute.String("messaging.destination.name", queueName(queueURL)),
+		attribute.String("aws.sqs.queue.url", queueURL.String()),
+	}
+	if includeBatchMessageCount {
+		attributes = append(attributes, attribute.Int("messaging.batch.message_count", batchMessageCount))
+	}
+	if messageID != nil && *messageID != "" {
+		attributes = append(attributes, attribute.String("messaging.message.id", *messageID))
+	}
+	return attributes
 }
 
 func validateInjectedTraceContext(ctx context.Context, traceParent, traceState string) error {
@@ -426,6 +524,11 @@ func extractMessageSpanContext(message types.Message) (oteltrace.SpanContext, bo
 		return oteltrace.SpanContext{}, false,
 			fmt.Errorf("%w: propagator could not extract message context", ErrInvalidTraceContext)
 	}
+	if hasTraceState && *traceStateAttribute.StringValue != "" &&
+		spanContext.TraceState().String() != *traceStateAttribute.StringValue {
+		return oteltrace.SpanContext{}, false,
+			fmt.Errorf("%w: propagator could not extract message tracestate", ErrInvalidTraceContext)
+	}
 	return spanContext, true, nil
 }
 
@@ -457,6 +560,26 @@ func recordSpanError(span oteltrace.Span, err error) {
 	}
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
+}
+
+func batchSendError(failed []types.BatchResultErrorEntry) error {
+	details := make([]string, 0, len(failed))
+	for _, entry := range failed {
+		details = append(details, fmt.Sprintf(
+			"id=%s code=%s message=%s",
+			stringValue(entry.Id),
+			stringValue(entry.Code),
+			stringValue(entry.Message),
+		))
+	}
+	return fmt.Errorf("awssqs: %d batch message(s) failed: %s", len(failed), strings.Join(details, "; "))
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func queueName(queueURL QueueURL) string {

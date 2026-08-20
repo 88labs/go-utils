@@ -78,6 +78,10 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 	require.Equal(t, parentSpan.SpanContext().TraceID(), sendSpan.Parent().TraceID())
 	require.Equal(t, propagatedSpanContext.SpanID(), sendSpan.SpanContext().SpanID())
 	require.Equal(t, propagatedSpanContext.TraceID(), sendSpan.SpanContext().TraceID())
+	require.Equal(t, "aws_sqs", spanAttribute(sendSpan, "messaging.system"))
+	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.name"))
+	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.type"))
+	require.Equal(t, "orders", spanAttribute(sendSpan, "messaging.destination.name"))
 }
 
 func TestSendMessageWithoutTraceDoesNotInjectMessageAttributes(t *testing.T) {
@@ -145,7 +149,47 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 		traceParents[*entry.MessageAttributes["traceparent"].StringValue] = struct{}{}
 	}
 	require.Len(t, traceParents, 2)
-	require.Len(t, spansNamed(recorder, "send orders"), 3)
+
+	createSpans := spansNamed(recorder, "create orders")
+	require.Len(t, createSpans, 2)
+	sendSpan := endedSpan(t, recorder, "send orders")
+	require.Equal(t, oteltrace.SpanKindClient, sendSpan.SpanKind())
+	require.Len(t, sendSpan.Links(), 2)
+	for _, createSpan := range createSpans {
+		require.Contains(t, linkedSpanIDs(sendSpan), createSpan.SpanContext().SpanID())
+	}
+	require.Equal(t, "aws_sqs", spanAttribute(sendSpan, "messaging.system"))
+	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.name"))
+	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.type"))
+	require.Equal(t, "orders", spanAttribute(sendSpan, "messaging.destination.name"))
+	require.Equal(t, int64(2), spanIntAttribute(sendSpan, "messaging.batch.message_count"))
+}
+
+func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSQSResponse(w, `{"Successful":[{"Id":"one","MessageId":"message-one"}],"Failed":[{"Id":"two","Code":"InvalidMessageContents","Message":"invalid body","SenderFault":true}]}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, recorder := newTraceProvider(t)
+	restorePropagator := setTraceContextPropagator()
+	t.Cleanup(restorePropagator)
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	require.NoError(t, err)
+
+	_, err = client.SendMessageBatch(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), []types.SendMessageBatchRequestEntry{
+		{Id: aws.String("one"), MessageBody: aws.String("one")},
+		{Id: aws.String("two"), MessageBody: aws.String("two")},
+	})
+	require.NoError(t, err)
+
+	sendSpan := endedSpan(t, recorder, "send orders")
+	require.Equal(t, "Error", sendSpan.Status().Code.String())
+	require.Contains(t, sendSpan.Status().Description, "1 batch message(s) failed")
+	require.Contains(t, sendSpan.Status().Description, "id=two")
+	require.Contains(t, sendSpan.Status().Description, "InvalidMessageContents")
+	require.Contains(t, sendSpan.Status().Description, "invalid body")
 }
 
 func TestSendMessageWithTraceRejectsInvalidConfigurationBeforeSQS(t *testing.T) {
@@ -273,6 +317,57 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	require.True(t, processSpan.Links()[0].SpanContext.IsRemote())
 	require.Equal(t, processSpan.SpanContext(), endedSpan(t, recorder, "delete orders").Parent())
 	require.Equal(t, processSpan.SpanContext(), handlerSpanContext)
+	require.Equal(t, "aws_sqs", spanAttribute(processSpan, "messaging.system"))
+	require.Equal(t, "process", spanAttribute(processSpan, "messaging.operation.name"))
+	require.Equal(t, "process", spanAttribute(processSpan, "messaging.operation.type"))
+	require.Equal(t, "orders", spanAttribute(processSpan, "messaging.destination.name"))
+	require.Equal(t, "aws_sqs", spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.system"))
+	require.Equal(t, "settle", spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.operation.type"))
+}
+
+func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
+	var deleteCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Amz-Target") == "AmazonSQS.DeleteMessage" {
+			deleteCount.Add(1)
+		}
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, recorder := newTraceProvider(t)
+	restorePropagator := setTraceContextPropagator()
+	t.Cleanup(restorePropagator)
+	workerCtx, workerSpan := provider.Tracer("worker").Start(context.Background(), "worker")
+	t.Cleanup(func() { workerSpan.End() })
+	ctx := localSQSContext(workerCtx, server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	require.NoError(t, err)
+
+	var handlerSpanContext oteltrace.SpanContext
+	err = client.ProcessMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		types.Message{
+			ReceiptHandle: aws.String("receipt"),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"traceparent": stringAttribute("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+				"tracestate":  stringAttribute("invalid"),
+			},
+		},
+		func(handlerCtx context.Context, _ types.Message) error {
+			handlerSpanContext = oteltrace.SpanContextFromContext(handlerCtx)
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), deleteCount.Load())
+
+	processSpan := endedSpan(t, recorder, "process orders")
+	require.Equal(t, workerSpan.SpanContext().SpanID(), processSpan.Parent().SpanID())
+	require.Empty(t, processSpan.Links())
+	require.Equal(t, processSpan.SpanContext(), handlerSpanContext)
+	require.Equal(t, "Error", processSpan.Status().Code.String())
 }
 
 func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
@@ -351,4 +446,30 @@ func spansNamed(recorder *tracetest.SpanRecorder, name string) []sdktrace.ReadOn
 		}
 	}
 	return matches
+}
+
+func linkedSpanIDs(span sdktrace.ReadOnlySpan) []oteltrace.SpanID {
+	ids := make([]oteltrace.SpanID, 0, len(span.Links()))
+	for _, link := range span.Links() {
+		ids = append(ids, link.SpanContext.SpanID())
+	}
+	return ids
+}
+
+func spanAttribute(span sdktrace.ReadOnlySpan, key string) string {
+	for _, attribute := range span.Attributes() {
+		if string(attribute.Key) == key {
+			return attribute.Value.AsString()
+		}
+	}
+	return ""
+}
+
+func spanIntAttribute(span sdktrace.ReadOnlySpan, key string) int64 {
+	for _, attribute := range span.Attributes() {
+		if string(attribute.Key) == key {
+			return attribute.Value.AsInt64()
+		}
+	}
+	return 0
 }

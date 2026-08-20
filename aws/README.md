@@ -452,7 +452,11 @@ for _, msg := range out.Messages {
 leaving at most eight application attributes. The reserved attributes are
 added as SQS `String` attributes and cannot be supplied by the caller.
 Application attribute maps are copied before trace attributes are added.
-`SendMessageBatch` creates an independent creation context for every entry.
+`SendMessageBatch` creates a `create <queue>` producer span for every entry and
+a `send <queue>` client span linked to those creation contexts. Partial failures
+returned in the batch response are recorded on the send span.
+Malformed or incomplete incoming trace attributes are recorded on the process
+span, but do not prevent the handler or acknowledgement from running.
 The package-level helpers use the same behavior when the singleton is first
 initialized with `awssqs.GetClient(ctx, region, awssqs.WithTrace(provider))`.
 
