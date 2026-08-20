@@ -509,7 +509,12 @@ func extractMessageSpanContext(message types.Message) (oteltrace.SpanContext, bo
 		traceParentMessageAttribute: *traceParentAttribute.StringValue,
 	}
 	if hasTraceState && *traceStateAttribute.StringValue != "" {
-		carrier[traceStateMessageAttribute] = *traceStateAttribute.StringValue
+		traceState := *traceStateAttribute.StringValue
+		if _, err := oteltrace.ParseTraceState(traceState); err != nil {
+			return oteltrace.SpanContext{}, false,
+				fmt.Errorf("%w: invalid message tracestate", ErrInvalidTraceContext)
+		}
+		carrier[traceStateMessageAttribute] = traceState
 	}
 	propagator := otel.GetTextMapPropagator()
 	if propagator == nil {
@@ -520,11 +525,6 @@ func extractMessageSpanContext(message types.Message) (oteltrace.SpanContext, bo
 	if !spanContext.IsValid() {
 		return oteltrace.SpanContext{}, false,
 			fmt.Errorf("%w: propagator could not extract message context", ErrInvalidTraceContext)
-	}
-	if hasTraceState && *traceStateAttribute.StringValue != "" &&
-		spanContext.TraceState().String() != *traceStateAttribute.StringValue {
-		return oteltrace.SpanContext{}, false,
-			fmt.Errorf("%w: propagator could not extract message tracestate", ErrInvalidTraceContext)
 	}
 	return spanContext, true, nil
 }
