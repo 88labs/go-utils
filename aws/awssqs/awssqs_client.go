@@ -299,21 +299,9 @@ func (c *Client) startSpan(
 	if provider == nil {
 		provider = otel.GetTracerProvider()
 	}
-	if provider == nil {
-		return nil, nil, ErrTraceProviderNotConfigured
-	}
 	tracer := provider.Tracer(traceInstrumentationName)
-	if tracer == nil {
-		return nil, nil, ErrTraceProviderNotConfigured
-	}
 	spanCtx, span := tracer.Start(ctx, name, options...)
-	if span == nil {
-		return nil, nil, ErrTraceProviderNotConfigured
-	}
-	if !oteltrace.SpanContextFromContext(spanCtx).IsValid() && span.SpanContext().IsValid() {
-		spanCtx = oteltrace.ContextWithSpan(spanCtx, span)
-	}
-	if !oteltrace.SpanContextFromContext(spanCtx).IsValid() {
+	if !span.SpanContext().IsValid() {
 		err := fmt.Errorf("%w: tracer returned an invalid span context", ErrTraceProviderNotConfigured)
 		recordSpanError(span, err)
 		span.End()
