@@ -417,6 +417,52 @@ err = client.DeleteMessage(ctx, queueURL, out.Messages[0])
 raw := client.SQSClient()
 ```
 
+#### Trace propagation and message processing
+
+Tracing is opt-in. Configure the W3C propagator before creating a traced
+client. Send spans are named `send <queue>`, process spans are named
+`process <queue>`, and the sender's context is linked to the worker process
+span rather than used as its parent.
+
+```go
+import (
+    "context"
+
+    "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+    "github.com/88labs/go-utils/aws/awssqs"
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/propagation"
+)
+
+otel.SetTextMapPropagator(propagation.TraceContext{})
+provider := otel.GetTracerProvider()
+client, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(provider))
+
+_, err = client.SendMessage(ctx, queueURL, Task{ID: "t3"})
+out, err := client.ReceiveMessage(ctx, queueURL)
+for _, msg := range out.Messages {
+    err = client.ProcessMessage(ctx, queueURL, msg, func(ctx context.Context, msg types.Message) error {
+        // process msg using ctx
+        return nil // ProcessMessage deletes the message after a nil result
+    })
+}
+```
+
+`WithTrace` reserves the `traceparent` and `tracestate` message attributes,
+leaving at most eight application attributes. The reserved attributes are
+added as SQS `String` attributes and cannot be supplied by the caller.
+Application attribute maps are copied before trace attributes are added.
+`SendMessageBatch` creates an independent creation context for every entry.
+The package-level helpers use the same behavior when the singleton is first
+initialized with `awssqs.GetClient(ctx, region, awssqs.WithTrace(provider))`.
+
+`ReceiveMessage` remains a thin SDK wrapper. `ProcessMessage` handles one
+message at a time, calls the handler, and deletes the message only when the
+handler and acknowledgement both succeed. It does not start a receive loop,
+retry messages, or manage visibility timeouts. Calls through `SQSClient()` use
+the raw AWS SDK and do not receive message-attribute propagation or the
+`ProcessMessage` acknowledgement contract.
+
 ---
 
 ### awscognito

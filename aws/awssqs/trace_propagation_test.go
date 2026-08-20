@@ -169,6 +169,60 @@ func TestSendMessageWithTraceRejectsInvalidConfigurationBeforeSQS(t *testing.T) 
 	require.Zero(t, requestCount.Load())
 }
 
+func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		writeSQSResponse(w, `{"MessageId":"message-id"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, _ := newTraceProvider(t)
+	restorePropagator := setTraceContextPropagator()
+	t.Cleanup(restorePropagator)
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	require.NoError(t, err)
+	queueURL := awssqs.QueueURL(server.URL + "/000000000000/orders")
+
+	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(
+		map[string]types.MessageAttributeValue{
+			"traceparent": stringAttribute("caller-value"),
+		},
+	))
+	require.ErrorIs(t, err, awssqs.ErrReservedMessageAttribute)
+
+	tooMany := make(map[string]types.MessageAttributeValue, 9)
+	for i := 0; i < 9; i++ {
+		tooMany[string(rune('a'+i))] = stringAttribute("value")
+	}
+	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(tooMany))
+	require.ErrorIs(t, err, awssqs.ErrTooManyMessageAttributes)
+	require.Zero(t, requestCount.Load())
+}
+
+func TestSendMessageWithTraceUsesCustomSpanName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSQSResponse(w, `{"MessageId":"message-id"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, recorder := newTraceProvider(t)
+	restorePropagator := setTraceContextPropagator()
+	t.Cleanup(restorePropagator)
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(
+		ctx,
+		awsconfig.RegionTokyo,
+		awssqs.WithTrace(provider),
+		awssqs.WithSendSpanName("custom send"),
+	)
+	require.NoError(t, err)
+	_, err = client.SendMessage(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), "message")
+	require.NoError(t, err)
+	require.Len(t, spansNamed(recorder, "custom send"), 1)
+}
+
 func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	var deleteCount atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

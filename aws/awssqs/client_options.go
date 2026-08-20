@@ -21,14 +21,10 @@ func (f clientOptionFunc) apply(cfg *clientConfig) {
 }
 
 // WithTrace enables OpenTelemetry tracing for AWS SDK requests and SQS message
-// propagation created by the client. If no provider is supplied, the globally
-// configured OpenTelemetry provider is used. Datadog v2 spans in request
-// contexts are also accepted as trace parents.
-func WithTrace(providers ...oteltrace.TracerProvider) ClientOption {
-	var provider oteltrace.TracerProvider
-	if len(providers) > 0 {
-		provider = providers[0]
-	}
+// propagation created by the client. A nil provider uses the globally
+// configured OpenTelemetry provider. Datadog v2 spans in request contexts are
+// also accepted as trace parents.
+func WithTrace(provider oteltrace.TracerProvider) ClientOption {
 	return clientOptionFunc(func(cfg *clientConfig) {
 		cfg.traceProvider = provider
 		cfg.traceEnabled = true
