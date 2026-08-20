@@ -42,6 +42,7 @@ const (
 	messagingOperationSend    = "send"
 	messagingOperationProcess = "process"
 	messagingOperationSettle  = "settle"
+	messagingOperationDelete  = "delete"
 )
 
 var (
@@ -73,7 +74,7 @@ func (c *Client) SendMessage(
 		ctx,
 		c.sendSpanName(queueURL),
 		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
-		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, 0, false, nil)...),
+		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, nil, nil)...),
 	)
 	if err != nil {
 		return nil, err
@@ -100,7 +101,7 @@ func (c *Client) SendMessageGob(
 		ctx,
 		c.sendSpanName(queueURL),
 		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
-		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, 0, false, nil)...),
+		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, nil, nil)...),
 	)
 	if err != nil {
 		return nil, err
@@ -155,14 +156,14 @@ func (c *Client) SendMessageBatch(
 		return nil, err
 	}
 
+	batchMessageCount := len(entries)
 	spanOptions := []oteltrace.SpanStartOption{
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(messagingSpanAttributes(
 			queueURL,
 			messagingOperationSend,
 			messagingOperationSend,
-			len(entries),
-			true,
+			&batchMessageCount,
 			nil,
 		)...),
 	}
@@ -232,8 +233,7 @@ func (c *Client) prepareBatchEntry(
 			queueURL,
 			messagingOperationCreate,
 			messagingOperationCreate,
-			0,
-			false,
+			nil,
 			nil,
 		)...),
 	)
@@ -295,8 +295,7 @@ func (c *Client) ProcessMessage(
 			queueURL,
 			messagingOperationProcess,
 			messagingOperationProcess,
-			0,
-			false,
+			nil,
 			message.MessageId,
 		)...),
 	}
@@ -333,10 +332,9 @@ func (c *Client) DeleteMessage(ctx context.Context, queueURL QueueURL, message t
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(messagingSpanAttributes(
 			queueURL,
-			"delete",
+			messagingOperationDelete,
 			messagingOperationSettle,
-			0,
-			false,
+			nil,
 			message.MessageId,
 		)...),
 	)
@@ -448,8 +446,7 @@ func (c *Client) messageAttributes(
 func messagingSpanAttributes(
 	queueURL QueueURL,
 	operationName, operationType string,
-	batchMessageCount int,
-	includeBatchMessageCount bool,
+	batchMessageCount *int,
 	messageID *string,
 ) []attribute.KeyValue {
 	attributes := []attribute.KeyValue{
@@ -459,8 +456,8 @@ func messagingSpanAttributes(
 		attribute.String("messaging.destination.name", queueName(queueURL)),
 		attribute.String("aws.sqs.queue.url", queueURL.String()),
 	}
-	if includeBatchMessageCount {
-		attributes = append(attributes, attribute.Int("messaging.batch.message_count", batchMessageCount))
+	if batchMessageCount != nil {
+		attributes = append(attributes, attribute.Int("messaging.batch.message_count", *batchMessageCount))
 	}
 	if messageID != nil && *messageID != "" {
 		attributes = append(attributes, attribute.String("messaging.message.id", *messageID))
