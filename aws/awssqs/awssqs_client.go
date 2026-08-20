@@ -223,10 +223,10 @@ func (c *Client) ReceiveMessage(
 func (c *Client) ProcessMessage(
 	ctx context.Context, queueURL QueueURL, message types.Message, handler MessageHandler,
 ) error {
+	if handler == nil {
+		return ErrNilMessageHandler
+	}
 	if !c.config.traceEnabled {
-		if handler == nil {
-			return ErrNilMessageHandler
-		}
 		if err := handler(ctx, message); err != nil {
 			return err
 		}
@@ -251,10 +251,6 @@ func (c *Client) ProcessMessage(
 	}
 	defer span.End()
 
-	if handler == nil {
-		recordSpanError(span, ErrNilMessageHandler)
-		return ErrNilMessageHandler
-	}
 	if err := handler(processCtx, message); err != nil {
 		recordSpanError(span, err)
 		return err
@@ -271,7 +267,7 @@ func (c *Client) DeleteMessage(ctx context.Context, queueURL QueueURL, message t
 	deleteCtx, span, err := c.startSpan(
 		ctx,
 		c.deleteSpanName(queueURL),
-		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	if err != nil {
 		return err
