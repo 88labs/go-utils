@@ -25,19 +25,6 @@ func WithOperationName(operationName string) OptionOperationName {
 	return OptionOperationName(operationName)
 }
 
-// WithSpanName is an alias for WithOperationName. The supplied value is the
-// operation portion; the queue name is retained in the final span name.
-func WithSpanName(operationName string) OptionOperationName {
-	return WithOperationName(operationName)
-}
-
-// WithProcessSpanName is an alias for WithOperationName kept for callers that
-// prefer an operation-specific option name. It applies only to the current
-// process call and retains the queue name.
-func WithProcessSpanName(operationName string) OptionOperationName {
-	return WithOperationName(operationName)
-}
-
 func GetConf(opts ...ProcessMessageOption) confProcessMessage {
 	var c confProcessMessage
 	for _, opt := range opts {

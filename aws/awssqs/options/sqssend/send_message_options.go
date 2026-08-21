@@ -54,19 +54,6 @@ func WithOperationName(operationName string) OptionOperationName {
 	return OptionOperationName(operationName)
 }
 
-// WithSpanName is an alias for WithOperationName. The supplied value is the
-// operation portion; the queue name is retained in the final span name.
-func WithSpanName(operationName string) OptionOperationName {
-	return WithOperationName(operationName)
-}
-
-// WithSendSpanName is an alias for WithOperationName kept for callers that
-// prefer an operation-specific option name. It applies only to the current
-// send call and retains the queue name.
-func WithSendSpanName(operationName string) OptionOperationName {
-	return WithOperationName(operationName)
-}
-
 // OptionMessageAttributes supplies application-defined SQS message
 // attributes. With tracing enabled, traceparent and tracestate are reserved,
 // leaving at most eight application-defined attributes. Trace attributes use
