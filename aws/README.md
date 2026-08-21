@@ -59,6 +59,18 @@ When a request context contains a Datadog v2 span but no valid OpenTelemetry
 parent context used by the AWS span. The bridge does not create or finish
 Datadog spans.
 
+#### SQS message-attribute trace propagation rules
+
+When SQS message trace propagation is enabled, `traceparent` and `tracestate`
+are reserved message attributes. They use the SQS `String` data type and
+consume two of SQS's ten attribute slots, leaving at most eight for
+application-defined attributes. `baggage` is not propagated automatically.
+The final attribute count and injected W3C context are validated before the
+SQS request is sent; invalid trace attributes, reserved caller attributes, or
+an over-limit request return an error without sending a partial context.
+These rules preserve W3C Trace Context while respecting the
+[Amazon SQS message-attribute limit](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-message-metadata.html).
+
 Package-level helpers use singleton clients. Initialize each singleton with
 `WithTrace` before its first request; options passed after initialization do
 not reconfigure an existing client. S3 and SQS are initialized through
@@ -416,6 +428,61 @@ err = client.DeleteMessage(ctx, queueURL, out.Messages[0])
 // Access the underlying *sqs.Client
 raw := client.SQSClient()
 ```
+
+#### Trace propagation and message processing
+
+Tracing is opt-in. Configure the W3C propagator before creating a traced
+client. Send spans are named `send <queue>`, process spans are named
+`process <queue>`, and the sender's context is linked to the worker process
+span rather than used as its parent. To customize only the operation portion
+for one call, use `sqssend.WithOperationName("publish")` or
+`sqsprocess.WithOperationName("consume")`; the queue name remains in the final
+span name.
+
+```go
+import (
+    "context"
+
+    "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+    "github.com/88labs/go-utils/aws/awssqs"
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/propagation"
+)
+
+otel.SetTextMapPropagator(propagation.TraceContext{})
+provider := otel.GetTracerProvider()
+client, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(provider))
+
+_, err = client.SendMessage(ctx, queueURL, Task{ID: "t3"})
+out, err := client.ReceiveMessage(ctx, queueURL)
+for _, msg := range out.Messages {
+    err = client.ProcessMessage(ctx, queueURL, msg, func(ctx context.Context, msg types.Message) error {
+        // process msg using ctx
+        return nil // ProcessMessage deletes the message after a nil result
+    })
+}
+```
+
+`WithTrace` reserves the `traceparent` and `tracestate` message attributes,
+leaving at most eight application attributes. The reserved attributes are
+added as SQS `String` attributes and cannot be supplied by the caller.
+Application attribute maps are copied before trace attributes are added.
+`SendMessageBatch` creates a `create <queue>` producer span for every entry and
+a `send <queue>` client span linked to those creation contexts. Partial failures
+returned in the batch response are recorded on the send span. The SDK response
+and its `Failed` entries are returned unchanged with a nil Go error, matching
+the AWS SDK contract.
+Malformed or incomplete incoming trace attributes are recorded on the process
+span, but do not prevent the handler or acknowledgement from running.
+The package-level helpers use the same behavior when the singleton is first
+initialized with `awssqs.GetClient(ctx, region, awssqs.WithTrace(provider))`.
+
+`ReceiveMessage` remains a thin SDK wrapper. `ProcessMessage` handles one
+message at a time, calls the handler, and deletes the message only when the
+handler and acknowledgement both succeed. It does not start a receive loop,
+retry messages, or manage visibility timeouts. Calls through `SQSClient()` use
+the raw AWS SDK and do not receive message-attribute propagation or the
+`ProcessMessage` acknowledgement contract.
 
 ---
 

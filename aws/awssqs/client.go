@@ -3,6 +3,7 @@ package awssqs
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,13 +16,18 @@ import (
 	"github.com/88labs/go-utils/aws/internal/awstrace"
 )
 
-var sqsClientAtomic atomic.Pointer[sqs.Client]
+var (
+	sqsClientAtomic atomic.Pointer[sqs.Client]
+	sqsClientConfig atomic.Pointer[clientConfig]
+	sqsClientInitMu sync.Mutex
+)
 
 // Client is an SQS client that manages its own SDK client instance.
 // Unlike the package-level functions that use a singleton, each Client holds
 // its own *sqs.Client, enabling external lifecycle management.
 type Client struct {
 	client *sqs.Client
+	config clientConfig
 }
 
 // NewClient creates a new Client for the given region.
@@ -37,7 +43,7 @@ func NewClient(ctx context.Context, region awsconfig.Region, opts ...ClientOptio
 	if err != nil {
 		return nil, err
 	}
-	return &Client{client: sdkClient}, nil
+	return &Client{client: sdkClient, config: cfg}, nil
 }
 
 // SQSClient returns the underlying *sqs.Client for advanced usage.
@@ -47,8 +53,17 @@ func (c *Client) SQSClient() *sqs.Client {
 
 // GetClient returns the package-level singleton SQS client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks.
-// Options are used only when the singleton is initialized.
+// Options, including WithTrace, are used only on the first initialization;
+// later calls return the existing singleton and do not reconfigure it. For a
+// traced singleton, SendMessage and SendMessageBatch require a usable W3C
+// propagator and trace provider before sending, reserve two message
+// attributes for trace context, and leave at most eight for application data.
 func GetClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*sqs.Client, error) {
+	if v := sqsClientAtomic.Load(); v != nil {
+		return v, nil
+	}
+	sqsClientInitMu.Lock()
+	defer sqsClientInitMu.Unlock()
 	if v := sqsClientAtomic.Load(); v != nil {
 		return v, nil
 	}
@@ -62,8 +77,17 @@ func GetClient(ctx context.Context, region awsconfig.Region, opts ...ClientOptio
 	if err != nil {
 		return nil, err
 	}
+	sqsClientConfig.Store(&cfg)
 	sqsClientAtomic.Store(sdkClient)
 	return sdkClient, nil
+}
+
+func packageClientFromSDK(sdkClient *sqs.Client) *Client {
+	cfg := clientConfig{}
+	if stored := sqsClientConfig.Load(); stored != nil {
+		cfg = *stored
+	}
+	return &Client{client: sdkClient, config: cfg}
 }
 
 // newSQSClient creates a fresh *sqs.Client without touching the singleton.
