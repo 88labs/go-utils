@@ -59,6 +59,18 @@ When a request context contains a Datadog v2 span but no valid OpenTelemetry
 parent context used by the AWS span. The bridge does not create or finish
 Datadog spans.
 
+#### SQS message-attribute trace propagation rules
+
+When SQS message trace propagation is enabled, `traceparent` and `tracestate`
+are reserved message attributes. They use the SQS `String` data type and
+consume two of SQS's ten attribute slots, leaving at most eight for
+application-defined attributes. `baggage` is not propagated automatically.
+The final attribute count and injected W3C context are validated before the
+SQS request is sent; invalid trace attributes, reserved caller attributes, or
+an over-limit request return an error without sending a partial context.
+These rules preserve W3C Trace Context while respecting the
+[Amazon SQS message-attribute limit](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-message-metadata.html).
+
 Package-level helpers use singleton clients. Initialize each singleton with
 `WithTrace` before its first request; options passed after initialization do
 not reconfigure an existing client. S3 and SQS are initialized through
@@ -422,7 +434,10 @@ raw := client.SQSClient()
 Tracing is opt-in. Configure the W3C propagator before creating a traced
 client. Send spans are named `send <queue>`, process spans are named
 `process <queue>`, and the sender's context is linked to the worker process
-span rather than used as its parent.
+span rather than used as its parent. To customize only the operation portion
+for one call, use `sqssend.WithOperationName("publish")` or
+`sqsprocess.WithOperationName("consume")`; the queue name remains in the final
+span name.
 
 ```go
 import (

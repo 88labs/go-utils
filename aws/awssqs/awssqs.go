@@ -10,14 +10,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
+	"github.com/88labs/go-utils/aws/awssqs/options/sqsprocess"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqsreceive"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqssend"
 )
 
-// SendMessage
-// aws-sdk-go v2 sqs SentMessage
-// convert message to json and send to sqs.
-// default DelaySeconds=0
+// SendMessage converts a value to JSON and sends it to SQS. When tracing is
+// enabled with WithTrace, the W3C propagator and trace provider must be usable
+// before the SQS request is sent. Traceparent and tracestate are reserved SQS
+// message attributes, leaving at most eight application attributes. The
+// operation-specific options apply only to this call.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func SendMessage(
@@ -30,24 +32,27 @@ func SendMessage(
 	return packageClientFromSDK(sdkClient).SendMessage(ctx, queueURL, message, opts...)
 }
 
-// SendMessageBatch sends a batch of already encoded SQS messages.
+// SendMessageBatch sends a batch of already encoded SQS messages. With tracing,
+// each entry gets a create span and the batch gets a send span linked to those
+// creation contexts. SQS may return Failed entries with a nil Go error; the
+// returned output is preserved and callers must inspect Failed. Batch options
+// apply only to this call.
 func SendMessageBatch(
 	ctx context.Context,
 	region awsconfig.Region,
 	queueURL QueueURL,
 	entries []types.SendMessageBatchRequestEntry,
+	opts ...sqssend.SendMessageBatchOption,
 ) (*sqs.SendMessageBatchOutput, error) {
 	sdkClient, err := GetClient(ctx, region)
 	if err != nil {
 		return nil, err
 	}
-	return packageClientFromSDK(sdkClient).SendMessageBatch(ctx, queueURL, entries)
+	return packageClientFromSDK(sdkClient).SendMessageBatch(ctx, queueURL, entries, opts...)
 }
 
-// SendMessageGob
-// aws-sdk-go v2 sqs SentMessage
-// convert message to gob and send to sqs.
-// default DelaySeconds=0
+// SendMessageGob converts a value to gob encoding and sends it to SQS. The
+// tracing and message-attribute contract is the same as SendMessage.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func SendMessageGob(
@@ -60,9 +65,8 @@ func SendMessageGob(
 	return packageClientFromSDK(sdkClient).SendMessageGob(ctx, queueURL, message, opts...)
 }
 
-// ReceiveMessage
-// aws-sdk-go v2 sqs ReceiveMessage
-// default MaxNumberOfMessages=1, WaitTimeSeconds=20, VisibilityTimeout=30
+// ReceiveMessage receives messages from SQS. It remains a thin SDK wrapper;
+// use ProcessMessage to apply traced processing and acknowledgement semantics.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func ReceiveMessage(
@@ -75,10 +79,7 @@ func ReceiveMessage(
 	return packageClientFromSDK(sdkClient).ReceiveMessage(ctx, queueURL, opts...)
 }
 
-// ReceiveMessageGob
-// aws-sdk-go v2 sqs ReceiveMessage
-// Message received from sqs with gob.
-// default MaxNumberOfMessages=1, WaitTimeSeconds=20, VisibilityTimeout=30
+// ReceiveMessageGob receives messages from SQS and decodes their gob bodies.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func ReceiveMessageGob[T any](
@@ -123,8 +124,8 @@ func ReceiveMessageGob[T any](
 	return items, sqsRes, nil
 }
 
-// DeleteMessage
-// aws-sdk-go v2 sqs DeleteMessage
+// DeleteMessage deletes a message from SQS. When tracing is enabled, the
+// acknowledgement is represented by a delete span.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func DeleteMessage(ctx context.Context, region awsconfig.Region, queueURL QueueURL, message types.Message) error {
@@ -136,17 +137,23 @@ func DeleteMessage(ctx context.Context, region awsconfig.Region, queueURL QueueU
 }
 
 // ProcessMessage processes one received message and deletes it only when the
-// handler returns nil.
+// handler returns nil. The worker context is the process-span parent and the
+// sender context is a span link. Invalid incoming trace attributes are
+// recorded on the process span but do not stop the handler or acknowledgement.
+// Process options apply only to this call. Package-level clients use only the
+// WithTrace configuration supplied to GetClient's first initialization; later
+// GetClient calls do not reconfigure the singleton.
 func ProcessMessage(
 	ctx context.Context,
 	region awsconfig.Region,
 	queueURL QueueURL,
 	message types.Message,
 	handler MessageHandler,
+	opts ...sqsprocess.ProcessMessageOption,
 ) error {
 	sdkClient, err := GetClient(ctx, region)
 	if err != nil {
 		return err
 	}
-	return packageClientFromSDK(sdkClient).ProcessMessage(ctx, queueURL, message, handler)
+	return packageClientFromSDK(sdkClient).ProcessMessage(ctx, queueURL, message, handler, opts...)
 }

@@ -21,6 +21,7 @@ import (
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awssqs"
+	"github.com/88labs/go-utils/aws/awssqs/options/sqsprocess"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqssend"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
@@ -133,7 +134,12 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 		{Id: aws.String("one"), MessageBody: aws.String("one")},
 		{Id: aws.String("two"), MessageBody: aws.String("two")},
 	}
-	_, err = client.SendMessageBatch(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), entries)
+	_, err = client.SendMessageBatch(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		entries,
+		sqssend.WithOperationName("publish"),
+	)
 	require.NoError(t, err)
 
 	var request struct {
@@ -152,7 +158,7 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 
 	createSpans := spansNamed(recorder, "create orders")
 	require.Len(t, createSpans, 2)
-	sendSpan := endedSpan(t, recorder, "send orders")
+	sendSpan := endedSpan(t, recorder, "publish orders")
 	require.Equal(t, oteltrace.SpanKindClient, sendSpan.SpanKind())
 	require.Len(t, sendSpan.Links(), 2)
 	for _, createSpan := range createSpans {
@@ -259,12 +265,64 @@ func TestSendMessageWithTraceUsesCustomSpanName(t *testing.T) {
 		ctx,
 		awsconfig.RegionTokyo,
 		awssqs.WithTrace(provider),
-		awssqs.WithSendSpanName("custom send"),
 	)
 	require.NoError(t, err)
-	_, err = client.SendMessage(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), "message")
+	_, err = client.SendMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		"message",
+		sqssend.WithOperationName("publish"),
+	)
 	require.NoError(t, err)
-	require.Len(t, spansNamed(recorder, "custom send"), 1)
+	require.Len(t, spansNamed(recorder, "publish orders"), 1)
+
+	_, err = client.SendMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/invoices"),
+		"message",
+	)
+	require.NoError(t, err)
+	require.Len(t, spansNamed(recorder, "send invoices"), 1)
+}
+
+func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, recorder := newTraceProvider(t)
+	restorePropagator := setTraceContextPropagator()
+	t.Cleanup(restorePropagator)
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		queue    string
+		spanName string
+		opts     []sqsprocess.ProcessMessageOption
+	}{
+		{
+			queue:    "orders",
+			spanName: "consume orders",
+			opts:     []sqsprocess.ProcessMessageOption{sqsprocess.WithOperationName("consume")},
+		},
+		{
+			queue:    "invoices",
+			spanName: "process invoices",
+		},
+	} {
+		err = client.ProcessMessage(
+			ctx,
+			awssqs.QueueURL(server.URL+"/000000000000/"+test.queue),
+			types.Message{ReceiptHandle: aws.String("receipt")},
+			func(context.Context, types.Message) error { return nil },
+			test.opts...,
+		)
+		require.NoError(t, err)
+		require.Len(t, spansNamed(recorder, test.spanName), 1)
+	}
 }
 
 func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
@@ -428,7 +486,7 @@ func stringAttribute(value string) types.MessageAttributeValue {
 
 func writeSQSResponse(w http.ResponseWriter, body string) {
 	w.Header().Set("Content-Type", "application/x-amz-json-1.0")
-	_, _ = w.Write([]byte(body))
+	_ = json.NewEncoder(w).Encode(json.RawMessage(body))
 }
 
 func endedSpan(t *testing.T, recorder *tracetest.SpanRecorder, name string) sdktrace.ReadOnlySpan {

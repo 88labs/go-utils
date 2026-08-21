@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/88labs/go-utils/aws/awssqs/options/sqsprocess"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqsreceive"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqssend"
 	"github.com/88labs/go-utils/aws/internal/awstrace"
@@ -72,7 +73,7 @@ func (c *Client) SendMessage(
 	conf := sqssend.GetConf(opts...)
 	sendCtx, span, err := c.startSpan(
 		ctx,
-		c.sendSpanName(queueURL),
+		c.sendSpanName(queueURL, conf.OperationName),
 		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
 		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, nil, nil)...),
 	)
@@ -99,7 +100,7 @@ func (c *Client) SendMessageGob(
 	conf := sqssend.GetConf(opts...)
 	sendCtx, span, err := c.startSpan(
 		ctx,
-		c.sendSpanName(queueURL),
+		c.sendSpanName(queueURL, conf.OperationName),
 		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
 		oteltrace.WithAttributes(messagingSpanAttributes(queueURL, messagingOperationSend, messagingOperationSend, nil, nil)...),
 	)
@@ -147,10 +148,17 @@ func (c *Client) sendMessageBody(
 }
 
 // SendMessageBatch sends a batch of already encoded SQS messages. Each entry
-// receives an independent trace context when tracing is enabled.
+// receives an independent trace context when tracing is enabled. The optional
+// batch options apply only to this call; a custom operation name retains the
+// queue name in the resulting span name. SQS may return per-entry failures with
+// a nil Go error, so callers must inspect the returned Failed entries.
 func (c *Client) SendMessageBatch(
-	ctx context.Context, queueURL QueueURL, entries []types.SendMessageBatchRequestEntry,
+	ctx context.Context,
+	queueURL QueueURL,
+	entries []types.SendMessageBatchRequestEntry,
+	opts ...sqssend.SendMessageBatchOption,
 ) (*sqs.SendMessageBatchOutput, error) {
+	conf := sqssend.GetBatchConf(opts...)
 	prepared, links, err := c.prepareBatchEntries(ctx, queueURL, entries)
 	if err != nil {
 		return nil, err
@@ -170,7 +178,7 @@ func (c *Client) SendMessageBatch(
 	if len(links) > 0 {
 		spanOptions = append(spanOptions, oteltrace.WithLinks(links...))
 	}
-	sendCtx, span, err := c.startSpan(ctx, c.sendSpanName(queueURL), spanOptions...)
+	sendCtx, span, err := c.startSpan(ctx, c.sendSpanName(queueURL, conf.OperationName), spanOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -273,11 +281,20 @@ func (c *Client) ReceiveMessage(
 }
 
 // ProcessMessage extracts the sender trace context, processes one message, and
-// deletes it only when handler returns nil. The worker context remains the
-// process span's parent; the sender context is represented as a span link.
+// deletes it only when the handler returns nil. The worker context remains the
+// process span's parent; the sender context is represented as a span link. An
+// invalid incoming trace context is recorded on the process span and does not
+// prevent the handler or acknowledgement from running. Optional process
+// options apply only to this call, and retain the queue name in a custom span
+// name.
 func (c *Client) ProcessMessage(
-	ctx context.Context, queueURL QueueURL, message types.Message, handler MessageHandler,
+	ctx context.Context,
+	queueURL QueueURL,
+	message types.Message,
+	handler MessageHandler,
+	opts ...sqsprocess.ProcessMessageOption,
 ) error {
+	conf := sqsprocess.GetConf(opts...)
 	if handler == nil {
 		return ErrNilMessageHandler
 	}
@@ -304,7 +321,7 @@ func (c *Client) ProcessMessage(
 			SpanContext: sourceSpanContext,
 		}))
 	}
-	processCtx, span, err := c.startSpan(ctx, c.processSpanName(queueURL), spanOptions...)
+	processCtx, span, err := c.startSpan(ctx, c.processSpanName(queueURL, conf.OperationName), spanOptions...)
 	if err != nil {
 		return err
 	}
@@ -379,22 +396,22 @@ func (c *Client) startSpan(
 	return spanCtx, span, nil
 }
 
-func (c *Client) sendSpanName(queueURL QueueURL) string {
-	if c.config.sendSpanName != "" {
-		return c.config.sendSpanName
+func (c *Client) sendSpanName(queueURL QueueURL, operationName string) string {
+	if operationName == "" {
+		operationName = defaultSendSpanPrefix
 	}
-	return defaultSendSpanPrefix + " " + queueName(queueURL)
+	return operationName + " " + queueName(queueURL)
 }
 
 func (c *Client) createSpanName(queueURL QueueURL) string {
 	return defaultCreateSpanPrefix + " " + queueName(queueURL)
 }
 
-func (c *Client) processSpanName(queueURL QueueURL) string {
-	if c.config.processSpanName != "" {
-		return c.config.processSpanName
+func (c *Client) processSpanName(queueURL QueueURL, operationName string) string {
+	if operationName == "" {
+		operationName = defaultProcessSpanPrefix
 	}
-	return defaultProcessSpanPrefix + " " + queueName(queueURL)
+	return operationName + " " + queueName(queueURL)
 }
 
 func (c *Client) deleteSpanName(queueURL QueueURL) string {

@@ -53,7 +53,11 @@ func (c *Client) SQSClient() *sqs.Client {
 
 // GetClient returns the package-level singleton SQS client for aws-sdk-go v2.
 // Using ctxawslocal.WithContext, you can make requests for local mocks.
-// Options are used only when the singleton is initialized.
+// Options, including WithTrace, are used only on the first initialization;
+// later calls return the existing singleton and do not reconfigure it. For a
+// traced singleton, SendMessage and SendMessageBatch require a usable W3C
+// propagator and trace provider before sending, reserve two message
+// attributes for trace context, and leave at most eight for application data.
 func GetClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*sqs.Client, error) {
 	if v := sqsClientAtomic.Load(); v != nil {
 		return v, nil

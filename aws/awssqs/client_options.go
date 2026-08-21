@@ -8,10 +8,8 @@ type ClientOption interface {
 }
 
 type clientConfig struct {
-	traceProvider   oteltrace.TracerProvider
-	traceEnabled    bool
-	sendSpanName    string
-	processSpanName string
+	traceProvider oteltrace.TracerProvider
+	traceEnabled  bool
 }
 
 type clientOptionFunc func(*clientConfig)
@@ -24,25 +22,21 @@ func (f clientOptionFunc) apply(cfg *clientConfig) {
 // propagation created by the client. A nil provider uses the globally
 // configured OpenTelemetry provider. Datadog v2 spans in request contexts are
 // also accepted as trace parents.
+//
+// SendMessage and SendMessageBatch reserve the traceparent and tracestate SQS
+// message attributes, leaving at most eight application attributes. They
+// return an error before sending when the W3C propagator or trace provider is
+// not usable, when a reserved attribute is supplied, or when the attribute
+// limit would be exceeded. The trace attributes are encoded as SQS String
+// values and baggage is not propagated. SendMessageBatch can still return a
+// nil Go error with per-entry failures in its Failed field; callers must
+// inspect it.
+// ProcessMessage uses the worker context as the process-span parent and the
+// incoming sender context as a link. Malformed incoming trace attributes are
+// recorded on that span but do not stop the handler or acknowledgement.
 func WithTrace(provider oteltrace.TracerProvider) ClientOption {
 	return clientOptionFunc(func(cfg *clientConfig) {
 		cfg.traceProvider = provider
 		cfg.traceEnabled = true
-	})
-}
-
-// WithSendSpanName configures the name used for SQS send spans. The value is
-// used as-is instead of the default "send <queue>" name.
-func WithSendSpanName(name string) ClientOption {
-	return clientOptionFunc(func(cfg *clientConfig) {
-		cfg.sendSpanName = name
-	})
-}
-
-// WithProcessSpanName configures the name used for SQS process spans. The value
-// is used as-is instead of the default "process <queue>" name.
-func WithProcessSpanName(name string) ClientOption {
-	return clientOptionFunc(func(cfg *clientConfig) {
-		cfg.processSpanName = name
 	})
 }
