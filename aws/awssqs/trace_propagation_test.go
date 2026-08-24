@@ -154,7 +154,7 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 	require.Len(t, request.Entries, 2)
 	traceParents := make(map[string]struct{}, 2)
 	for _, entry := range request.Entries {
-		require.Len(t, entry.MessageAttributes, 2)
+		require.Len(t, entry.MessageAttributes, 1)
 		traceParents[*entry.MessageAttributes["traceparent"].StringValue] = struct{}{}
 	}
 	require.Len(t, traceParents, 2)
