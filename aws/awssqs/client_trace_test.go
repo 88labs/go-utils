@@ -31,7 +31,9 @@ func TestNewClient_WithTraceAddsSDKMiddleware(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("test"),
 	)
 
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(noop.NewTracerProvider(), nil))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: noop.NewTracerProvider(),
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +73,9 @@ func TestNewClient_PropagatesDatadogParentToRequest(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("test"),
 	)
 
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, nil))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

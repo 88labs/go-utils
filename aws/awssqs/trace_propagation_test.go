@@ -39,7 +39,10 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 	parentCtx, parentSpan := provider.Tracer("test").Start(context.Background(), "parent")
 	t.Cleanup(func() { parentSpan.End() })
 	ctx := localSQSContext(parentCtx, server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 
 	attributes := map[string]types.MessageAttributeValue{
@@ -124,7 +127,10 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 
 	provider, recorder := newTraceProvider(t)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 
 	entries := []types.SendMessageBatchRequestEntry{
@@ -176,7 +182,10 @@ func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
 
 	provider, recorder := newTraceProvider(t)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 
 	_, err = client.SendMessageBatch(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), []types.SendMessageBatchRequestEntry{
@@ -193,7 +202,7 @@ func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
 	require.Contains(t, sendSpan.Status().Description, "invalid body")
 }
 
-func TestWithTraceDefaultUsesDefaultPropagator(t *testing.T) {
+func TestWithTraceUsesDefaultConfig(t *testing.T) {
 	var requestBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestBody, _ = io.ReadAll(r.Body)
@@ -218,7 +227,7 @@ func TestWithTraceDefaultUsesDefaultPropagator(t *testing.T) {
 	bag, err := baggage.New(member)
 	require.NoError(t, err)
 	ctx := localSQSContext(baggage.ContextWithBaggage(parentCtx, bag), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTraceDefault())
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{}))
 	require.NoError(t, err)
 
 	_, err = client.SendMessage(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), "message")
@@ -246,7 +255,10 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 
 	provider, _ := newTraceProvider(t)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 	queueURL := awssqs.QueueURL(server.URL + "/000000000000/orders")
 
@@ -277,7 +289,10 @@ func TestSendMessageWithTraceUsesCustomSpanName(t *testing.T) {
 	client, err := awssqs.NewClient(
 		ctx,
 		awsconfig.RegionTokyo,
-		awssqs.WithTrace(provider, propagation.Baggage{}),
+		awssqs.WithTrace(awssqs.TraceConfig{
+			TracerProvider: provider,
+			Propagator:     propagation.Baggage{},
+		}),
 	)
 	require.NoError(t, err)
 	_, err = client.SendMessage(
@@ -306,7 +321,10 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 
 	provider, recorder := newTraceProvider(t)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 
 	for _, test := range []struct {
@@ -355,7 +373,10 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	t.Cleanup(func() { workerSpan.End() })
 
 	ctx := localSQSContext(workerCtx, server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 	message := types.Message{
 		ReceiptHandle: aws.String("receipt"),
@@ -406,7 +427,10 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 	workerCtx, workerSpan := provider.Tracer("worker").Start(context.Background(), "worker")
 	t.Cleanup(func() { workerSpan.End() })
 	ctx := localSQSContext(workerCtx, server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 
 	var handlerSpanContext oteltrace.SpanContext
@@ -445,7 +469,10 @@ func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
 
 	provider, recorder := newTraceProvider(t)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
 	require.NoError(t, err)
 	handlerErr := errors.New("handler failed")
 	err = client.ProcessMessage(
