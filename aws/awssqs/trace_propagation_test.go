@@ -99,18 +99,28 @@ func TestSendReceiveProcessMessageWithTrace(t *testing.T) {
 	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
 		TracerProvider: provider,
 	}))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	queueName := fmt.Sprintf("trace-propagation-%d", time.Now().UnixNano())
 	queueOutput, err := client.SQSClient().CreateQueue(ctx, &sqs.CreateQueueInput{
 		QueueName: aws.String(queueName),
 	})
-	require.NoError(t, err)
-	require.NotNil(t, queueOutput.QueueUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queueOutput == nil || queueOutput.QueueUrl == nil {
+		t.Fatal("CreateQueue returned no queue URL")
+	}
 	queueURLValue, err := url.Parse(*queueOutput.QueueUrl)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	endpointURL, err := url.Parse(sqsEndpoint)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	queueURLValue.Scheme = endpointURL.Scheme
 	queueURLValue.Host = endpointURL.Host
 	queueURL := awssqs.QueueURL(queueURLValue.String())
@@ -123,36 +133,75 @@ func TestSendReceiveProcessMessageWithTrace(t *testing.T) {
 	apiCtx, apiSpan := provider.Tracer("test").Start(context.Background(), "api")
 	defer apiSpan.End()
 	_, err = client.SendMessage(apiCtx, queueURL, "message")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	workerCtx, workerSpan := provider.Tracer("test").Start(context.Background(), "worker")
 	defer workerSpan.End()
 	received, err := client.ReceiveMessage(workerCtx, queueURL, sqsreceive.WithWaitTimeSeconds(0))
-	require.NoError(t, err)
-	require.Len(t, received.Messages, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if received == nil {
+		t.Fatal("ReceiveMessage returned no response")
+	}
+	if len(received.Messages) != 1 {
+		t.Fatalf("received messages = %d, want 1", len(received.Messages))
+	}
 	message := received.Messages[0]
 	traceParent, ok := message.MessageAttributes["traceparent"]
-	require.True(t, ok)
-	require.NotNil(t, traceParent.StringValue)
+	if !ok {
+		t.Fatal("received message has no traceparent attribute")
+	}
+	if traceParent.StringValue == nil {
+		t.Fatal("received traceparent attribute has no string value")
+	}
 
 	var handlerSpanContext oteltrace.SpanContext
 	err = client.ProcessMessage(workerCtx, queueURL, message, func(handlerCtx context.Context, _ types.Message) error {
 		handlerSpanContext = oteltrace.SpanFromContext(handlerCtx).SpanContext()
 		return nil
 	})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	sendSpan := endedSpan(t, recorder, "send "+queueName)
-	processSpan := endedSpan(t, recorder, "process "+queueName)
-	require.Equal(t, apiSpan.SpanContext().TraceID(), sendSpan.Parent().TraceID())
-	require.Equal(t, workerSpan.SpanContext(), processSpan.Parent())
-	require.Equal(t, processSpan.SpanContext(), handlerSpanContext)
-	require.Len(t, processSpan.Links(), 1)
+	sendSpans := spansNamed(recorder, "send "+queueName)
+	if len(sendSpans) != 1 {
+		t.Fatalf("send spans = %d, want 1", len(sendSpans))
+	}
+	sendSpan := sendSpans[0]
+	processSpans := spansNamed(recorder, "process "+queueName)
+	if len(processSpans) != 1 {
+		t.Fatalf("process spans = %d, want 1", len(processSpans))
+	}
+	processSpan := processSpans[0]
+	if got, want := sendSpan.Parent().TraceID(), apiSpan.SpanContext().TraceID(); got != want {
+		t.Fatalf("send parent trace ID = %s, want %s", got, want)
+	}
+	if !workerSpan.SpanContext().Equal(processSpan.Parent()) {
+		t.Fatalf("process parent = %v, want worker span %v", processSpan.Parent(), workerSpan.SpanContext())
+	}
+	if !processSpan.SpanContext().Equal(handlerSpanContext) {
+		t.Fatalf("handler span = %v, want process span %v", handlerSpanContext, processSpan.SpanContext())
+	}
+	if len(processSpan.Links()) != 1 {
+		t.Fatalf("process links = %d, want 1", len(processSpan.Links()))
+	}
 	senderLink := processSpan.Links()[0].SpanContext
-	require.Equal(t, sendSpan.SpanContext().TraceID(), senderLink.TraceID())
-	require.Equal(t, sendSpan.SpanContext().SpanID(), senderLink.SpanID())
-	require.True(t, senderLink.IsRemote())
-	endedSpan(t, recorder, "delete "+queueName)
+	if got, want := senderLink.TraceID(), sendSpan.SpanContext().TraceID(); got != want {
+		t.Fatalf("sender link trace ID = %s, want %s", got, want)
+	}
+	if got, want := senderLink.SpanID(), sendSpan.SpanContext().SpanID(); got != want {
+		t.Fatalf("sender link span ID = %s, want %s", got, want)
+	}
+	if !senderLink.IsRemote() {
+		t.Fatal("sender link is not remote")
+	}
+	if deleteSpans := spansNamed(recorder, "delete "+queueName); len(deleteSpans) != 1 {
+		t.Fatalf("delete spans = %d, want 1", len(deleteSpans))
+	}
 }
 
 func TestSendMessageWithoutTraceDoesNotInjectMessageAttributes(t *testing.T) {
