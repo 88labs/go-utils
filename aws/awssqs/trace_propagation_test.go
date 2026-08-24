@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -35,13 +36,10 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
-
 	parentCtx, parentSpan := provider.Tracer("test").Start(context.Background(), "parent")
 	t.Cleanup(func() { parentSpan.End() })
 	ctx := localSQSContext(parentCtx, server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 
 	attributes := map[string]types.MessageAttributeValue{
@@ -59,10 +57,11 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 		MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
 	}
 	require.NoError(t, json.Unmarshal(requestBody, &request))
-	require.Len(t, request.MessageAttributes, 3)
+	require.Len(t, request.MessageAttributes, 2)
 	require.Equal(t, "value", *request.MessageAttributes["business"].StringValue)
 	require.Equal(t, "String", *request.MessageAttributes["traceparent"].DataType)
-	require.Equal(t, "String", *request.MessageAttributes["tracestate"].DataType)
+	_, hasTraceState := request.MessageAttributes["tracestate"]
+	require.False(t, hasTraceState)
 	require.Len(t, attributes, 1)
 	_, hasTraceParent := attributes["traceparent"]
 	require.False(t, hasTraceParent)
@@ -124,10 +123,8 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 
 	entries := []types.SendMessageBatchRequestEntry{
@@ -178,10 +175,8 @@ func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 
 	_, err = client.SendMessageBatch(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), []types.SendMessageBatchRequestEntry{
@@ -198,25 +193,47 @@ func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
 	require.Contains(t, sendSpan.Status().Description, "invalid body")
 }
 
-func TestSendMessageWithTraceRejectsInvalidConfigurationBeforeSQS(t *testing.T) {
-	var requestCount atomic.Int32
+func TestWithTraceDefaultUsesDefaultPropagator(t *testing.T) {
+	var requestBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount.Add(1)
+		requestBody, _ = io.ReadAll(r.Body)
 		writeSQSResponse(w, `{"MessageId":"message-id"}`)
 	}))
 	t.Cleanup(server.Close)
 
-	provider, _ := newTraceProvider(t)
+	provider, recorder := newTraceProvider(t)
+	previousProvider := otel.GetTracerProvider()
 	previousPropagator := otel.GetTextMapPropagator()
+	otel.SetTracerProvider(provider)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
-	t.Cleanup(func() { otel.SetTextMapPropagator(previousPropagator) })
-	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	t.Cleanup(func() {
+		otel.SetTextMapPropagator(previousPropagator)
+		otel.SetTracerProvider(previousProvider)
+	})
+
+	parentCtx, parentSpan := provider.Tracer("test").Start(context.Background(), "parent")
+	t.Cleanup(func() { parentSpan.End() })
+	member, err := baggage.NewMember("tenant", "board")
+	require.NoError(t, err)
+	bag, err := baggage.New(member)
+	require.NoError(t, err)
+	ctx := localSQSContext(baggage.ContextWithBaggage(parentCtx, bag), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTraceDefault())
 	require.NoError(t, err)
 
 	_, err = client.SendMessage(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), "message")
-	require.ErrorIs(t, err, awssqs.ErrTracePropagatorNotConfigured)
-	require.Zero(t, requestCount.Load())
+	require.NoError(t, err)
+
+	var request struct {
+		MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
+	}
+	require.NoError(t, json.Unmarshal(requestBody, &request))
+	require.Contains(t, request.MessageAttributes, "traceparent")
+	require.Contains(t, request.MessageAttributes, "baggage")
+	require.NotEmpty(t, request.MessageAttributes["baggage"].StringValue)
+	require.Len(t, request.MessageAttributes, 2)
+	sendSpan := endedSpan(t, recorder, "send orders")
+	require.Equal(t, parentSpan.SpanContext().TraceID(), sendSpan.Parent().TraceID())
 }
 
 func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
@@ -228,10 +245,8 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, _ := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 	queueURL := awssqs.QueueURL(server.URL + "/000000000000/orders")
 
@@ -242,8 +257,8 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 	))
 	require.ErrorIs(t, err, awssqs.ErrReservedMessageAttribute)
 
-	tooMany := make(map[string]types.MessageAttributeValue, 9)
-	for i := 0; i < 9; i++ {
+	tooMany := make(map[string]types.MessageAttributeValue, 8)
+	for i := 0; i < 8; i++ {
 		tooMany[string(rune('a'+i))] = stringAttribute("value")
 	}
 	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(tooMany))
@@ -258,13 +273,11 @@ func TestSendMessageWithTraceUsesCustomSpanName(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	ctx := localSQSContext(context.Background(), server.URL)
 	client, err := awssqs.NewClient(
 		ctx,
 		awsconfig.RegionTokyo,
-		awssqs.WithTrace(provider),
+		awssqs.WithTrace(provider, propagation.Baggage{}),
 	)
 	require.NoError(t, err)
 	_, err = client.SendMessage(
@@ -292,10 +305,8 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 
 	for _, test := range []struct {
@@ -336,8 +347,6 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	sourceCtx, sourceSpan := provider.Tracer("source").Start(context.Background(), "source")
 	t.Cleanup(func() { sourceSpan.End() })
 	sourceCarrier := propagation.MapCarrier{}
@@ -346,7 +355,7 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	t.Cleanup(func() { workerSpan.End() })
 
 	ctx := localSQSContext(workerCtx, server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 	message := types.Message{
 		ReceiptHandle: aws.String("receipt"),
@@ -394,12 +403,10 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	workerCtx, workerSpan := provider.Tracer("worker").Start(context.Background(), "worker")
 	t.Cleanup(func() { workerSpan.End() })
 	ctx := localSQSContext(workerCtx, server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 
 	var handlerSpanContext oteltrace.SpanContext
@@ -437,10 +444,8 @@ func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	provider, recorder := newTraceProvider(t)
-	restorePropagator := setTraceContextPropagator()
-	t.Cleanup(restorePropagator)
 	ctx := localSQSContext(context.Background(), server.URL)
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider, propagation.Baggage{}))
 	require.NoError(t, err)
 	handlerErr := errors.New("handler failed")
 	err = client.ProcessMessage(
@@ -460,12 +465,6 @@ func newTraceProvider(t *testing.T) (*sdktrace.TracerProvider, *tracetest.SpanRe
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	return provider, recorder
-}
-
-func setTraceContextPropagator() func() {
-	previous := otel.GetTextMapPropagator()
-	otel.SetTextMapPropagator(propagation.TraceContext{})
-	return func() { otel.SetTextMapPropagator(previous) }
 }
 
 func localSQSContext(parent context.Context, endpoint string) context.Context {

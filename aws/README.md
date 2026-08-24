@@ -33,10 +33,11 @@ request context is bridged as the parent of the AWS span. The shared
 [`tracers` package](../tracers) normalizes OpenTelemetry and Datadog trace
 context to W3C `traceparent` and `tracestate` values.
 
-Configure a propagator that supports W3C Trace Context before constructing
-these clients. OpenTelemetry's default global propagator is a no-op; without
-this configuration, AWS spans are created but `traceparent` is not injected
-into outbound requests.
+For S3, DynamoDB, and Cognito, configure a propagator that supports W3C Trace
+Context before constructing these clients. OpenTelemetry's default global
+propagator is a no-op. SQS is different: `awssqs.WithTraceDefault()` installs
+W3C Trace Context and Baggage for SQS message attributes without reading or
+changing the global TextMapPropagator.
 
 ```go
 import (
@@ -48,27 +49,33 @@ otel.SetTextMapPropagator(propagation.TraceContext{})
 provider := otel.GetTracerProvider()
 
 s3Client, err := awss3.NewClient(ctx, region, awss3.WithTrace(provider))
-sqsClient, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(provider))
+sqsClient, err := awssqs.NewClient(ctx, region, awssqs.WithTraceDefault())
 dynamoClient, err := awsdynamo.NewClient(ctx, region, awsdynamo.WithTrace(provider))
 cognitoClient, err := awscognito.NewClient(ctx, region, awscognito.WithTrace(provider))
 ```
 
-`WithTrace(nil)` uses the globally configured OpenTelemetry `TracerProvider`.
-When a request context contains a Datadog v2 span but no valid OpenTelemetry
+For the SQS package, `awssqs.WithTrace(nil, propagator)` uses the globally
+configured OpenTelemetry `TracerProvider`. `awssqs.WithTraceDefault()` also uses that provider and adds
+the standard W3C Trace Context and Baggage propagators. For a custom SQS
+propagator, use `awssqs.WithTrace(provider, propagator)`; W3C Trace Context is
+always included and the supplied propagator is composed after it. When a
+request context contains a Datadog v2 span but no valid OpenTelemetry
 `SpanContext`, the bridge converts that span's W3C propagation fields into the
 parent context used by the AWS span. The bridge does not create or finish
 Datadog spans.
 
 #### SQS message-attribute trace propagation rules
 
-When SQS message trace propagation is enabled, `traceparent` and `tracestate`
-are reserved message attributes. They use the SQS `String` data type and
-consume two of SQS's ten attribute slots, leaving at most eight for
-application-defined attributes. `baggage` is not propagated automatically.
+When SQS message trace propagation is enabled with the standard configuration,
+`traceparent`, `tracestate`, and `baggage` are reserved message attributes.
+They use the SQS `String` data type and may consume three of SQS's ten
+attribute slots, leaving at most seven for application-defined attributes.
 The final attribute count and injected W3C context are validated before the
 SQS request is sent; invalid trace attributes, reserved caller attributes, or
 an over-limit request return an error without sending a partial context.
-These rules preserve W3C Trace Context while respecting the
+Custom propagators may reserve additional fields, so the available application
+attribute count is reduced accordingly. These rules preserve W3C Trace Context
+while respecting the
 [Amazon SQS message-attribute limit](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-message-metadata.html).
 
 Package-level helpers use singleton clients. Initialize each singleton with
@@ -79,7 +86,7 @@ accept `WithTrace` directly.
 
 ```go
 _, err := awss3.GetClient(ctx, region, awss3.WithTrace(provider))
-_, err = awssqs.GetClient(ctx, region, awssqs.WithTrace(provider))
+_, err = awssqs.GetClient(ctx, region, awssqs.WithTraceDefault())
 err = awsdynamo.PutItem(ctx, region, table, item, awsdynamo.WithTrace(provider))
 _, err = awscognito.GetCredentialsForIdentity(ctx, region, identityID, logins,
     awscognito.WithTrace(provider))
@@ -431,11 +438,14 @@ raw := client.SQSClient()
 
 #### Trace propagation and message processing
 
-Tracing is opt-in. Configure the W3C propagator before creating a traced
-client. Send spans are named `send <queue>`, process spans are named
-`process <queue>`, and the sender's context is linked to the worker process
-span rather than used as its parent. To customize only the operation portion
-for one call, use `sqssend.WithOperationName("publish")` or
+Tracing is opt-in. `WithTraceDefault()` uses the global TracerProvider and
+automatically configures W3C Trace Context plus Baggage for SQS message
+attributes. For explicit dependency injection or a custom additional
+propagator, use `WithTrace(provider, propagator)`; W3C Trace Context remains
+enabled automatically. Send spans are named `send <queue>`, process spans are
+named `process <queue>`, and the sender's context is linked to the worker
+process span rather than used as its parent. To customize only the operation
+portion for one call, use `sqssend.WithOperationName("publish")` or
 `sqsprocess.WithOperationName("consume")`; the queue name remains in the final
 span name.
 
@@ -445,13 +455,9 @@ import (
 
     "github.com/aws/aws-sdk-go-v2/service/sqs/types"
     "github.com/88labs/go-utils/aws/awssqs"
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/propagation"
 )
 
-otel.SetTextMapPropagator(propagation.TraceContext{})
-provider := otel.GetTracerProvider()
-client, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(provider))
+client, err := awssqs.NewClient(ctx, region, awssqs.WithTraceDefault())
 
 _, err = client.SendMessage(ctx, queueURL, Task{ID: "t3"})
 out, err := client.ReceiveMessage(ctx, queueURL)
@@ -463,10 +469,12 @@ for _, msg := range out.Messages {
 }
 ```
 
-`WithTrace` reserves the `traceparent` and `tracestate` message attributes,
-leaving at most eight application attributes. The reserved attributes are
-added as SQS `String` attributes and cannot be supplied by the caller.
-Application attribute maps are copied before trace attributes are added.
+The standard tracing configuration reserves up to three message attributes:
+`traceparent`, `tracestate`, and `baggage`. They are added as SQS `String`
+attributes and cannot be supplied by the caller, leaving at most seven
+application attributes. Custom propagators may reserve additional attributes.
+Application attribute maps are copied before trace attributes are added, and
+the final count is validated before sending.
 `SendMessageBatch` creates a `create <queue>` producer span for every entry and
 a `send <queue>` client span linked to those creation contexts. Partial failures
 returned in the batch response are recorded on the send span. The SDK response
@@ -475,7 +483,7 @@ the AWS SDK contract.
 Malformed or incomplete incoming trace attributes are recorded on the process
 span, but do not prevent the handler or acknowledgement from running.
 The package-level helpers use the same behavior when the singleton is first
-initialized with `awssqs.GetClient(ctx, region, awssqs.WithTrace(provider))`.
+initialized with `awssqs.GetClient(ctx, region, awssqs.WithTraceDefault())`.
 
 `ReceiveMessage` remains a thin SDK wrapper. `ProcessMessage` handles one
 message at a time, calls the handler, and deletes the message only when the

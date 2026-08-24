@@ -55,10 +55,11 @@ func WithOperationName(operationName string) OptionOperationName {
 }
 
 // OptionMessageAttributes supplies application-defined SQS message
-// attributes. With tracing enabled, traceparent and tracestate are reserved,
-// leaving at most eight application-defined attributes. Trace attributes use
-// the SQS String data type, and invalid values or a final total above ten
-// attributes are rejected before the request is sent.
+// attributes. With the standard tracing configuration, traceparent,
+// tracestate, and baggage are reserved, leaving at most seven
+// application-defined attributes. Trace attributes use the SQS String data
+// type, and invalid values or a final total above ten attributes are rejected
+// before the request is sent.
 type OptionMessageAttributes map[string]types.MessageAttributeValue
 
 func (o OptionMessageAttributes) Apply(c *confSendMessage) {

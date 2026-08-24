@@ -1,6 +1,10 @@
 package awssqs
 
-import oteltrace "go.opentelemetry.io/otel/trace"
+import (
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
+)
 
 // ClientOption configures a Client created with NewClient.
 type ClientOption interface {
@@ -8,8 +12,9 @@ type ClientOption interface {
 }
 
 type clientConfig struct {
-	traceProvider oteltrace.TracerProvider
-	traceEnabled  bool
+	traceProvider   oteltrace.TracerProvider
+	tracePropagator propagation.TextMapPropagator
+	traceEnabled    bool
 }
 
 type clientOptionFunc func(*clientConfig)
@@ -18,25 +23,60 @@ func (f clientOptionFunc) apply(cfg *clientConfig) {
 	f(cfg)
 }
 
-// WithTrace enables OpenTelemetry tracing for AWS SDK requests and SQS message
-// propagation created by the client. A nil provider uses the globally
-// configured OpenTelemetry provider. Datadog v2 spans in request contexts are
-// also accepted as trace parents.
+// WithTraceDefault enables OpenTelemetry tracing using the globally configured
+// TracerProvider and the default SQS propagator. The default propagator always
+// includes W3C Trace Context and also propagates W3C Baggage. It does not read
+// or change the global TextMapPropagator.
 //
-// SendMessage and SendMessageBatch reserve the traceparent and tracestate SQS
-// message attributes, leaving at most eight application attributes. They
-// return an error before sending when the W3C propagator or trace provider is
-// not usable, when a reserved attribute is supplied, or when the attribute
-// limit would be exceeded. The trace attributes are encoded as SQS String
-// values and baggage is not propagated. SendMessageBatch can still return a
-// nil Go error with per-entry failures in its Failed field; callers must
-// inspect it.
-// ProcessMessage uses the worker context as the process-span parent and the
-// incoming sender context as a link. Malformed incoming trace attributes are
-// recorded on that span but do not stop the handler or acknowledgement.
-func WithTrace(provider oteltrace.TracerProvider) ClientOption {
+// WithTraceDefault reserves up to three SQS message attributes
+// (traceparent, tracestate, and baggage), leaving at most seven attributes for
+// application data. If no SDK TracerProvider is configured, requests fail with
+// ErrTraceProviderNotConfigured when a trace span is required.
+func WithTraceDefault() ClientOption {
 	return clientOptionFunc(func(cfg *clientConfig) {
-		cfg.traceProvider = provider
+		cfg.traceProvider = otel.GetTracerProvider()
+		cfg.tracePropagator = propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		)
 		cfg.traceEnabled = true
 	})
+}
+
+// WithTrace enables OpenTelemetry tracing using provider and an optional
+// additional propagator. The client always includes W3C Trace Context; the
+// additional propagator is composed after it. Pass propagation.Baggage{} to
+// propagate W3C Baggage. A nil provider uses the globally configured
+// TracerProvider. Datadog v2 spans in request contexts are also accepted as
+// trace parents.
+//
+// The propagator's fields are reserved SQS message attributes. With the
+// standard Trace Context and Baggage propagators, up to three attributes are
+// reserved, leaving at most seven attributes for application data. The
+// propagator is injected and extracted directly by this client; the global
+// TextMapPropagator is not read or changed.
+func WithTrace(
+	provider oteltrace.TracerProvider,
+	propagator propagation.TextMapPropagator,
+) ClientOption {
+	return clientOptionFunc(func(cfg *clientConfig) {
+		resolvedProvider := provider
+		if resolvedProvider == nil {
+			resolvedProvider = otel.GetTracerProvider()
+		}
+
+		cfg.traceProvider = resolvedProvider
+		cfg.tracePropagator = withRequiredTraceContext(propagator)
+		cfg.traceEnabled = true
+	})
+}
+
+func withRequiredTraceContext(additional propagation.TextMapPropagator) propagation.TextMapPropagator {
+	if additional == nil {
+		return propagation.TraceContext{}
+	}
+	return propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		additional,
+	)
 }
