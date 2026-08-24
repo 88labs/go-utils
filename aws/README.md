@@ -525,6 +525,41 @@ for _, msg := range out.Messages {
 }
 ```
 
+##### `ProcessMessage` lifecycle
+
+`ProcessMessage` is a single-message helper that coordinates handler execution
+and acknowledgement. It does not call `ReceiveMessage`, start a polling loop,
+or process messages concurrently. The caller owns receiving messages and
+choosing the polling, concurrency, visibility-timeout, retry, and DLQ policies.
+
+For each message, the processing sequence is:
+
+1. A nil handler returns `ErrNilMessageHandler` without invoking SQS.
+2. When tracing is enabled, the client extracts the sender context from the
+   message attributes and starts a `process <queue>` consumer span. The
+   context passed to `ProcessMessage` is the process span's parent. A valid
+   sender context is recorded as a span link, not used as the process span's
+   parent. The handler receives the derived process context. When tracing is
+   disabled, it receives the context passed by the caller unchanged.
+3. The handler is called with the message and the context from step 2. Handler
+   code should use that context when creating child spans or emitting
+   correlated logs.
+4. If the handler returns an error, `ProcessMessage` records the error on the
+   process span (when tracing is enabled), returns the error, and does not call
+   `DeleteMessage`. The message is therefore left to the queue's normal retry
+   and DLQ behavior.
+5. If the handler returns nil, the client calls `DeleteMessage` using the
+   derived process context. The delete operation is represented by a child
+   `delete <queue>` span when tracing is enabled. A delete error is returned
+   and recorded on the process span.
+6. The process span is ended after handler execution and acknowledgement,
+   including all error paths.
+
+Malformed or incomplete incoming trace attributes are recorded as process-span
+errors, but do not prevent the handler from running. This keeps message
+processing independent from trace-data validity while still making the issue
+visible in telemetry.
+
 The standard tracing configuration reserves up to three message attributes:
 `traceparent`, `tracestate`, and `baggage`. They are added as SQS `String`
 attributes and cannot be supplied by the caller, leaving at most seven
@@ -536,16 +571,11 @@ a `send <queue>` client span linked to those creation contexts. Partial failures
 returned in the batch response are recorded on the send span. The SDK response
 and its `Failed` entries are returned unchanged with a nil Go error, matching
 the AWS SDK contract.
-Malformed or incomplete incoming trace attributes are recorded on the process
-span, but do not prevent the handler or acknowledgement from running.
 The package-level helpers use the same behavior when the singleton is first
 initialized with `awssqs.GetClient(ctx, region, awssqs.WithTrace(awssqs.TraceConfig{}))`.
 
-`ReceiveMessage` remains a thin SDK wrapper. `ProcessMessage` handles one
-message at a time, calls the handler, and deletes the message only when the
-handler and acknowledgement both succeed. It does not start a receive loop,
-retry messages, or manage visibility timeouts. Calls through `SQSClient()` use
-the raw AWS SDK and do not receive message-attribute propagation or the
+`ReceiveMessage` remains a thin SDK wrapper. Calls through `SQSClient()` use the
+raw AWS SDK and do not receive message-attribute propagation or the
 `ProcessMessage` acknowledgement contract.
 
 ---
