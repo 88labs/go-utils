@@ -16,9 +16,14 @@ type ClientOption interface {
 // A zero TraceConfig uses the globally configured TracerProvider and the
 // standard W3C Trace Context and W3C Baggage propagators. The W3C Trace
 // Context propagator is always included when a custom Propagator is supplied.
+// TraceConfig does not initialize a TracerProvider. If TracerProvider is nil,
+// configure the global TracerProvider in the application's entry point, such
+// as main, before creating the Client or initializing the package singleton.
 type TraceConfig struct {
 	// TracerProvider creates spans for SQS operations. A nil provider uses the
-	// globally configured OpenTelemetry TracerProvider.
+	// globally configured OpenTelemetry TracerProvider. With a nil provider,
+	// the global provider must be configured before NewClient or the first
+	// GetClient call.
 	TracerProvider oteltrace.TracerProvider
 
 	// Propagator propagates additional context in SQS message attributes. A
@@ -48,8 +53,12 @@ var defaultTracePropagator = propagation.NewCompositeTextMapPropagator(
 // globally configured TracerProvider and the standard W3C Trace Context and
 // W3C Baggage propagators. A nil TracerProvider uses the globally configured
 // provider. A non-nil Propagator is composed after the mandatory W3C Trace
-// Context propagator. Datadog v2 spans in request contexts are also accepted
-// as trace parents.
+// Context propagator. WithTrace does not initialize or register a global
+// TracerProvider; applications must configure it in an entry point such as
+// main before creating the Client or initializing the package singleton. If
+// the configured provider cannot create a valid span context, traced
+// operations return ErrTraceProviderNotConfigured. Datadog v2 spans in
+// request contexts are also accepted as trace parents.
 //
 // The propagator's fields are reserved SQS message attributes. With the
 // standard Trace Context and Baggage propagators, up to three attributes are

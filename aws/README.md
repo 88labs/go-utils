@@ -39,6 +39,19 @@ propagator is a no-op. SQS is different: `awssqs.WithTrace(awssqs.TraceConfig{})
 installs W3C Trace Context and Baggage for SQS message attributes without
 reading or changing the global TextMapPropagator.
 
+`WithTrace` does not create or register a `TracerProvider`. When the
+`TracerProvider` field is omitted, configure an SDK or Datadog-compatible
+provider and register it from the application's entry point, such as `main`,
+before constructing a client or making the first package-level `GetClient`
+call. The application startup code should call `otel.SetTracerProvider(provider)`
+after constructing the SDK or Datadog-compatible provider.
+
+If the global provider is not configured, OpenTelemetry uses its no-op
+provider and traced SQS operations return
+`awssqs.ErrTraceProviderNotConfigured`. Passing
+`awssqs.TraceConfig{TracerProvider: provider}` explicitly does not require a
+global provider.
+
 ```go
 import (
 	"go.opentelemetry.io/otel"
@@ -56,7 +69,8 @@ cognitoClient, err := awscognito.NewClient(ctx, region, awscognito.WithTrace(pro
 
 For the SQS package, `awssqs.WithTrace(awssqs.TraceConfig{})` uses the globally
 configured OpenTelemetry `TracerProvider` and the standard W3C Trace Context
-and Baggage propagators. To inject a custom provider, use
+and Baggage propagators. The global provider must be configured before
+`NewClient` or the first `GetClient` call. To inject a custom provider, use
 `awssqs.WithTrace(awssqs.TraceConfig{TracerProvider: provider})`. To add a
 custom SQS propagator, use
 `awssqs.WithTrace(awssqs.TraceConfig{Propagator: propagator})`; W3C Trace
@@ -442,7 +456,10 @@ raw := client.SQSClient()
 
 Tracing is opt-in. `WithTrace(TraceConfig{})` uses the global TracerProvider
 and automatically configures W3C Trace Context plus Baggage for SQS message
-attributes. For explicit dependency injection, use
+attributes. The option does not initialize the provider; configure the global
+provider in the application's entry point, such as `main`, before constructing
+the client. If it is not configured, traced operations return
+`ErrTraceProviderNotConfigured`. For explicit dependency injection, use
 `WithTrace(TraceConfig{TracerProvider: provider})`. For a custom additional
 propagator, use
 `WithTrace(TraceConfig{TracerProvider: provider, Propagator: propagator})`;
