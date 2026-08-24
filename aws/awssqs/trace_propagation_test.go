@@ -16,13 +16,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/assert/cmp"
 
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awssqs"
@@ -48,7 +49,7 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	attributes := map[string]types.MessageAttributeValue{
 		"business": stringAttribute("value"),
@@ -59,20 +60,20 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 		"message",
 		sqssend.WithMessageAttributes(attributes),
 	)
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	var request struct {
 		MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
 	}
-	require.NoError(t, json.Unmarshal(requestBody, &request))
-	require.Len(t, request.MessageAttributes, 2)
-	require.Equal(t, "value", *request.MessageAttributes["business"].StringValue)
-	require.Equal(t, "String", *request.MessageAttributes["traceparent"].DataType)
+	assert.NilError(t, json.Unmarshal(requestBody, &request))
+	assert.Equal(t, len(request.MessageAttributes), 2)
+	assert.Equal(t, *request.MessageAttributes["business"].StringValue, "value")
+	assert.Equal(t, *request.MessageAttributes["traceparent"].DataType, "String")
 	_, hasTraceState := request.MessageAttributes["tracestate"]
-	require.False(t, hasTraceState)
-	require.Len(t, attributes, 1)
+	assert.Assert(t, !hasTraceState)
+	assert.Equal(t, len(attributes), 1)
 	_, hasTraceParent := attributes["traceparent"]
-	require.False(t, hasTraceParent)
+	assert.Assert(t, !hasTraceParent)
 
 	traceParent := *request.MessageAttributes["traceparent"].StringValue
 	propagated := propagation.TraceContext{}.Extract(
@@ -80,16 +81,16 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 		propagation.MapCarrier{"traceparent": traceParent},
 	)
 	propagatedSpanContext := oteltrace.SpanContextFromContext(propagated)
-	require.True(t, propagatedSpanContext.IsValid())
+	assert.Assert(t, propagatedSpanContext.IsValid())
 
 	sendSpan := endedSpan(t, recorder, "send orders")
-	require.Equal(t, parentSpan.SpanContext().TraceID(), sendSpan.Parent().TraceID())
-	require.Equal(t, propagatedSpanContext.SpanID(), sendSpan.SpanContext().SpanID())
-	require.Equal(t, propagatedSpanContext.TraceID(), sendSpan.SpanContext().TraceID())
-	require.Equal(t, "aws_sqs", spanAttribute(sendSpan, "messaging.system"))
-	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.name"))
-	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.type"))
-	require.Equal(t, "orders", spanAttribute(sendSpan, "messaging.destination.name"))
+	assert.Equal(t, sendSpan.Parent().TraceID(), parentSpan.SpanContext().TraceID())
+	assert.Equal(t, sendSpan.SpanContext().SpanID(), propagatedSpanContext.SpanID())
+	assert.Equal(t, sendSpan.SpanContext().TraceID(), propagatedSpanContext.TraceID())
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.system"), "aws_sqs")
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.operation.name"), "send")
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.operation.type"), "send")
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.destination.name"), "orders")
 }
 
 func TestSendReceiveProcessMessageWithTrace(t *testing.T) {
@@ -214,7 +215,7 @@ func TestSendMessageWithoutTraceDoesNotInjectMessageAttributes(t *testing.T) {
 
 	ctx := localSQSContext(context.Background(), server.URL)
 	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo)
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	_, err = client.SendMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
@@ -223,15 +224,15 @@ func TestSendMessageWithoutTraceDoesNotInjectMessageAttributes(t *testing.T) {
 			"business": stringAttribute("value"),
 		}),
 	)
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	var request struct {
 		MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
 	}
-	require.NoError(t, json.Unmarshal(requestBody, &request))
-	require.Len(t, request.MessageAttributes, 1)
+	assert.NilError(t, json.Unmarshal(requestBody, &request))
+	assert.Equal(t, len(request.MessageAttributes), 1)
 	_, hasTraceParent := request.MessageAttributes["traceparent"]
-	require.False(t, hasTraceParent)
+	assert.Assert(t, !hasTraceParent)
 }
 
 func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
@@ -248,7 +249,7 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	entries := []types.SendMessageBatchRequestEntry{
 		{Id: aws.String("one"), MessageBody: aws.String("one")},
@@ -260,35 +261,35 @@ func TestSendMessageBatchWithTraceUsesIndependentContexts(t *testing.T) {
 		entries,
 		sqssend.WithOperationName("publish"),
 	)
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	var request struct {
 		Entries []struct {
 			MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
 		} `json:"Entries"`
 	}
-	require.NoError(t, json.Unmarshal(requestBody, &request))
-	require.Len(t, request.Entries, 2)
+	assert.NilError(t, json.Unmarshal(requestBody, &request))
+	assert.Equal(t, len(request.Entries), 2)
 	traceParents := make(map[string]struct{}, 2)
 	for _, entry := range request.Entries {
-		require.Len(t, entry.MessageAttributes, 1)
+		assert.Equal(t, len(entry.MessageAttributes), 1)
 		traceParents[*entry.MessageAttributes["traceparent"].StringValue] = struct{}{}
 	}
-	require.Len(t, traceParents, 2)
+	assert.Equal(t, len(traceParents), 2)
 
 	createSpans := spansNamed(recorder, "create orders")
-	require.Len(t, createSpans, 2)
+	assert.Equal(t, len(createSpans), 2)
 	sendSpan := endedSpan(t, recorder, "publish orders")
-	require.Equal(t, oteltrace.SpanKindClient, sendSpan.SpanKind())
-	require.Len(t, sendSpan.Links(), 2)
+	assert.Equal(t, sendSpan.SpanKind(), oteltrace.SpanKindClient)
+	assert.Equal(t, len(sendSpan.Links()), 2)
 	for _, createSpan := range createSpans {
-		require.Contains(t, linkedSpanIDs(sendSpan), createSpan.SpanContext().SpanID())
+		assert.Assert(t, cmp.Contains(linkedSpanIDs(sendSpan), createSpan.SpanContext().SpanID()))
 	}
-	require.Equal(t, "aws_sqs", spanAttribute(sendSpan, "messaging.system"))
-	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.name"))
-	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.type"))
-	require.Equal(t, "orders", spanAttribute(sendSpan, "messaging.destination.name"))
-	require.Equal(t, int64(2), spanIntAttribute(sendSpan, "messaging.batch.message_count"))
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.system"), "aws_sqs")
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.operation.name"), "send")
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.operation.type"), "send")
+	assert.Equal(t, spanAttribute(sendSpan, "messaging.destination.name"), "orders")
+	assert.Equal(t, spanIntAttribute(sendSpan, "messaging.batch.message_count"), int64(2))
 }
 
 func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
@@ -303,20 +304,20 @@ func TestSendMessageBatchWithTraceRecordsPartialFailures(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	_, err = client.SendMessageBatch(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), []types.SendMessageBatchRequestEntry{
 		{Id: aws.String("one"), MessageBody: aws.String("one")},
 		{Id: aws.String("two"), MessageBody: aws.String("two")},
 	})
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	sendSpan := endedSpan(t, recorder, "send orders")
-	require.Equal(t, "Error", sendSpan.Status().Code.String())
-	require.Contains(t, sendSpan.Status().Description, "1 batch message(s) failed")
-	require.Contains(t, sendSpan.Status().Description, "id=two")
-	require.Contains(t, sendSpan.Status().Description, "InvalidMessageContents")
-	require.Contains(t, sendSpan.Status().Description, "invalid body")
+	assert.Equal(t, sendSpan.Status().Code.String(), "Error")
+	assert.Assert(t, cmp.Contains(sendSpan.Status().Description, "1 batch message(s) failed"))
+	assert.Assert(t, cmp.Contains(sendSpan.Status().Description, "id=two"))
+	assert.Assert(t, cmp.Contains(sendSpan.Status().Description, "InvalidMessageContents"))
+	assert.Assert(t, cmp.Contains(sendSpan.Status().Description, "invalid body"))
 }
 
 func TestWithTraceUsesDefaultConfig(t *testing.T) {
@@ -340,26 +341,29 @@ func TestWithTraceUsesDefaultConfig(t *testing.T) {
 	parentCtx, parentSpan := provider.Tracer("test").Start(context.Background(), "parent")
 	t.Cleanup(func() { parentSpan.End() })
 	member, err := baggage.NewMember("tenant", "board")
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	bag, err := baggage.New(member)
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	ctx := localSQSContext(baggage.ContextWithBaggage(parentCtx, bag), server.URL)
 	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	_, err = client.SendMessage(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), "message")
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	var request struct {
 		MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
 	}
-	require.NoError(t, json.Unmarshal(requestBody, &request))
-	require.Contains(t, request.MessageAttributes, "traceparent")
-	require.Contains(t, request.MessageAttributes, "baggage")
-	require.NotEmpty(t, request.MessageAttributes["baggage"].StringValue)
-	require.Len(t, request.MessageAttributes, 2)
+	assert.NilError(t, json.Unmarshal(requestBody, &request))
+	assert.Assert(t, cmp.Contains(request.MessageAttributes, "traceparent"))
+	assert.Assert(t, cmp.Contains(request.MessageAttributes, "baggage"))
+	assert.Assert(t,
+		request.MessageAttributes["baggage"].StringValue != nil &&
+			*request.MessageAttributes["baggage"].StringValue != "",
+	)
+	assert.Equal(t, len(request.MessageAttributes), 2)
 	sendSpan := endedSpan(t, recorder, "send orders")
-	require.Equal(t, parentSpan.SpanContext().TraceID(), sendSpan.Parent().TraceID())
+	assert.Equal(t, sendSpan.Parent().TraceID(), parentSpan.SpanContext().TraceID())
 }
 
 func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
@@ -376,7 +380,7 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	queueURL := awssqs.QueueURL(server.URL + "/000000000000/orders")
 
 	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(
@@ -384,15 +388,15 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 			"traceparent": stringAttribute("caller-value"),
 		},
 	))
-	require.ErrorIs(t, err, awssqs.ErrReservedMessageAttribute)
+	assert.ErrorIs(t, err, awssqs.ErrReservedMessageAttribute)
 
 	tooMany := make(map[string]types.MessageAttributeValue, 8)
 	for i := 0; i < 8; i++ {
 		tooMany[string(rune('a'+i))] = stringAttribute("value")
 	}
 	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(tooMany))
-	require.ErrorIs(t, err, awssqs.ErrTooManyMessageAttributes)
-	require.Zero(t, requestCount.Load())
+	assert.ErrorIs(t, err, awssqs.ErrTooManyMessageAttributes)
+	assert.Equal(t, requestCount.Load(), int32(0))
 }
 
 func TestSendMessageWithTraceUsesCustomSpanName(t *testing.T) {
@@ -411,23 +415,23 @@ func TestSendMessageWithTraceUsesCustomSpanName(t *testing.T) {
 			Propagator:     propagation.Baggage{},
 		}),
 	)
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	_, err = client.SendMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
 		"message",
 		sqssend.WithOperationName("publish"),
 	)
-	require.NoError(t, err)
-	require.Len(t, spansNamed(recorder, "publish orders"), 1)
+	assert.NilError(t, err)
+	assert.Equal(t, len(spansNamed(recorder, "publish orders")), 1)
 
 	_, err = client.SendMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/invoices"),
 		"message",
 	)
-	require.NoError(t, err)
-	require.Len(t, spansNamed(recorder, "send invoices"), 1)
+	assert.NilError(t, err)
+	assert.Equal(t, len(spansNamed(recorder, "send invoices")), 1)
 }
 
 func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
@@ -442,7 +446,7 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	for _, test := range []struct {
 		queue    string
@@ -466,8 +470,8 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 			func(context.Context, types.Message) error { return nil },
 			test.opts...,
 		)
-		require.NoError(t, err)
-		require.Len(t, spansNamed(recorder, test.spanName), 1)
+		assert.NilError(t, err)
+		assert.Equal(t, len(spansNamed(recorder, test.spanName)), 1)
 	}
 }
 
@@ -494,7 +498,7 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	message := types.Message{
 		ReceiptHandle: aws.String("receipt"),
 		MessageAttributes: map[string]types.MessageAttributeValue{
@@ -511,23 +515,23 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 			return nil
 		},
 	)
-	require.NoError(t, err)
-	require.Equal(t, int32(1), deleteCount.Load())
-	require.Equal(t, "process orders", endedSpan(t, recorder, "process orders").Name())
+	assert.NilError(t, err)
+	assert.Equal(t, deleteCount.Load(), int32(1))
+	assert.Equal(t, endedSpan(t, recorder, "process orders").Name(), "process orders")
 	processSpan := endedSpan(t, recorder, "process orders")
-	require.Equal(t, workerSpan.SpanContext().SpanID(), processSpan.Parent().SpanID())
-	require.Len(t, processSpan.Links(), 1)
-	require.Equal(t, sourceSpan.SpanContext().TraceID(), processSpan.Links()[0].SpanContext.TraceID())
-	require.Equal(t, sourceSpan.SpanContext().SpanID(), processSpan.Links()[0].SpanContext.SpanID())
-	require.True(t, processSpan.Links()[0].SpanContext.IsRemote())
-	require.Equal(t, processSpan.SpanContext(), endedSpan(t, recorder, "delete orders").Parent())
-	require.Equal(t, processSpan.SpanContext(), handlerSpanContext)
-	require.Equal(t, "aws_sqs", spanAttribute(processSpan, "messaging.system"))
-	require.Equal(t, "process", spanAttribute(processSpan, "messaging.operation.name"))
-	require.Equal(t, "process", spanAttribute(processSpan, "messaging.operation.type"))
-	require.Equal(t, "orders", spanAttribute(processSpan, "messaging.destination.name"))
-	require.Equal(t, "aws_sqs", spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.system"))
-	require.Equal(t, "settle", spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.operation.type"))
+	assert.Equal(t, processSpan.Parent().SpanID(), workerSpan.SpanContext().SpanID())
+	assert.Equal(t, len(processSpan.Links()), 1)
+	assert.Equal(t, processSpan.Links()[0].SpanContext.TraceID(), sourceSpan.SpanContext().TraceID())
+	assert.Equal(t, processSpan.Links()[0].SpanContext.SpanID(), sourceSpan.SpanContext().SpanID())
+	assert.Assert(t, processSpan.Links()[0].SpanContext.IsRemote())
+	assert.Assert(t, endedSpan(t, recorder, "delete orders").Parent().Equal(processSpan.SpanContext()))
+	assert.Assert(t, handlerSpanContext.Equal(processSpan.SpanContext()))
+	assert.Equal(t, spanAttribute(processSpan, "messaging.system"), "aws_sqs")
+	assert.Equal(t, spanAttribute(processSpan, "messaging.operation.name"), "process")
+	assert.Equal(t, spanAttribute(processSpan, "messaging.operation.type"), "process")
+	assert.Equal(t, spanAttribute(processSpan, "messaging.destination.name"), "orders")
+	assert.Equal(t, spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.system"), "aws_sqs")
+	assert.Equal(t, spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.operation.type"), "settle")
 }
 
 func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
@@ -548,7 +552,7 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 
 	var handlerSpanContext oteltrace.SpanContext
 	err = client.ProcessMessage(
@@ -566,14 +570,14 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 			return nil
 		},
 	)
-	require.NoError(t, err)
-	require.Equal(t, int32(1), deleteCount.Load())
+	assert.NilError(t, err)
+	assert.Equal(t, deleteCount.Load(), int32(1))
 
 	processSpan := endedSpan(t, recorder, "process orders")
-	require.Equal(t, workerSpan.SpanContext().SpanID(), processSpan.Parent().SpanID())
-	require.Empty(t, processSpan.Links())
-	require.Equal(t, processSpan.SpanContext(), handlerSpanContext)
-	require.Equal(t, "Error", processSpan.Status().Code.String())
+	assert.Equal(t, processSpan.Parent().SpanID(), workerSpan.SpanContext().SpanID())
+	assert.Equal(t, len(processSpan.Links()), 0)
+	assert.Assert(t, handlerSpanContext.Equal(processSpan.SpanContext()))
+	assert.Equal(t, processSpan.Status().Code.String(), "Error")
 }
 
 func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
@@ -590,7 +594,7 @@ func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
 	}))
-	require.NoError(t, err)
+	assert.NilError(t, err)
 	handlerErr := errors.New("handler failed")
 	err = client.ProcessMessage(
 		ctx,
@@ -598,9 +602,9 @@ func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
 		types.Message{ReceiptHandle: aws.String("receipt")},
 		func(context.Context, types.Message) error { return handlerErr },
 	)
-	require.ErrorIs(t, err, handlerErr)
-	require.Zero(t, requestCount.Load())
-	require.Equal(t, "Error", endedSpan(t, recorder, "process orders").Status().Code.String())
+	assert.ErrorIs(t, err, handlerErr)
+	assert.Equal(t, requestCount.Load(), int32(0))
+	assert.Equal(t, endedSpan(t, recorder, "process orders").Status().Code.String(), "Error")
 }
 
 func newTraceProvider(t *testing.T) (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
@@ -635,7 +639,7 @@ func writeSQSResponse(w http.ResponseWriter, body string) {
 func endedSpan(t *testing.T, recorder *tracetest.SpanRecorder, name string) sdktrace.ReadOnlySpan {
 	t.Helper()
 	spans := spansNamed(recorder, name)
-	require.NotEmpty(t, spans)
+	assert.Assert(t, len(spans) != 0)
 	return spans[len(spans)-1]
 }
 
