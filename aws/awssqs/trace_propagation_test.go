@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -23,6 +27,7 @@ import (
 	"github.com/88labs/go-utils/aws/awsconfig"
 	"github.com/88labs/go-utils/aws/awssqs"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqsprocess"
+	"github.com/88labs/go-utils/aws/awssqs/options/sqsreceive"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqssend"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
 )
@@ -85,6 +90,69 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.name"))
 	require.Equal(t, "send", spanAttribute(sendSpan, "messaging.operation.type"))
 	require.Equal(t, "orders", spanAttribute(sendSpan, "messaging.destination.name"))
+}
+
+func TestSendReceiveProcessMessageWithTrace(t *testing.T) {
+	const sqsEndpoint = "http://127.0.0.1:29324"
+	ctx := localSQSContext(context.Background(), sqsEndpoint)
+	provider, recorder := newTraceProvider(t)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+	}))
+	require.NoError(t, err)
+
+	queueName := fmt.Sprintf("trace-propagation-%d", time.Now().UnixNano())
+	queueOutput, err := client.SQSClient().CreateQueue(ctx, &sqs.CreateQueueInput{
+		QueueName: aws.String(queueName),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, queueOutput.QueueUrl)
+	queueURLValue, err := url.Parse(*queueOutput.QueueUrl)
+	require.NoError(t, err)
+	endpointURL, err := url.Parse(sqsEndpoint)
+	require.NoError(t, err)
+	queueURLValue.Scheme = endpointURL.Scheme
+	queueURLValue.Host = endpointURL.Host
+	queueURL := awssqs.QueueURL(queueURLValue.String())
+	t.Cleanup(func() {
+		_, _ = client.SQSClient().DeleteQueue(context.Background(), &sqs.DeleteQueueInput{
+			QueueUrl: queueURL.AWSString(),
+		})
+	})
+
+	apiCtx, apiSpan := provider.Tracer("test").Start(context.Background(), "api")
+	defer apiSpan.End()
+	_, err = client.SendMessage(apiCtx, queueURL, "message")
+	require.NoError(t, err)
+
+	workerCtx, workerSpan := provider.Tracer("test").Start(context.Background(), "worker")
+	defer workerSpan.End()
+	received, err := client.ReceiveMessage(workerCtx, queueURL, sqsreceive.WithWaitTimeSeconds(0))
+	require.NoError(t, err)
+	require.Len(t, received.Messages, 1)
+	message := received.Messages[0]
+	traceParent, ok := message.MessageAttributes["traceparent"]
+	require.True(t, ok)
+	require.NotNil(t, traceParent.StringValue)
+
+	var handlerSpanContext oteltrace.SpanContext
+	err = client.ProcessMessage(workerCtx, queueURL, message, func(handlerCtx context.Context, _ types.Message) error {
+		handlerSpanContext = oteltrace.SpanFromContext(handlerCtx).SpanContext()
+		return nil
+	})
+	require.NoError(t, err)
+
+	sendSpan := endedSpan(t, recorder, "send "+queueName)
+	processSpan := endedSpan(t, recorder, "process "+queueName)
+	require.Equal(t, apiSpan.SpanContext().TraceID(), sendSpan.Parent().TraceID())
+	require.Equal(t, workerSpan.SpanContext(), processSpan.Parent())
+	require.Equal(t, processSpan.SpanContext(), handlerSpanContext)
+	require.Len(t, processSpan.Links(), 1)
+	senderLink := processSpan.Links()[0].SpanContext
+	require.Equal(t, sendSpan.SpanContext().TraceID(), senderLink.TraceID())
+	require.Equal(t, sendSpan.SpanContext().SpanID(), senderLink.SpanID())
+	require.True(t, senderLink.IsRemote())
+	endedSpan(t, recorder, "delete "+queueName)
 }
 
 func TestSendMessageWithoutTraceDoesNotInjectMessageAttributes(t *testing.T) {
