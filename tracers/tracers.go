@@ -71,6 +71,17 @@ func (info TraceInfo) GetSpanID() string {
 	return spanContext.SpanID().String()
 }
 
+// GetSpanIDUInt64 returns the SpanID as a uint64 for Datadog log fields.
+// It returns zero when the TraceInfo does not contain a valid span context.
+func (info TraceInfo) GetSpanIDUInt64() uint64 {
+	spanContext, ok := info.spanContext()
+	if !ok {
+		return 0
+	}
+	spanID := spanContext.SpanID()
+	return binary.BigEndian.Uint64(spanID[:])
+}
+
 // ExtractTraceContext extracts trace information from ctx.
 //
 // OpenTelemetry is checked first because it is vendor-neutral. Datadog APM
