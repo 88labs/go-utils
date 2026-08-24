@@ -8,6 +8,7 @@ Each package exposes both **package-level functions** (backed by a per-process s
 ## Table of Contents
 
 - [Requirements](#requirements)
+  - [Tracing](#tracing)
 - [Packages](#packages)
   - [awsconfig](#awsconfig)
   - [ctxawslocal](#ctxawslocal)
@@ -26,25 +27,54 @@ Each package exposes both **package-level functions** (backed by a per-process s
 
 ### Tracing
 
-S3, DynamoDB, SQS, and Cognito clients can enable AWS SDK OpenTelemetry
-instrumentation with `WithTrace`. The supplied provider may be an OTel SDK
-provider or Datadog's OTel-compatible provider. A Datadog v2 span in the
-request context is bridged as the parent of the AWS span. The shared
-[`tracers` package](../tracers) normalizes OpenTelemetry and Datadog trace
-context to W3C `traceparent` and `tracestate` values.
+Tracing is designed as a cross-AWS concern with service-specific transport
+adapters:
 
-For S3, DynamoDB, and Cognito, configure a propagator that supports W3C Trace
-Context before constructing these clients. OpenTelemetry's default global
-propagator is a no-op. SQS is different: `awssqs.WithTrace(awssqs.TraceConfig{})`
-installs W3C Trace Context and Baggage for SQS message attributes without
-reading or changing the global TextMapPropagator.
+1. S3, DynamoDB, SQS, and Cognito use the shared
+   [`otelaws`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws)
+   middleware to create AWS SDK spans and propagate context in AWS SDK HTTP
+   requests. New AWS SDK wrappers should use the same shared middleware
+   boundary.
+2. SQS message attributes are an SQS-specific adapter. They carry the W3C
+   context required by application-managed workers and are independent of
+   AWS SDK HTTP header propagation.
+3. Lambda invocation tracing is a runtime concern, not an SQS client concern.
+   This module does not instrument Lambda handlers yet; use the
+   [AWS Distro for OpenTelemetry (ADOT) Lambda integration](https://docs.aws.amazon.com/lambda/latest/dg/golang-tracing.html)
+   or the applicable [OpenTelemetry AWS Lambda instrumentation](https://opentelemetry.io/docs/specs/semconv/faas/aws-lambda/)
+   when that integration is added. For an SQS-triggered Lambda, the standard
+   AWS propagation mechanism is `AWSTraceHeader`, not the custom SQS Message
+   Attributes described below.
 
-`WithTrace` does not create or register a `TracerProvider`. When the
-`TracerProvider` field is omitted, configure an SDK or Datadog-compatible
-provider and register it from the application's entry point, such as `main`,
-before constructing a client or making the first package-level `GetClient`
-call. The application startup code should call `otel.SetTracerProvider(provider)`
-after constructing the SDK or Datadog-compatible provider.
+The shared [`tracers` package](../tracers) is only a compatibility bridge for
+native Datadog v2 spans that are present in a request context. OTel-native
+applications can use `otelaws` with an OTel SDK or Datadog's OTel-compatible
+provider without depending on SQS-specific tracing code. The bridge does not
+create or finish Datadog spans.
+
+This separation is intentional: the provider and propagator are application
+configuration, AWS SDK instrumentation is shared, and each transport or
+runtime owns only the propagation rules that are specific to it.
+
+#### Extending tracing to another AWS integration
+
+When adding an AWS SDK-based package, enable tracing at client construction
+and connect it to the shared `otelaws` middleware. Do not copy the SQS
+Message Attribute injection or `ProcessMessage` lifecycle into that package.
+When adding a runtime integration such as Lambda, add a runtime-specific
+adapter that receives the application context and uses the same provider
+configuration; keep AWS-managed event propagation (for example,
+`AWSTraceHeader`) separate from application-defined transport attributes.
+This keeps the public tracing contract small while allowing new AWS services
+to share the same instrumentation boundary.
+
+`WithTrace` does not create or register a `TracerProvider`. When a provider is
+nil (or the SQS `TraceConfig.TracerProvider` field is omitted), configure an
+SDK or Datadog-compatible provider and register it from the application's
+entry point, such as `main`, before constructing a client or making the first
+package-level `GetClient` call. The application startup code should call
+`otel.SetTracerProvider(provider)` after constructing the SDK or
+Datadog-compatible provider.
 
 If the global provider is not configured, OpenTelemetry uses its no-op
 provider and traced SQS operations return
@@ -58,7 +88,10 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
-otel.SetTextMapPropagator(propagation.TraceContext{})
+otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+	propagation.TraceContext{},
+	propagation.Baggage{},
+))
 provider := otel.GetTracerProvider()
 
 s3Client, err := awss3.NewClient(ctx, region, awss3.WithTrace(provider))
@@ -76,9 +109,8 @@ custom SQS propagator, use
 `awssqs.WithTrace(awssqs.TraceConfig{Propagator: propagator})`; W3C Trace
 Context is always included and the supplied propagator is composed after it.
 When a request context contains a Datadog v2 span but no valid OpenTelemetry
-`SpanContext`, the bridge converts that span's W3C propagation fields into the
-parent context used by the AWS span. The bridge does not create or finish
-Datadog spans.
+`SpanContext`, the compatibility bridge converts that span's W3C propagation
+fields into the parent context used by the AWS span.
 
 #### SQS message-attribute trace propagation rules
 
@@ -93,6 +125,8 @@ Custom propagators may reserve additional fields, so the available application
 attribute count is reduced accordingly. These rules preserve W3C Trace Context
 while respecting the
 [Amazon SQS message-attribute limit](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-message-metadata.html).
+This is an application-level SQS worker contract; it is not the propagation
+mechanism used by an AWS-managed SQS-to-Lambda event source.
 
 Package-level helpers use singleton clients. Initialize each singleton with
 `WithTrace` before its first request; options passed after initialization do

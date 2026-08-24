@@ -2,11 +2,14 @@ package awstrace
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	ddmocktracer "github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 	ddtracer "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
@@ -50,11 +53,41 @@ func TestAppendMiddlewares_preservesOpenTelemetryParent(t *testing.T) {
 	}
 }
 
+func TestAppendMiddlewares_usesConfiguredPropagator(t *testing.T) {
+	var apiOptions []func(*middleware.Stack) error
+	propagator := recordingPropagator{}
+	AppendMiddlewares(&apiOptions, Config{Propagator: propagator})
+
+	stack := middleware.NewStack("test", func() interface{} { return nil })
+	for _, apiOption := range apiOptions {
+		if err := apiOption(stack); err != nil {
+			t.Fatalf("add API middleware: %v", err)
+		}
+	}
+
+	input := &smithyhttp.Request{
+		Request: &http.Request{Header: http.Header{}},
+	}
+	_, _, err := stack.Finalize.HandleMiddleware(
+		context.Background(),
+		input,
+		middleware.HandlerFunc(func(context.Context, interface{}) (interface{}, middleware.Metadata, error) {
+			return nil, middleware.Metadata{}, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("run finalize middleware: %v", err)
+	}
+	if got, want := input.Header.Get("x-test-propagator"), "injected"; got != want {
+		t.Fatalf("propagated header = %q, want %q", got, want)
+	}
+}
+
 func runInitialize(t *testing.T, ctx context.Context, provider trace.TracerProvider) {
 	t.Helper()
 
 	var apiOptions []func(*middleware.Stack) error
-	AppendMiddlewares(&apiOptions, provider)
+	AppendMiddlewares(&apiOptions, Config{TracerProvider: provider})
 	stack := middleware.NewStack("test", func() interface{} { return nil })
 	for _, apiOption := range apiOptions {
 		if err := apiOption(stack); err != nil {
@@ -99,4 +132,18 @@ func (t *recordingTracer) Start(
 ) (context.Context, trace.Span) {
 	t.parents <- trace.SpanContextFromContext(ctx)
 	return t.Tracer.Start(ctx, name, options...)
+}
+
+type recordingPropagator struct{}
+
+func (recordingPropagator) Inject(_ context.Context, carrier propagation.TextMapCarrier) {
+	carrier.Set("x-test-propagator", "injected")
+}
+
+func (recordingPropagator) Extract(context.Context, propagation.TextMapCarrier) context.Context {
+	return context.Background()
+}
+
+func (recordingPropagator) Fields() []string {
+	return []string{"x-test-propagator"}
 }

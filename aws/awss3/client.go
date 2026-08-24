@@ -113,7 +113,9 @@ func newS3Client(ctx context.Context, region awsconfig.Region, cfg clientConfig)
 	}
 	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		if cfg.traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: cfg.traceProvider,
+			})
 		}
 	}), nil
 }
@@ -151,7 +153,9 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile, cfg clientCo
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
 		o.UsePathStyle = true
 		if cfg.traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: cfg.traceProvider,
+			})
 		}
 	}), nil
 }

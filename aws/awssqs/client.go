@@ -103,7 +103,10 @@ func newSQSClient(ctx context.Context, region awsconfig.Region, cfg clientConfig
 	}
 	return sqs.NewFromConfig(awsCfg, func(o *sqs.Options) {
 		if cfg.traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: cfg.traceProvider,
+				Propagator:     cfg.tracePropagator,
+			})
 		}
 	}), nil
 }
@@ -125,7 +128,10 @@ func getClientLocal(ctx context.Context, localProfile LocalProfile, cfg clientCo
 	return sqs.NewFromConfig(awsCfg, func(o *sqs.Options) {
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
 		if cfg.traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: cfg.traceProvider,
+				Propagator:     cfg.tracePropagator,
+			})
 		}
 	}), nil
 }

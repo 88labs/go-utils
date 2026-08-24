@@ -106,7 +106,9 @@ func newCognitoClient(ctx context.Context, region awsconfig.Region, cfg clientCo
 	}
 	return cognitoidentity.NewFromConfig(awsCfg, func(o *cognitoidentity.Options) {
 		if cfg.traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: cfg.traceProvider,
+			})
 		}
 	}), nil
 }
@@ -130,7 +132,9 @@ func getClientLocal(ctx context.Context, region awsconfig.Region, localProfile L
 	return cognitoidentity.NewFromConfig(awsCfg, func(o *cognitoidentity.Options) {
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
 		if cfg.traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, cfg.traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: cfg.traceProvider,
+			})
 		}
 	}), nil
 }
