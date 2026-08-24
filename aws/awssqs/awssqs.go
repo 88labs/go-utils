@@ -18,9 +18,9 @@ import (
 // SendMessage converts a value to JSON and sends it to SQS. When tracing is
 // enabled with WithTrace, the W3C propagator and trace provider must be usable
 // before the SQS request is sent. Traceparent,
-// tracestate, and baggage may consume three reserved SQS message attributes,
-// leaving at most seven application attributes. The operation-specific options
-// apply only to this call.
+// tracestate consume two reserved SQS message attributes, leaving at most eight
+// application attributes. Baggage is propagated only when a custom propagator
+// is supplied. The operation-specific options apply only to this call.
 //
 // Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
 func SendMessage(

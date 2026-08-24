@@ -22,6 +22,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 
@@ -356,12 +357,9 @@ func TestWithTraceUsesDefaultConfig(t *testing.T) {
 	}
 	assert.NilError(t, json.Unmarshal(requestBody, &request))
 	assert.Assert(t, cmp.Contains(request.MessageAttributes, "traceparent"))
-	assert.Assert(t, cmp.Contains(request.MessageAttributes, "baggage"))
-	assert.Assert(t,
-		request.MessageAttributes["baggage"].StringValue != nil &&
-			*request.MessageAttributes["baggage"].StringValue != "",
-	)
-	assert.Equal(t, len(request.MessageAttributes), 2)
+	_, hasBaggage := request.MessageAttributes["baggage"]
+	assert.Assert(t, !hasBaggage)
+	assert.Equal(t, len(request.MessageAttributes), 1)
 	sendSpan := endedSpan(t, recorder, "send orders")
 	assert.Equal(t, sendSpan.Parent().TraceID(), parentSpan.SpanContext().TraceID())
 }
@@ -389,6 +387,12 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 		},
 	))
 	assert.ErrorIs(t, err, awssqs.ErrReservedMessageAttribute)
+	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(
+		map[string]types.MessageAttributeValue{
+			"tracestate": stringAttribute("caller-value"),
+		},
+	))
+	assert.ErrorIs(t, err, awssqs.ErrReservedMessageAttribute)
 
 	tooMany := make(map[string]types.MessageAttributeValue, 8)
 	for i := 0; i < 8; i++ {
@@ -396,6 +400,28 @@ func TestSendMessageWithTraceValidatesReservedAttributesAndLimit(t *testing.T) {
 	}
 	_, err = client.SendMessage(ctx, queueURL, "message", sqssend.WithMessageAttributes(tooMany))
 	assert.ErrorIs(t, err, awssqs.ErrTooManyMessageAttributes)
+	assert.Equal(t, requestCount.Load(), int32(0))
+}
+
+func TestSendMessageWithNoopProviderAndParentReturnsError(t *testing.T) {
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		writeSQSResponse(w, `{"MessageId":"message-id"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	parentProvider, _ := newTraceProvider(t)
+	parentCtx, parentSpan := parentProvider.Tracer("parent").Start(context.Background(), "parent")
+	t.Cleanup(func() { parentSpan.End() })
+	ctx := localSQSContext(parentCtx, server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: noop.NewTracerProvider(),
+	}))
+	assert.NilError(t, err)
+
+	_, err = client.SendMessage(ctx, awssqs.QueueURL(server.URL+"/000000000000/orders"), "message")
+	assert.ErrorIs(t, err, awssqs.ErrTraceProviderNotConfigured)
 	assert.Equal(t, requestCount.Load(), int32(0))
 }
 

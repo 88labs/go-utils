@@ -14,8 +14,8 @@ type ClientOption interface {
 // TraceConfig configures OpenTelemetry tracing for an SQS Client.
 //
 // A zero TraceConfig uses the globally configured TracerProvider and the
-// standard W3C Trace Context and W3C Baggage propagators. The W3C Trace
-// Context propagator is always included when a custom Propagator is supplied.
+// standard W3C Trace Context propagator. The W3C Trace Context propagator is
+// always included when a custom Propagator is supplied.
 // TraceConfig does not initialize a TracerProvider. If TracerProvider is nil,
 // configure the global TracerProvider in the application's entry point, such
 // as main, before creating the Client or initializing the package singleton.
@@ -27,8 +27,9 @@ type TraceConfig struct {
 	TracerProvider oteltrace.TracerProvider
 
 	// Propagator propagates additional context in SQS message attributes. A
-	// nil propagator uses the standard W3C Baggage propagator. W3C Trace
-	// Context is always included automatically.
+	// nil propagator uses only the standard W3C Trace Context propagator. To
+	// propagate W3C Baggage, provide a custom propagator such as
+	// propagation.Baggage{}; W3C Trace Context is always included automatically.
 	Propagator propagation.TextMapPropagator
 }
 
@@ -44,14 +45,11 @@ func (f clientOptionFunc) apply(cfg *clientConfig) {
 	f(cfg)
 }
 
-var defaultTracePropagator = propagation.NewCompositeTextMapPropagator(
-	propagation.TraceContext{},
-	propagation.Baggage{},
-)
+var defaultTracePropagator propagation.TextMapPropagator = propagation.TraceContext{}
 
 // WithTrace enables OpenTelemetry tracing using config. A zero config uses the
-// globally configured TracerProvider and the standard W3C Trace Context and
-// W3C Baggage propagators. A nil TracerProvider uses the globally configured
+// globally configured TracerProvider and the standard W3C Trace Context
+// propagator. A nil TracerProvider uses the globally configured
 // provider. A non-nil Propagator is composed after the mandatory W3C Trace
 // Context propagator. WithTrace does not initialize or register a global
 // TracerProvider; applications must configure it in an entry point such as
@@ -60,11 +58,11 @@ var defaultTracePropagator = propagation.NewCompositeTextMapPropagator(
 // operations return ErrTraceProviderNotConfigured. Datadog v2 spans in
 // request contexts are also accepted as trace parents.
 //
-// The propagator's fields are reserved SQS message attributes. With the
-// standard Trace Context and Baggage propagators, up to three attributes are
-// reserved, leaving at most seven attributes for application data. The
-// propagator is injected and extracted directly by this client; the global
-// TextMapPropagator is not read or changed.
+// The propagator's fields are reserved SQS message attributes. The standard
+// Trace Context propagator reserves two attributes, leaving at most eight
+// attributes for application data. A custom propagator may reserve additional
+// fields, including baggage. The propagator is injected and extracted directly
+// by this client; the global TextMapPropagator is not read or changed.
 func WithTrace(config TraceConfig) ClientOption {
 	return clientOptionFunc(func(cfg *clientConfig) {
 		resolvedProvider := config.TracerProvider

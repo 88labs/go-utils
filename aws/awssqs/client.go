@@ -56,9 +56,9 @@ func (c *Client) SQSClient() *sqs.Client {
 // Options, including WithTrace, are used only on the first initialization;
 // later calls return the existing singleton and do not reconfigure it. For a
 // traced singleton, SendMessage and SendMessageBatch require a usable W3C
-// propagator and trace provider before sending, reserve up to three message
-// attributes for trace context and baggage, and leave at most seven for
-// application data.
+// propagator and trace provider before sending, reserve two message
+// attributes for the standard trace context, and leave at most eight for
+// application data. A custom propagator may reserve additional attributes.
 func GetClient(ctx context.Context, region awsconfig.Region, opts ...ClientOption) (*sqs.Client, error) {
 	if v := sqsClientAtomic.Load(); v != nil {
 		return v, nil

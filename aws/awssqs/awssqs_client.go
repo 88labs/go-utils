@@ -379,14 +379,22 @@ func (c *Client) startSpan(
 	}
 
 	ctx = awstrace.ContextWithDatadogParent(ctx)
+	parentSpanContext := oteltrace.SpanContextFromContext(ctx)
 	provider := c.config.traceProvider
 	if provider == nil {
 		return nil, nil, ErrTraceProviderNotConfigured
 	}
 	tracer := provider.Tracer(traceInstrumentationName)
 	spanCtx, span := tracer.Start(ctx, name, options...)
-	if !span.SpanContext().IsValid() {
+	createdSpanContext := span.SpanContext()
+	if !createdSpanContext.IsValid() {
 		err := fmt.Errorf("%w: tracer returned an invalid span context", ErrTraceProviderNotConfigured)
+		recordSpanError(span, err)
+		span.End()
+		return nil, nil, err
+	}
+	if parentSpanContext.IsValid() && createdSpanContext.Equal(parentSpanContext) {
+		err := fmt.Errorf("%w: tracer returned the parent span context", ErrTraceProviderNotConfigured)
 		recordSpanError(span, err)
 		span.End()
 		return nil, nil, err
@@ -430,21 +438,22 @@ func (c *Client) messageAttributes(
 	if propagator == nil {
 		return nil, ErrTracePropagatorNotConfigured
 	}
-	reservedAttributeCount := len(propagator.Fields())
+	reservedAttributes := reservedMessageAttributes(propagator)
+	reservedAttributeCount := len(reservedAttributes)
 	if len(input)+reservedAttributeCount > maxMessageAttributes {
 		return nil, fmt.Errorf("%w: got %d attributes plus %d reserved trace attributes, maximum %d",
 			ErrTooManyMessageAttributes, len(input), reservedAttributeCount, maxMessageAttributes)
+	}
+	for key := range reservedAttributes {
+		if _, ok := input[key]; ok {
+			return nil, fmt.Errorf("%w: %s", ErrReservedMessageAttribute, key)
+		}
 	}
 
 	carrier := propagation.MapCarrier{}
 	propagator.Inject(ctx, carrier)
 	if err := validateInjectedTraceContext(ctx, carrier); err != nil {
 		return nil, err
-	}
-	for key := range carrier {
-		if _, ok := input[key]; ok {
-			return nil, fmt.Errorf("%w: %s", ErrReservedMessageAttribute, key)
-		}
 	}
 	if len(input)+len(carrier) > maxMessageAttributes {
 		return nil, fmt.Errorf("%w: got %d attributes plus %d injected trace attributes, maximum %d",
@@ -577,6 +586,14 @@ func cloneMessageAttributes(input map[string]types.MessageAttributeValue) map[st
 		output[key] = value
 	}
 	return output
+}
+
+func reservedMessageAttributes(propagator propagation.TextMapPropagator) map[string]struct{} {
+	reserved := make(map[string]struct{})
+	for _, field := range propagator.Fields() {
+		reserved[field] = struct{}{}
+	}
+	return reserved
 }
 
 func recordSpanError(span oteltrace.Span, err error) {

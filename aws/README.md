@@ -102,12 +102,14 @@ cognitoClient, err := awscognito.NewClient(ctx, region, awscognito.WithTrace(pro
 
 For the SQS package, `awssqs.WithTrace(awssqs.TraceConfig{})` uses the globally
 configured OpenTelemetry `TracerProvider` and the standard W3C Trace Context
-and Baggage propagators. The global provider must be configured before
+propagator. The global provider must be configured before
 `NewClient` or the first `GetClient` call. To inject a custom provider, use
 `awssqs.WithTrace(awssqs.TraceConfig{TracerProvider: provider})`. To add a
 custom SQS propagator, use
 `awssqs.WithTrace(awssqs.TraceConfig{Propagator: propagator})`; W3C Trace
 Context is always included and the supplied propagator is composed after it.
+For example, pass `propagation.Baggage{}` explicitly when baggage should also
+be propagated; baggage is not included by the default SQS configuration.
 When a request context contains a Datadog v2 span but no valid OpenTelemetry
 `SpanContext`, the compatibility bridge converts that span's W3C propagation
 fields into the parent context used by the AWS span.
@@ -115,9 +117,11 @@ fields into the parent context used by the AWS span.
 #### SQS message-attribute trace propagation rules
 
 When SQS message trace propagation is enabled with the standard configuration,
-`traceparent`, `tracestate`, and `baggage` are reserved message attributes.
-They use the SQS `String` data type and may consume three of SQS's ten
-attribute slots, leaving at most seven for application-defined attributes.
+`traceparent` and `tracestate` are reserved message attributes. They use the
+SQS `String` data type and consume two of SQS's ten attribute slots, leaving
+at most eight for application-defined attributes. Baggage is not propagated
+by the standard configuration; it is included only when a custom propagator
+explicitly supplies it.
 The final attribute count and injected W3C context are validated before the
 SQS request is sent; invalid trace attributes, reserved caller attributes, or
 an over-limit request return an error without sending a partial context.
@@ -489,8 +493,8 @@ raw := client.SQSClient()
 #### Trace propagation and message processing
 
 Tracing is opt-in. `WithTrace(TraceConfig{})` uses the global TracerProvider
-and automatically configures W3C Trace Context plus Baggage for SQS message
-attributes. The option does not initialize the provider; configure the global
+and automatically configures W3C Trace Context for SQS message attributes.
+The option does not initialize the provider; configure the global
 provider in the application's entry point, such as `main`, before constructing
 the client. If it is not configured, traced operations return
 `ErrTraceProviderNotConfigured`. For explicit dependency injection, use
@@ -560,12 +564,14 @@ errors, but do not prevent the handler from running. This keeps message
 processing independent from trace-data validity while still making the issue
 visible in telemetry.
 
-The standard tracing configuration reserves up to three message attributes:
-`traceparent`, `tracestate`, and `baggage`. They are added as SQS `String`
-attributes and cannot be supplied by the caller, leaving at most seven
-application attributes. Custom propagators may reserve additional attributes.
-Application attribute maps are copied before trace attributes are added, and
-the final count is validated before sending.
+The standard tracing configuration reserves two message attributes:
+`traceparent` and `tracestate`. They are added as SQS `String` attributes and
+cannot be supplied by the caller, leaving at most eight application
+attributes. Baggage is propagated only when a custom propagator includes it;
+custom propagators may reserve additional attributes. All fields declared by
+the propagator are reserved even when an optional field is not injected for a
+particular context. Application attribute maps are copied before trace
+attributes are added, and the final count is validated before sending.
 `SendMessageBatch` creates a `create <queue>` producer span for every entry and
 a `send <queue>` client span linked to those creation contexts. Partial failures
 returned in the batch response are recorded on the send span. The SDK response
