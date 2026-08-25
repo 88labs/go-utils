@@ -101,6 +101,35 @@ func TestTraceInfo_GetTraceID_unknownFormatUsesString(t *testing.T) {
 	}
 }
 
+func TestTraceInfo_GetSpanIDUInt64(t *testing.T) {
+	info := tracers.NewTraceInfoFromTraceParent(
+		"00-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01",
+		"",
+	)
+
+	if got, want := info.GetSpanIDUInt64(), uint64(0x100f0e0d0c0b0a09); got != want {
+		t.Fatalf("GetSpanIDUInt64() = %d, want %d", got, want)
+	}
+}
+
+func TestExtractTraceContext_datadogSpanIDUInt64(t *testing.T) {
+	ctx, span := datadogContext(t)
+	info, found := tracers.ExtractTraceContext(ctx)
+	if !found {
+		t.Fatal("expected found=true")
+	}
+
+	if got, want := info.GetSpanIDUInt64(), span.Context().SpanID(); got != want {
+		t.Fatalf("GetSpanIDUInt64() = %d, want %d", got, want)
+	}
+}
+
+func TestTraceInfo_GetSpanIDUInt64_invalid(t *testing.T) {
+	if got := (tracers.TraceInfo{}).GetSpanIDUInt64(); got != 0 {
+		t.Fatalf("GetSpanIDUInt64() = %d, want 0", got)
+	}
+}
+
 func TestExtractTraceContext_datadogPreservesW3CPropagation(t *testing.T) {
 	ctx, span := datadogContext(t)
 

@@ -56,6 +56,7 @@ traceState := info.GetTraceState()
 traceID := info.GetTraceID(tracers.FormatString)
 traceIDInt64 := info.GetTraceID(tracers.FormatInt64)
 spanID := info.GetSpanID()
+spanIDUInt64 := info.GetSpanIDUInt64() // Datadog log correlation
 ```
 
 When both a valid OpenTelemetry `SpanContext` and a Datadog span are present,
@@ -121,6 +122,8 @@ func handle(r *http.Request) {
 
 `IsValid` validates the current traceparent value as a W3C span context. Use
 `GetTraceParent` and `GetTraceState` to retrieve the propagation values.
+`GetSpanIDUInt64` returns the span ID as a `uint64` for Datadog log fields and
+returns zero when the trace context is invalid.
 
 ## Trace ID formats
 

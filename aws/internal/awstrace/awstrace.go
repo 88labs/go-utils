@@ -11,26 +11,57 @@ import (
 	"github.com/88labs/go-utils/tracers"
 )
 
+// Config configures the tracing middleware shared by the AWS SDK wrappers.
+//
+// A nil TracerProvider or Propagator is resolved by otelaws from the
+// corresponding OpenTelemetry global setting. SQS supplies its message
+// propagator here as well, so SDK request headers and SQS message attributes
+// use the same propagation configuration.
+type Config struct {
+	TracerProvider oteltrace.TracerProvider
+	Propagator     propagation.TextMapPropagator
+}
+
 // AppendMiddlewares enables OpenTelemetry instrumentation for an AWS SDK v2
 // client. Datadog v2 spans in the request context are bridged to an
 // OpenTelemetry SpanContext before the instrumentation starts its child span.
+// The same helper is used by every AWS service wrapper; service-specific
+// propagation (for example, SQS message attributes) is configured through
+// Config without changing this SDK middleware boundary.
 func AppendMiddlewares(
 	apiOptions *[]func(*middleware.Stack) error,
-	provider oteltrace.TracerProvider,
+	cfg Config,
 ) {
 	// This middleware must be registered before otelaws' initialize middleware
 	// so a Datadog span can be used as the parent of the AWS span.
 	*apiOptions = append(*apiOptions, addDatadogTraceBridge)
 
-	if provider == nil {
-		otelaws.AppendMiddlewares(apiOptions)
-		return
+	options := make([]otelaws.Option, 0, 2)
+	if cfg.TracerProvider != nil {
+		options = append(options, otelaws.WithTracerProvider(cfg.TracerProvider))
 	}
-	otelaws.AppendMiddlewares(apiOptions, otelaws.WithTracerProvider(provider))
+	if cfg.Propagator != nil {
+		options = append(options, otelaws.WithTextMapPropagator(cfg.Propagator))
+	}
+	otelaws.AppendMiddlewares(apiOptions, options...)
 }
 
 func addDatadogTraceBridge(stack *middleware.Stack) error {
 	return stack.Initialize.Add(datadogTraceBridge{}, middleware.Before)
+}
+
+// ContextWithDatadogParent adds a Datadog span as an OpenTelemetry parent when
+// the context does not already contain a valid OpenTelemetry SpanContext.
+func ContextWithDatadogParent(ctx context.Context) context.Context {
+	if oteltrace.SpanContextFromContext(ctx).IsValid() {
+		return ctx
+	}
+
+	spanContext, ok := datadogSpanContext(ctx)
+	if !ok {
+		return ctx
+	}
+	return oteltrace.ContextWithSpanContext(ctx, spanContext)
 }
 
 type datadogTraceBridge struct{}
@@ -44,15 +75,7 @@ func (datadogTraceBridge) HandleInitialize(
 	in middleware.InitializeInput,
 	next middleware.InitializeHandler,
 ) (middleware.InitializeOutput, middleware.Metadata, error) {
-	if oteltrace.SpanContextFromContext(ctx).IsValid() {
-		return next.HandleInitialize(ctx, in)
-	}
-
-	spanContext, ok := datadogSpanContext(ctx)
-	if ok {
-		ctx = oteltrace.ContextWithSpanContext(ctx, spanContext)
-	}
-	return next.HandleInitialize(ctx, in)
+	return next.HandleInitialize(ContextWithDatadogParent(ctx), in)
 }
 
 func datadogSpanContext(ctx context.Context) (oteltrace.SpanContext, bool) {

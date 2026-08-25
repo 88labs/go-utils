@@ -31,7 +31,9 @@ func TestNewClient_WithTraceAddsSDKMiddleware(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("test"),
 	)
 
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(noop.NewTracerProvider()))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: noop.NewTracerProvider(),
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,6 @@ func TestNewClient_PropagatesDatadogParentToRequest(t *testing.T) {
 	previousPropagator := otel.GetTextMapPropagator()
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	t.Cleanup(func() { otel.SetTextMapPropagator(previousPropagator) })
-
 	ddMockTracer := ddmocktracer.Start()
 	t.Cleanup(ddMockTracer.Stop)
 	parent, ctx := tracer.StartSpanFromContext(
@@ -72,7 +73,9 @@ func TestNewClient_PropagatesDatadogParentToRequest(t *testing.T) {
 		ctxawslocal.WithSecretAccessKey("test"),
 	)
 
-	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(provider))
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

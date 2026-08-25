@@ -127,7 +127,9 @@ func newDynamoDBClient(
 	}
 	return dynamodb.NewFromConfig(awsCfg, func(o *dynamodb.Options) {
 		if traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: traceProvider,
+			})
 		}
 	}), nil
 }
@@ -154,7 +156,9 @@ func getClientLocal(
 	return dynamodb.NewFromConfig(awsCfg, func(o *dynamodb.Options) {
 		o.BaseEndpoint = aws.String(localProfile.Endpoint)
 		if traceEnabled {
-			awstrace.AppendMiddlewares(&o.APIOptions, traceProvider)
+			awstrace.AppendMiddlewares(&o.APIOptions, awstrace.Config{
+				TracerProvider: traceProvider,
+			})
 		}
 	}), nil
 }
