@@ -280,11 +280,11 @@ func (c *Client) ReceiveMessage(
 
 // ProcessMessage extracts the sender trace context, processes one message, and
 // deletes it only when the handler returns nil. The worker context remains the
-// process span's parent; the sender context is represented as a span link. An
-// invalid incoming trace context is recorded on the process span and does not
-// prevent the handler or acknowledgement from running. Optional process
-// options apply only to this call, and retain the queue name in a custom span
-// name.
+// process span's parent; the sender context is represented as a span link and
+// is available to the handler through ExtractMessageTraceContext. An invalid
+// incoming trace context is recorded on the process span and does not prevent
+// the handler or acknowledgement from running. Optional process options apply
+// only to this call, and retain the queue name in a custom span name.
 func (c *Client) ProcessMessage(
 	ctx context.Context,
 	queueURL QueueURL,
@@ -324,15 +324,19 @@ func (c *Client) ProcessMessage(
 		return err
 	}
 	defer span.End()
+	handlerCtx := withoutMessageTraceContext(processCtx)
+	if extractionErr == nil && hasSourceContext {
+		handlerCtx = withMessageTraceContext(processCtx, sourceSpanContext)
+	}
 
 	if extractionErr != nil {
 		recordSpanError(span, extractionErr)
 	}
-	if err := handler(processCtx, message); err != nil {
+	if err := handler(handlerCtx, message); err != nil {
 		recordSpanError(span, err)
 		return err
 	}
-	if err := c.DeleteMessage(processCtx, queueURL, message); err != nil {
+	if err := c.DeleteMessage(handlerCtx, queueURL, message); err != nil {
 		recordSpanError(span, err)
 		return err
 	}
