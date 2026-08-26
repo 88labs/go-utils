@@ -3,7 +3,7 @@ module github.com/88labs/go-utils/aws
 go 1.26.0
 
 require (
-	github.com/88labs/go-utils/tracers v0.1.0
+	github.com/88labs/go-utils/tracers v0.2.0
 	github.com/88labs/go-utils/ulid v0.9.1
 	github.com/88labs/go-utils/utf8bom v0.6.0
 	github.com/DataDog/dd-trace-go/v2 v2.9.2
