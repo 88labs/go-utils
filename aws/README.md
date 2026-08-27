@@ -523,11 +523,15 @@ client, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(awssqs.TraceConfig
 _, err = client.SendMessage(ctx, queueURL, Task{ID: "t3"})
 out, err := client.ReceiveMessage(ctx, queueURL)
 for _, msg := range out.Messages {
-    err = client.ProcessMessage(ctx, queueURL, msg, func(ctx context.Context, msg types.Message) error {
+    err = client.ProcessMessage(ctx, queueURL, msg, func(
+        ctx context.Context,
+        msg types.Message,
+        senderTraceInfo tracers.TraceInfo,
+    ) error {
         // The active span in ctx is the worker process span.
-        if messageTrace, ok := awssqs.ExtractMessageTraceContext(ctx); ok {
-            sourceTraceID := messageTrace.GetTraceID(tracers.FormatString)
-            sourceSpanID := messageTrace.GetSpanIDUInt64()
+        if senderTraceInfo.IsValid() {
+            sourceTraceID := senderTraceInfo.GetTraceID(tracers.FormatString)
+            sourceSpanID := senderTraceInfo.GetSpanIDUInt64()
             _ = sourceTraceID // add these values to the application log
             _ = sourceSpanID
         }
@@ -551,14 +555,14 @@ For each message, the processing sequence is:
    message attributes and starts a `process <queue>` consumer span. The
    context passed to `ProcessMessage` is the process span's parent. A valid
    sender context is recorded as a span link, not used as the process span's
-   parent. The handler receives the derived process context and can retrieve
-   the sender's context with `ExtractMessageTraceContext`. When tracing is
-   disabled, it receives the context passed by the caller unchanged.
-3. The handler is called with the message and the context from step 2. Handler
-   code should use that context when creating child spans or emitting
-   correlated logs. `ExtractMessageTraceContext` returns the sender's
-   `tracers.TraceInfo`, not the active process span; use it to add separate
-   source trace fields to logs without overwriting the worker trace fields.
+   parent. The handler receives the derived process context and the sender's
+   `tracers.TraceInfo` as separate arguments. When tracing is disabled, the
+   sender trace argument is the zero value.
+3. The handler is called with the message, the context from step 2, and the
+   sender's `tracers.TraceInfo`. Handler code should use the context when
+   creating child spans or emitting correlated logs. Use the sender TraceInfo
+   to add separate source trace fields to logs without overwriting the worker
+   trace fields.
 4. If the handler returns an error, `ProcessMessage` records the error on the
    process span (when tracing is enabled), returns the error, and does not call
    `DeleteMessage`. The message is therefore left to the queue's normal retry
@@ -570,23 +574,23 @@ For each message, the processing sequence is:
 6. The process span is ended after handler execution and acknowledgement,
    including all error paths.
 
-##### `ExtractMessageTraceContext`
+##### Sender trace information in `MessageHandler`
 
-`ExtractMessageTraceContext` is available from the context passed to a
-`ProcessMessage` handler. It returns the valid W3C `traceparent` and optional
-`tracestate` propagated by the sender. The active span in the same context is
-still the worker's `process <queue>` span, so the two values have different
-purposes:
+The third `senderTraceInfo` argument of a `ProcessMessage` handler contains the
+valid W3C `traceparent` and optional `tracestate` propagated by the sender. The
+active span in the first `ctx` argument is still the worker's `process <queue>`
+span, so the two values have different purposes:
 
 - Use `tracers.ExtractTraceContext(ctx)` for the worker process trace and span.
-- Use `awssqs.ExtractMessageTraceContext(ctx)` for the source message trace and
-  span, for example as `source_trace_id` and `source_span_id` log fields.
+- Use `senderTraceInfo` for the source message trace and span, for example as
+  `source_trace_id` and `source_span_id` log fields.
 
-The accessor returns `(tracers.TraceInfo{}, false)` when tracing is disabled,
-when the message has no valid trace context, or when it is called outside a
-`ProcessMessage` handler. `TraceInfo.GetTraceID(tracers.FormatString)` keeps
-the complete W3C 128-bit trace ID, while `GetSpanIDUInt64()` provides the
-numeric span ID representation used by Datadog log correlation.
+`senderTraceInfo` is `tracers.TraceInfo{}` when tracing is disabled, when the
+message has no valid trace context, or when the incoming trace context is
+invalid. Check `senderTraceInfo.IsValid()` before using it. The
+`GetTraceID(tracers.FormatString)` method keeps the complete W3C 128-bit trace
+ID, while `GetSpanIDUInt64()` provides the numeric span ID representation used
+by Datadog log correlation.
 
 Malformed or incomplete incoming trace attributes are recorded as process-span
 errors, but do not prevent the handler from running. This keeps message

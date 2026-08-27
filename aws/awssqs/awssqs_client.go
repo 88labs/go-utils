@@ -282,9 +282,9 @@ func (c *Client) ReceiveMessage(
 // ProcessMessage extracts the sender trace context, processes one message, and
 // deletes it only when the handler returns nil. The worker context remains the
 // process span's parent; the sender context is represented as a span link and
-// is available to the handler through ExtractMessageTraceContext. An invalid
-// incoming trace context is recorded on the process span and does not prevent
-// the handler or acknowledgement from running. Optional process options apply
+// is passed to the handler as a tracers.TraceInfo value. An invalid incoming
+// trace context is recorded on the process span and does not prevent the
+// handler or acknowledgement from running. Optional process options apply
 // only to this call, and retain the queue name in a custom span name.
 func (c *Client) ProcessMessage(
 	ctx context.Context,
@@ -297,12 +297,11 @@ func (c *Client) ProcessMessage(
 	if handler == nil {
 		return ErrNilMessageHandler
 	}
-	messageCtx := withoutMessageTraceContext(ctx)
 	if !c.config.traceEnabled {
-		if err := handler(messageCtx, message); err != nil {
+		if err := handler(ctx, message, tracers.TraceInfo{}); err != nil {
 			return err
 		}
-		return c.DeleteMessage(messageCtx, queueURL, message)
+		return c.DeleteMessage(ctx, queueURL, message)
 	}
 
 	sourceSpanContext, sourceTraceInfo, hasSourceContext, extractionErr := c.extractMessageSpanContext(message)
@@ -321,24 +320,19 @@ func (c *Client) ProcessMessage(
 			SpanContext: sourceSpanContext,
 		}))
 	}
-	processCtx, span, err := c.startSpan(messageCtx, c.processSpanName(queueURL, conf.OperationName), spanOptions...)
+	processCtx, span, err := c.startSpan(ctx, c.processSpanName(queueURL, conf.OperationName), spanOptions...)
 	if err != nil {
 		return err
 	}
 	defer span.End()
-	handlerCtx := withoutMessageTraceContext(processCtx)
-	if extractionErr == nil && hasSourceContext {
-		handlerCtx = withMessageTraceContext(processCtx, sourceTraceInfo)
-	}
-
 	if extractionErr != nil {
 		recordSpanError(span, extractionErr)
 	}
-	if err := handler(handlerCtx, message); err != nil {
+	if err := handler(processCtx, message, sourceTraceInfo); err != nil {
 		recordSpanError(span, err)
 		return err
 	}
-	if err := c.DeleteMessage(handlerCtx, queueURL, message); err != nil {
+	if err := c.DeleteMessage(processCtx, queueURL, message); err != nil {
 		recordSpanError(span, err)
 		return err
 	}

@@ -162,7 +162,7 @@ func TestSendReceiveProcessMessageWithTrace(t *testing.T) {
 	}
 
 	var handlerSpanContext oteltrace.SpanContext
-	err = client.ProcessMessage(workerCtx, queueURL, message, func(handlerCtx context.Context, _ types.Message) error {
+	err = client.ProcessMessage(workerCtx, queueURL, message, func(handlerCtx context.Context, _ types.Message, _ commontracers.TraceInfo) error {
 		handlerSpanContext = oteltrace.SpanFromContext(handlerCtx).SpanContext()
 		return nil
 	})
@@ -494,7 +494,7 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 			ctx,
 			awssqs.QueueURL(server.URL+"/000000000000/"+test.queue),
 			types.Message{ReceiptHandle: aws.String("receipt")},
-			func(context.Context, types.Message) error { return nil },
+			func(context.Context, types.Message, commontracers.TraceInfo) error { return nil },
 			test.opts...,
 		)
 		assert.NilError(t, err)
@@ -534,14 +534,13 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	}
 	var handlerSpanContext oteltrace.SpanContext
 	var messageTraceInfo commontracers.TraceInfo
-	var hasMessageTraceInfo bool
 	err = client.ProcessMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
 		message,
-		func(handlerCtx context.Context, _ types.Message) error {
+		func(handlerCtx context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
 			handlerSpanContext = oteltrace.SpanContextFromContext(handlerCtx)
-			messageTraceInfo, hasMessageTraceInfo = awssqs.ExtractMessageTraceContext(handlerCtx)
+			messageTraceInfo = traceInfo
 			return nil
 		},
 	)
@@ -556,7 +555,7 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	assert.Assert(t, processSpan.Links()[0].SpanContext.IsRemote())
 	assert.Assert(t, endedSpan(t, recorder, "delete orders").Parent().Equal(processSpan.SpanContext()))
 	assert.Assert(t, handlerSpanContext.Equal(processSpan.SpanContext()))
-	assert.Assert(t, hasMessageTraceInfo)
+	assert.Assert(t, messageTraceInfo.IsValid())
 	assert.Equal(t, messageTraceInfo.GetTraceParent(), sourceCarrier.Get("traceparent"))
 	assert.Equal(t, messageTraceInfo.GetTraceState(), sourceCarrier.Get("tracestate"))
 	assert.Equal(t, messageTraceInfo.GetTraceID(commontracers.FormatString), sourceSpan.SpanContext().TraceID().String())
@@ -585,7 +584,6 @@ func TestProcessMessagePreservesOriginalMessageTraceParent(t *testing.T) {
 	const traceParent = "02-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01-extra"
 	const traceState = "vendor=value"
 	var messageTraceInfo commontracers.TraceInfo
-	var hasMessageTraceInfo bool
 	err = client.ProcessMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
@@ -596,69 +594,45 @@ func TestProcessMessagePreservesOriginalMessageTraceParent(t *testing.T) {
 				"tracestate":  stringAttribute(traceState),
 			},
 		},
-		func(handlerCtx context.Context, _ types.Message) error {
-			messageTraceInfo, hasMessageTraceInfo = awssqs.ExtractMessageTraceContext(handlerCtx)
+		func(_ context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
+			messageTraceInfo = traceInfo
 			return nil
 		},
 	)
 	assert.NilError(t, err)
-	assert.Assert(t, hasMessageTraceInfo)
+	assert.Assert(t, messageTraceInfo.IsValid())
 	assert.Equal(t, messageTraceInfo.GetTraceParent(), traceParent)
 	assert.Equal(t, messageTraceInfo.GetTraceState(), traceState)
 }
 
-func TestProcessMessageWithoutTraceClearsMessageTraceContext(t *testing.T) {
+func TestProcessMessageWithoutTraceProvidesEmptyMessageTraceInfo(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeSQSResponse(w, `{}`)
 	}))
 	t.Cleanup(server.Close)
 
-	provider, _ := newTraceProvider(t)
 	ctx := localSQSContext(context.Background(), server.URL)
-	tracedClient, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
-		TracerProvider: provider,
-	}))
-	assert.NilError(t, err)
-	untracedClient, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo)
 	assert.NilError(t, err)
 
 	const traceParent = "00-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01"
-	var outerHasMessageTraceInfo bool
-	var nestedHasMessageTraceInfo bool
-	err = tracedClient.ProcessMessage(
+	var messageTraceInfo commontracers.TraceInfo
+	err = client.ProcessMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
 		types.Message{
-			ReceiptHandle: aws.String("outer-receipt"),
+			ReceiptHandle: aws.String("receipt"),
 			MessageAttributes: map[string]types.MessageAttributeValue{
 				"traceparent": stringAttribute(traceParent),
 			},
 		},
-		func(handlerCtx context.Context, _ types.Message) error {
-			_, outerHasMessageTraceInfo = awssqs.ExtractMessageTraceContext(handlerCtx)
-			return untracedClient.ProcessMessage(
-				handlerCtx,
-				awssqs.QueueURL(server.URL+"/000000000000/orders"),
-				types.Message{ReceiptHandle: aws.String("nested-receipt")},
-				func(nestedHandlerCtx context.Context, _ types.Message) error {
-					_, nestedHasMessageTraceInfo = awssqs.ExtractMessageTraceContext(nestedHandlerCtx)
-					return nil
-				},
-			)
+		func(_ context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
+			messageTraceInfo = traceInfo
+			return nil
 		},
 	)
 	assert.NilError(t, err)
-	assert.Assert(t, outerHasMessageTraceInfo)
-	assert.Assert(t, !nestedHasMessageTraceInfo)
-}
-
-func TestExtractMessageTraceContextOutsideProcessMessage(t *testing.T) {
-	if _, ok := awssqs.ExtractMessageTraceContext(context.Background()); ok {
-		t.Fatal("message trace context is unexpectedly available")
-	}
-	if _, ok := awssqs.ExtractMessageTraceContext(nil); ok {
-		t.Fatal("message trace context is unexpectedly available for nil context")
-	}
+	assert.Assert(t, !messageTraceInfo.IsValid())
 }
 
 func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
@@ -682,7 +656,7 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 	assert.NilError(t, err)
 
 	var handlerSpanContext oteltrace.SpanContext
-	var hasMessageTraceInfo bool
+	var messageTraceInfo commontracers.TraceInfo
 	err = client.ProcessMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
@@ -693,9 +667,9 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 				"tracestate":  stringAttribute("invalid"),
 			},
 		},
-		func(handlerCtx context.Context, _ types.Message) error {
+		func(handlerCtx context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
 			handlerSpanContext = oteltrace.SpanContextFromContext(handlerCtx)
-			_, hasMessageTraceInfo = awssqs.ExtractMessageTraceContext(handlerCtx)
+			messageTraceInfo = traceInfo
 			return nil
 		},
 	)
@@ -706,7 +680,7 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 	assert.Equal(t, processSpan.Parent().SpanID(), workerSpan.SpanContext().SpanID())
 	assert.Equal(t, len(processSpan.Links()), 0)
 	assert.Assert(t, handlerSpanContext.Equal(processSpan.SpanContext()))
-	assert.Assert(t, !hasMessageTraceInfo)
+	assert.Assert(t, !messageTraceInfo.IsValid())
 	assert.Equal(t, processSpan.Status().Code.String(), "Error")
 }
 
@@ -730,7 +704,7 @@ func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
 		types.Message{ReceiptHandle: aws.String("receipt")},
-		func(context.Context, types.Message) error { return handlerErr },
+		func(context.Context, types.Message, commontracers.TraceInfo) error { return handlerErr },
 	)
 	assert.ErrorIs(t, err, handlerErr)
 	assert.Equal(t, requestCount.Load(), int32(0))
