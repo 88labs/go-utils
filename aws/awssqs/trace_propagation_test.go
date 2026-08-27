@@ -569,6 +569,89 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	assert.Equal(t, spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.operation.type"), "settle")
 }
 
+func TestProcessMessagePreservesOriginalMessageTraceParent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, _ := newTraceProvider(t)
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+	}))
+	assert.NilError(t, err)
+
+	const traceParent = "02-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01-extra"
+	const traceState = "vendor=value"
+	var messageTraceInfo commontracers.TraceInfo
+	var hasMessageTraceInfo bool
+	err = client.ProcessMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		types.Message{
+			ReceiptHandle: aws.String("receipt"),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"traceparent": stringAttribute(traceParent),
+				"tracestate":  stringAttribute(traceState),
+			},
+		},
+		func(handlerCtx context.Context, _ types.Message) error {
+			messageTraceInfo, hasMessageTraceInfo = awssqs.ExtractMessageTraceContext(handlerCtx)
+			return nil
+		},
+	)
+	assert.NilError(t, err)
+	assert.Assert(t, hasMessageTraceInfo)
+	assert.Equal(t, messageTraceInfo.GetTraceParent(), traceParent)
+	assert.Equal(t, messageTraceInfo.GetTraceState(), traceState)
+}
+
+func TestProcessMessageWithoutTraceClearsMessageTraceContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, _ := newTraceProvider(t)
+	ctx := localSQSContext(context.Background(), server.URL)
+	tracedClient, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+	}))
+	assert.NilError(t, err)
+	untracedClient, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo)
+	assert.NilError(t, err)
+
+	const traceParent = "00-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01"
+	var outerHasMessageTraceInfo bool
+	var nestedHasMessageTraceInfo bool
+	err = tracedClient.ProcessMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		types.Message{
+			ReceiptHandle: aws.String("outer-receipt"),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"traceparent": stringAttribute(traceParent),
+			},
+		},
+		func(handlerCtx context.Context, _ types.Message) error {
+			_, outerHasMessageTraceInfo = awssqs.ExtractMessageTraceContext(handlerCtx)
+			return untracedClient.ProcessMessage(
+				handlerCtx,
+				awssqs.QueueURL(server.URL+"/000000000000/orders"),
+				types.Message{ReceiptHandle: aws.String("nested-receipt")},
+				func(nestedHandlerCtx context.Context, _ types.Message) error {
+					_, nestedHasMessageTraceInfo = awssqs.ExtractMessageTraceContext(nestedHandlerCtx)
+					return nil
+				},
+			)
+		},
+	)
+	assert.NilError(t, err)
+	assert.Assert(t, outerHasMessageTraceInfo)
+	assert.Assert(t, !nestedHasMessageTraceInfo)
+}
+
 func TestExtractMessageTraceContextOutsideProcessMessage(t *testing.T) {
 	if _, ok := awssqs.ExtractMessageTraceContext(context.Background()); ok {
 		t.Fatal("message trace context is unexpectedly available")

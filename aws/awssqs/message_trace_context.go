@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/88labs/go-utils/tracers"
-	"go.opentelemetry.io/otel/propagation"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 type messageTraceContextKey struct{}
@@ -39,17 +37,8 @@ func ExtractMessageTraceContext(ctx context.Context) (tracers.TraceInfo, bool) {
 	return value.info, true
 }
 
-func withMessageTraceContext(ctx context.Context, spanContext oteltrace.SpanContext) context.Context {
+func withMessageTraceContext(ctx context.Context, info tracers.TraceInfo) context.Context {
 	value := messageTraceContextValue{}
-	carrier := propagation.MapCarrier{}
-	propagation.TraceContext{}.Inject(
-		oteltrace.ContextWithSpanContext(context.Background(), spanContext),
-		carrier,
-	)
-	info := tracers.NewTraceInfoFromTraceParent(
-		carrier.Get(traceParentMessageAttribute),
-		carrier.Get(traceStateMessageAttribute),
-	)
 	if info.IsValid() {
 		value.info = info
 		value.ok = true
