@@ -109,7 +109,10 @@ custom SQS propagator, use
 `awssqs.WithTrace(awssqs.TraceConfig{Propagator: propagator})`; W3C Trace
 Context is always included and the supplied propagator is composed after it.
 For example, pass `propagation.Baggage{}` explicitly when baggage should also
-be propagated; baggage is not included by the default SQS configuration.
+be propagated; baggage is not included by the default SQS configuration. When
+enabled, the sender injects Baggage into a `baggage` message attribute and
+`ProcessMessage` makes the extracted Baggage available through the handler's
+Context. It is not added to the `tracers.TraceInfo` argument.
 When a request context contains a Datadog v2 span but no valid OpenTelemetry
 `SpanContext`, the compatibility bridge converts that span's W3C propagation
 fields into the parent context used by the AWS span.
@@ -121,7 +124,8 @@ When SQS message trace propagation is enabled with the standard configuration,
 SQS `String` data type and consume two of SQS's ten attribute slots, leaving
 at most eight for application-defined attributes. Baggage is not propagated
 by the standard configuration; it is included only when a custom propagator
-explicitly supplies it.
+explicitly supplies it. `propagation.Baggage{}` reserves one additional
+`baggage` attribute, so it leaves at most seven application-defined attributes.
 The final attribute count and injected W3C context are validated before the
 SQS request is sent; invalid trace attributes, reserved caller attributes, or
 an over-limit request return an error without sending a partial context.
@@ -516,9 +520,13 @@ import (
     "github.com/aws/aws-sdk-go-v2/service/sqs/types"
     "github.com/88labs/go-utils/aws/awssqs"
     "github.com/88labs/go-utils/tracers"
+    "go.opentelemetry.io/otel/baggage"
+    "go.opentelemetry.io/otel/propagation"
 )
 
-client, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(awssqs.TraceConfig{}))
+client, err := awssqs.NewClient(ctx, region, awssqs.WithTrace(awssqs.TraceConfig{
+    Propagator: propagation.Baggage{},
+}))
 
 _, err = client.SendMessage(ctx, queueURL, Task{ID: "t3"})
 out, err := client.ReceiveMessage(ctx, queueURL)
@@ -529,6 +537,8 @@ for _, msg := range out.Messages {
         senderTraceInfo tracers.TraceInfo,
     ) error {
         // The active span in ctx is the worker process span.
+        tenant := baggage.FromContext(ctx).Member("tenant").Value()
+        _ = tenant // use the propagated Baggage in the application
         if senderTraceInfo.IsValid() {
             sourceTraceID := senderTraceInfo.GetTraceID(tracers.FormatString)
             sourceSpanID := senderTraceInfo.GetSpanIDUInt64()
@@ -556,13 +566,17 @@ For each message, the processing sequence is:
    context passed to `ProcessMessage` is the process span's parent. A valid
    sender context is recorded as a span link, not used as the process span's
    parent. The handler receives the derived process context and the sender's
-   `tracers.TraceInfo` as separate arguments. When tracing is disabled, the
-   sender trace argument is the zero value.
+   `tracers.TraceInfo` as separate arguments. If the configured propagator
+   includes Baggage, the extracted Baggage is added to that process context;
+   the worker process span remains its active span. When tracing is disabled,
+   the sender trace argument is the zero value and message Baggage is not
+   extracted.
 3. The handler is called with the message, the context from step 2, and the
    sender's `tracers.TraceInfo`. Handler code should use the context when
    creating child spans or emitting correlated logs. Use the sender TraceInfo
    to add separate source trace fields to logs without overwriting the worker
-   trace fields.
+   trace fields. Use `baggage.FromContext(ctx)` to read Baggage; it is not part
+   of `tracers.TraceInfo`.
 4. If the handler returns an error, `ProcessMessage` records the error on the
    process span (when tracing is enabled), returns the error, and does not call
    `DeleteMessage`. The message is therefore left to the queue's normal retry
@@ -600,8 +614,12 @@ visible in telemetry.
 The standard tracing configuration reserves two message attributes:
 `traceparent` and `tracestate`. They are added as SQS `String` attributes and
 cannot be supplied by the caller, leaving at most eight application
-attributes. Baggage is propagated only when a custom propagator includes it;
-custom propagators may reserve additional attributes. All fields declared by
+attributes. Baggage is propagated only when a custom propagator includes it.
+When `propagation.Baggage{}` is included, `baggage` is also reserved and at
+most seven application attributes may be supplied. Baggage may contain
+sensitive data, so do not place credentials, tokens, or PII in it. See the
+[OpenTelemetry Baggage security guidance](https://opentelemetry.io/docs/concepts/context-propagation/#baggage).
+Custom propagators may reserve additional attributes. All fields declared by
 the propagator are reserved even when an optional field is not injected for a
 particular context. Application attribute maps are copied before trace
 attributes are added, and the final count is validated before sending.

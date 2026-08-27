@@ -19,8 +19,8 @@ func (q QueueURL) AWSString() *string {
 }
 
 // MessageHandler processes one received SQS message. The context contains the
-// worker process span, and messageTraceInfo contains the sender's W3C trace
-// context when it is valid. A zero TraceInfo indicates that the message trace
-// context is unavailable. A nil error acknowledges the message after the
-// handler returns.
+// worker process span and, when configured, Baggage extracted from the message.
+// messageTraceInfo contains the sender's W3C trace context when it is valid. A
+// zero TraceInfo indicates that the message trace context is unavailable. A
+// nil error acknowledges the message after the handler returns.
 type MessageHandler func(context.Context, types.Message, tracers.TraceInfo) error

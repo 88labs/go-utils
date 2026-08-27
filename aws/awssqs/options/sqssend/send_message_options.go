@@ -57,9 +57,11 @@ func WithOperationName(operationName string) OptionOperationName {
 // OptionMessageAttributes supplies application-defined SQS message
 // attributes. With the standard tracing configuration, traceparent and
 // tracestate are reserved, leaving at most eight application-defined
-// attributes. Baggage is reserved only when a custom propagator includes it.
-// Trace attributes use the SQS String data type, and invalid values or a final
-// total above ten attributes are rejected before the request is sent.
+// attributes. Baggage is reserved only when a custom propagator includes it;
+// propagation.Baggage{} reserves one additional attribute and leaves at most
+// seven application-defined attributes. Trace attributes use the SQS String
+// data type, and invalid values or a final total above ten attributes are
+// rejected before the request is sent.
 type OptionMessageAttributes map[string]types.MessageAttributeValue
 
 func (o OptionMessageAttributes) Apply(c *confSendMessage) {

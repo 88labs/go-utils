@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -63,6 +64,14 @@ var (
 	// ErrNilMessageHandler indicates that ProcessMessage received no handler.
 	ErrNilMessageHandler = errors.New("awssqs: message handler is nil")
 )
+
+type extractedMessageContext struct {
+	ctx              context.Context
+	spanContext      oteltrace.SpanContext
+	traceInfo        tracers.TraceInfo
+	hasSourceContext bool
+	extractionErr    error
+}
 
 // SendMessage converts a message to JSON and sends it to SQS.
 // Default DelaySeconds=0.
@@ -282,10 +291,12 @@ func (c *Client) ReceiveMessage(
 // ProcessMessage extracts the sender trace context, processes one message, and
 // deletes it only when the handler returns nil. The worker context remains the
 // process span's parent; the sender context is represented as a span link and
-// is passed to the handler as a tracers.TraceInfo value. An invalid incoming
-// trace context is recorded on the process span and does not prevent the
-// handler or acknowledgement from running. Optional process options apply
-// only to this call, and retain the queue name in a custom span name.
+// is passed to the handler as a tracers.TraceInfo value. When the configured
+// propagator includes Baggage, the extracted Baggage is added to the handler
+// context without changing its active span. An invalid incoming trace context
+// is recorded on the process span and does not prevent the handler or
+// acknowledgement from running. Optional process options apply only to this
+// call, and retain the queue name in a custom span name.
 func (c *Client) ProcessMessage(
 	ctx context.Context,
 	queueURL QueueURL,
@@ -304,7 +315,7 @@ func (c *Client) ProcessMessage(
 		return c.DeleteMessage(ctx, queueURL, message)
 	}
 
-	sourceSpanContext, sourceTraceInfo, hasSourceContext, extractionErr := c.extractMessageSpanContext(message)
+	messageContext := c.extractMessageContext(message)
 	spanOptions := []oteltrace.SpanStartOption{
 		oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
 		oteltrace.WithAttributes(messagingSpanAttributes(
@@ -315,9 +326,9 @@ func (c *Client) ProcessMessage(
 			message.MessageId,
 		)...),
 	}
-	if extractionErr == nil && hasSourceContext {
+	if messageContext.extractionErr == nil && messageContext.hasSourceContext {
 		spanOptions = append(spanOptions, oteltrace.WithLinks(oteltrace.Link{
-			SpanContext: sourceSpanContext,
+			SpanContext: messageContext.spanContext,
 		}))
 	}
 	processCtx, span, err := c.startSpan(ctx, c.processSpanName(queueURL, conf.OperationName), spanOptions...)
@@ -325,10 +336,11 @@ func (c *Client) ProcessMessage(
 		return err
 	}
 	defer span.End()
-	if extractionErr != nil {
-		recordSpanError(span, extractionErr)
+	if messageContext.extractionErr != nil {
+		recordSpanError(span, messageContext.extractionErr)
 	}
-	if err := handler(processCtx, message, sourceTraceInfo); err != nil {
+	processCtx = withMessageBaggage(processCtx, messageContext.ctx)
+	if err := handler(processCtx, message, messageContext.traceInfo); err != nil {
 		recordSpanError(span, err)
 		return err
 	}
@@ -519,63 +531,85 @@ func validateInjectedTraceContext(ctx context.Context, carrier propagation.MapCa
 	return nil
 }
 
-func (c *Client) extractMessageSpanContext(message types.Message) (oteltrace.SpanContext, tracers.TraceInfo, bool, error) {
+func (c *Client) extractMessageContext(message types.Message) extractedMessageContext {
+	messageContext := extractedMessageContext{ctx: context.Background()}
+	propagator := c.config.tracePropagator
+	if propagator == nil {
+		messageContext.extractionErr = ErrTracePropagatorNotConfigured
+		return messageContext
+	}
+
 	traceParentAttribute, hasTraceParent := message.MessageAttributes[traceParentMessageAttribute]
 	traceStateAttribute, hasTraceState := message.MessageAttributes[traceStateMessageAttribute]
-	if !hasTraceParent && !hasTraceState {
-		return oteltrace.SpanContext{}, tracers.TraceInfo{}, false, nil
+	var traceParent, traceState string
+	var traceErr error
+	if hasTraceParent {
+		if !isStringMessageAttribute(traceParentAttribute) {
+			traceErr = fmt.Errorf("%w: invalid %s message attribute", ErrInvalidTraceContext, traceParentMessageAttribute)
+		} else {
+			traceParent = *traceParentAttribute.StringValue
+		}
+	} else if hasTraceState {
+		traceErr = fmt.Errorf("%w: invalid %s message attribute", ErrInvalidTraceContext, traceParentMessageAttribute)
 	}
-	if !hasTraceParent || !isStringMessageAttribute(traceParentAttribute) {
-		return oteltrace.SpanContext{}, tracers.TraceInfo{}, false,
-			fmt.Errorf("%w: invalid %s message attribute", ErrInvalidTraceContext, traceParentMessageAttribute)
-	}
-	if hasTraceState && !isStringMessageAttribute(traceStateAttribute) {
-		return oteltrace.SpanContext{}, tracers.TraceInfo{}, false,
-			fmt.Errorf("%w: invalid %s message attribute", ErrInvalidTraceContext, traceStateMessageAttribute)
+	if traceErr == nil && hasTraceState {
+		if !isStringMessageAttribute(traceStateAttribute) {
+			traceErr = fmt.Errorf("%w: invalid %s message attribute", ErrInvalidTraceContext, traceStateMessageAttribute)
+		} else {
+			traceState = *traceStateAttribute.StringValue
+			if traceState != "" {
+				if _, err := oteltrace.ParseTraceState(traceState); err != nil {
+					traceErr = fmt.Errorf("%w: invalid message tracestate", ErrInvalidTraceContext)
+				}
+			}
+		}
 	}
 
 	carrier := propagation.MapCarrier{}
 	for key, attribute := range message.MessageAttributes {
 		if !isStringMessageAttribute(attribute) {
-			if key == traceParentMessageAttribute || key == traceStateMessageAttribute {
-				return oteltrace.SpanContext{}, tracers.TraceInfo{}, false,
-					fmt.Errorf("%w: invalid %s message attribute", ErrInvalidTraceContext, key)
-			}
 			continue
 		}
 		carrier[key] = *attribute.StringValue
 	}
-	if hasTraceState && *traceStateAttribute.StringValue != "" {
-		traceState := *traceStateAttribute.StringValue
-		if _, err := oteltrace.ParseTraceState(traceState); err != nil {
-			return oteltrace.SpanContext{}, tracers.TraceInfo{}, false,
-				fmt.Errorf("%w: invalid message tracestate", ErrInvalidTraceContext)
-		}
-		carrier[traceStateMessageAttribute] = traceState
+	messageContext.ctx = propagator.Extract(context.Background(), carrier)
+	if !hasTraceParent && !hasTraceState {
+		return messageContext
 	}
-	propagator := c.config.tracePropagator
-	if propagator == nil {
-		return oteltrace.SpanContext{}, tracers.TraceInfo{}, false, ErrTracePropagatorNotConfigured
+	if traceErr != nil {
+		messageContext.extractionErr = traceErr
+		return messageContext
 	}
-	extracted := propagator.Extract(context.Background(), carrier)
-	spanContext := oteltrace.SpanContextFromContext(extracted)
-	if !spanContext.IsValid() {
-		return oteltrace.SpanContext{}, tracers.TraceInfo{}, false,
-			fmt.Errorf("%w: propagator could not extract message context", ErrInvalidTraceContext)
+
+	if messageContext.ctx == nil {
+		messageContext.extractionErr = fmt.Errorf("%w: propagator returned a nil context", ErrInvalidTraceContext)
+		return messageContext
 	}
-	traceState := ""
-	if hasTraceState {
-		traceState = *traceStateAttribute.StringValue
+	extractedSpanContext := oteltrace.SpanContextFromContext(messageContext.ctx)
+	if !extractedSpanContext.IsValid() {
+		messageContext.extractionErr = fmt.Errorf("%w: propagator could not extract message context", ErrInvalidTraceContext)
+		return messageContext
 	}
-	traceInfo := tracers.NewTraceInfoFromTraceParent(
-		*traceParentAttribute.StringValue,
-		traceState,
-	)
+	traceInfo := tracers.NewTraceInfoFromTraceParent(traceParent, traceState)
 	if !traceInfo.IsValid() {
-		return oteltrace.SpanContext{}, tracers.TraceInfo{}, false,
-			fmt.Errorf("%w: could not create message trace info", ErrInvalidTraceContext)
+		messageContext.extractionErr = fmt.Errorf("%w: could not create message trace info", ErrInvalidTraceContext)
+		return messageContext
 	}
-	return spanContext, traceInfo, true, nil
+	messageContext.spanContext = extractedSpanContext
+	messageContext.traceInfo = traceInfo
+	messageContext.hasSourceContext = true
+	return messageContext
+}
+
+func withMessageBaggage(processCtx, messageCtx context.Context) context.Context {
+	if messageCtx == nil {
+		return processCtx
+	}
+	messageBaggage := baggage.FromContext(messageCtx)
+	if messageBaggage.Len() == 0 {
+		return processCtx
+	}
+	return baggage.ContextWithBaggage(processCtx, messageBaggage)
 }
 
 func isStringMessageAttribute(attribute types.MessageAttributeValue) bool {

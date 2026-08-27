@@ -30,6 +30,8 @@ type TraceConfig struct {
 	// nil propagator uses only the standard W3C Trace Context propagator. To
 	// propagate W3C Baggage, provide a custom propagator such as
 	// propagation.Baggage{}; W3C Trace Context is always included automatically.
+	// When Baggage is configured, the extracted Baggage is available from the
+	// context passed to ProcessMessage's handler.
 	Propagator propagation.TextMapPropagator
 }
 
@@ -61,8 +63,11 @@ var defaultTracePropagator propagation.TextMapPropagator = propagation.TraceCont
 // The propagator's fields are reserved SQS message attributes. The standard
 // Trace Context propagator reserves two attributes, leaving at most eight
 // attributes for application data. A custom propagator may reserve additional
-// fields, including baggage. The propagator is injected and extracted directly
-// by this client; the global TextMapPropagator is not read or changed.
+// fields, including baggage. With propagation.Baggage{}, three attributes are
+// reserved and at most seven application attributes can be supplied. Extracted
+// Baggage is added to the context passed to ProcessMessage's handler. The
+// propagator is injected and extracted directly by this client; the global
+// TextMapPropagator is not read or changed.
 func WithTrace(config TraceConfig) ClientOption {
 	return clientOptionFunc(func(cfg *clientConfig) {
 		resolvedProvider := config.TracerProvider
