@@ -32,6 +32,7 @@ import (
 	"github.com/88labs/go-utils/aws/awssqs/options/sqsreceive"
 	"github.com/88labs/go-utils/aws/awssqs/options/sqssend"
 	"github.com/88labs/go-utils/aws/ctxawslocal"
+	commontracers "github.com/88labs/go-utils/tracers"
 )
 
 func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
@@ -45,7 +46,11 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 	provider, recorder := newTraceProvider(t)
 	parentCtx, parentSpan := provider.Tracer("test").Start(context.Background(), "parent")
 	t.Cleanup(func() { parentSpan.End() })
-	ctx := localSQSContext(parentCtx, server.URL)
+	member, err := baggage.NewMember("tenant", "board")
+	assert.NilError(t, err)
+	parentBaggage, err := baggage.New(member)
+	assert.NilError(t, err)
+	ctx := localSQSContext(baggage.ContextWithBaggage(parentCtx, parentBaggage), server.URL)
 	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
 		TracerProvider: provider,
 		Propagator:     propagation.Baggage{},
@@ -67,14 +72,18 @@ func TestSendMessageWithTraceInjectsMessageAttributes(t *testing.T) {
 		MessageAttributes map[string]types.MessageAttributeValue `json:"MessageAttributes"`
 	}
 	assert.NilError(t, json.Unmarshal(requestBody, &request))
-	assert.Equal(t, len(request.MessageAttributes), 2)
+	assert.Equal(t, len(request.MessageAttributes), 3)
 	assert.Equal(t, *request.MessageAttributes["business"].StringValue, "value")
 	assert.Equal(t, *request.MessageAttributes["traceparent"].DataType, "String")
+	assert.Equal(t, *request.MessageAttributes["baggage"].DataType, "String")
+	assert.Equal(t, *request.MessageAttributes["baggage"].StringValue, "tenant=board")
 	_, hasTraceState := request.MessageAttributes["tracestate"]
 	assert.Assert(t, !hasTraceState)
 	assert.Equal(t, len(attributes), 1)
 	_, hasTraceParent := attributes["traceparent"]
 	assert.Assert(t, !hasTraceParent)
+	_, hasBaggage := attributes["baggage"]
+	assert.Assert(t, !hasBaggage)
 
 	traceParent := *request.MessageAttributes["traceparent"].StringValue
 	propagated := propagation.TraceContext{}.Extract(
@@ -161,7 +170,7 @@ func TestSendReceiveProcessMessageWithTrace(t *testing.T) {
 	}
 
 	var handlerSpanContext oteltrace.SpanContext
-	err = client.ProcessMessage(workerCtx, queueURL, message, func(handlerCtx context.Context, _ types.Message) error {
+	err = client.ProcessMessage(workerCtx, queueURL, message, func(handlerCtx context.Context, _ types.Message, _ commontracers.TraceInfo) error {
 		handlerSpanContext = oteltrace.SpanFromContext(handlerCtx).SpanContext()
 		return nil
 	})
@@ -493,7 +502,7 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 			ctx,
 			awssqs.QueueURL(server.URL+"/000000000000/"+test.queue),
 			types.Message{ReceiptHandle: aws.String("receipt")},
-			func(context.Context, types.Message) error { return nil },
+			func(context.Context, types.Message, commontracers.TraceInfo) error { return nil },
 			test.opts...,
 		)
 		assert.NilError(t, err)
@@ -501,7 +510,7 @@ func TestProcessMessageOperationNameIsPerCallAndRetainsQueueName(t *testing.T) {
 	}
 }
 
-func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
+func TestProcessMessageUsesWorkerParentSenderLinkAndBaggage(t *testing.T) {
 	var deleteCount atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Amz-Target") == "AmazonSQS.DeleteMessage" {
@@ -514,8 +523,17 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	provider, recorder := newTraceProvider(t)
 	sourceCtx, sourceSpan := provider.Tracer("source").Start(context.Background(), "source")
 	t.Cleanup(func() { sourceSpan.End() })
+	member, err := baggage.NewMember("tenant", "board")
+	assert.NilError(t, err)
+	sourceBaggage, err := baggage.New(member)
+	assert.NilError(t, err)
+	sourceCtx = baggage.ContextWithBaggage(sourceCtx, sourceBaggage)
 	sourceCarrier := propagation.MapCarrier{}
-	propagation.TraceContext{}.Inject(sourceCtx, sourceCarrier)
+	propagator := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+	propagator.Inject(sourceCtx, sourceCarrier)
 	workerCtx, workerSpan := provider.Tracer("worker").Start(context.Background(), "worker")
 	t.Cleanup(func() { workerSpan.End() })
 
@@ -529,15 +547,20 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 		ReceiptHandle: aws.String("receipt"),
 		MessageAttributes: map[string]types.MessageAttributeValue{
 			"traceparent": stringAttribute(sourceCarrier.Get("traceparent")),
+			"baggage":     stringAttribute(sourceCarrier.Get("baggage")),
 		},
 	}
 	var handlerSpanContext oteltrace.SpanContext
+	var messageTraceInfo commontracers.TraceInfo
+	var handlerBaggage baggage.Baggage
 	err = client.ProcessMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
 		message,
-		func(handlerCtx context.Context, _ types.Message) error {
+		func(handlerCtx context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
 			handlerSpanContext = oteltrace.SpanContextFromContext(handlerCtx)
+			handlerBaggage = baggage.FromContext(handlerCtx)
+			messageTraceInfo = traceInfo
 			return nil
 		},
 	)
@@ -552,12 +575,132 @@ func TestProcessMessageUsesWorkerParentAndSenderLink(t *testing.T) {
 	assert.Assert(t, processSpan.Links()[0].SpanContext.IsRemote())
 	assert.Assert(t, endedSpan(t, recorder, "delete orders").Parent().Equal(processSpan.SpanContext()))
 	assert.Assert(t, handlerSpanContext.Equal(processSpan.SpanContext()))
+	assert.Equal(t, handlerBaggage.Member("tenant").Value(), "board")
+	assert.Assert(t, messageTraceInfo.IsValid())
+	assert.Equal(t, messageTraceInfo.GetTraceParent(), sourceCarrier.Get("traceparent"))
+	assert.Equal(t, messageTraceInfo.GetTraceState(), sourceCarrier.Get("tracestate"))
+	assert.Equal(t, messageTraceInfo.GetTraceID(commontracers.FormatString), sourceSpan.SpanContext().TraceID().String())
+	assert.Equal(t, messageTraceInfo.GetSpanID(), sourceSpan.SpanContext().SpanID().String())
 	assert.Equal(t, spanAttribute(processSpan, "messaging.system"), "aws_sqs")
 	assert.Equal(t, spanAttribute(processSpan, "messaging.operation.name"), "process")
 	assert.Equal(t, spanAttribute(processSpan, "messaging.operation.type"), "process")
 	assert.Equal(t, spanAttribute(processSpan, "messaging.destination.name"), "orders")
 	assert.Equal(t, spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.system"), "aws_sqs")
 	assert.Equal(t, spanAttribute(endedSpan(t, recorder, "delete orders"), "messaging.operation.type"), "settle")
+}
+
+func TestProcessMessagePreservesOriginalMessageTraceParent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, _ := newTraceProvider(t)
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+	}))
+	assert.NilError(t, err)
+
+	const traceParent = "02-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01-extra"
+	const traceState = "vendor=value"
+	var messageTraceInfo commontracers.TraceInfo
+	err = client.ProcessMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		types.Message{
+			ReceiptHandle: aws.String("receipt"),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"traceparent": stringAttribute(traceParent),
+				"tracestate":  stringAttribute(traceState),
+			},
+		},
+		func(_ context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
+			messageTraceInfo = traceInfo
+			return nil
+		},
+	)
+	assert.NilError(t, err)
+	assert.Assert(t, messageTraceInfo.IsValid())
+	assert.Equal(t, messageTraceInfo.GetTraceParent(), traceParent)
+	assert.Equal(t, messageTraceInfo.GetTraceState(), traceState)
+}
+
+func TestProcessMessageWithoutTraceProvidesEmptyMessageTraceInfo(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	ctx := localSQSContext(context.Background(), server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo)
+	assert.NilError(t, err)
+
+	const traceParent = "00-0102030405060708090a0b0c0d0e0f10-100f0e0d0c0b0a09-01"
+	var messageTraceInfo commontracers.TraceInfo
+	err = client.ProcessMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		types.Message{
+			ReceiptHandle: aws.String("receipt"),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"traceparent": stringAttribute(traceParent),
+			},
+		},
+		func(_ context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
+			messageTraceInfo = traceInfo
+			return nil
+		},
+	)
+	assert.NilError(t, err)
+	assert.Assert(t, !messageTraceInfo.IsValid())
+}
+
+func TestProcessMessagePropagatesBaggageWithoutTraceContext(t *testing.T) {
+	var deleteCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Amz-Target") == "AmazonSQS.DeleteMessage" {
+			deleteCount.Add(1)
+		}
+		writeSQSResponse(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, recorder := newTraceProvider(t)
+	workerCtx, workerSpan := provider.Tracer("worker").Start(context.Background(), "worker")
+	t.Cleanup(func() { workerSpan.End() })
+	ctx := localSQSContext(workerCtx, server.URL)
+	client, err := awssqs.NewClient(ctx, awsconfig.RegionTokyo, awssqs.WithTrace(awssqs.TraceConfig{
+		TracerProvider: provider,
+		Propagator:     propagation.Baggage{},
+	}))
+	assert.NilError(t, err)
+
+	var handlerBaggage baggage.Baggage
+	var messageTraceInfo commontracers.TraceInfo
+	err = client.ProcessMessage(
+		ctx,
+		awssqs.QueueURL(server.URL+"/000000000000/orders"),
+		types.Message{
+			ReceiptHandle: aws.String("receipt"),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"baggage": stringAttribute("tenant=board"),
+			},
+		},
+		func(handlerCtx context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
+			handlerBaggage = baggage.FromContext(handlerCtx)
+			messageTraceInfo = traceInfo
+			return nil
+		},
+	)
+	assert.NilError(t, err)
+	assert.Equal(t, deleteCount.Load(), int32(1))
+	assert.Equal(t, handlerBaggage.Member("tenant").Value(), "board")
+	assert.Assert(t, !messageTraceInfo.IsValid())
+
+	processSpan := endedSpan(t, recorder, "process orders")
+	assert.Equal(t, processSpan.Parent().SpanID(), workerSpan.SpanContext().SpanID())
+	assert.Equal(t, len(processSpan.Links()), 0)
 }
 
 func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
@@ -581,6 +724,8 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 	assert.NilError(t, err)
 
 	var handlerSpanContext oteltrace.SpanContext
+	var messageTraceInfo commontracers.TraceInfo
+	var handlerBaggage baggage.Baggage
 	err = client.ProcessMessage(
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
@@ -589,10 +734,13 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 			MessageAttributes: map[string]types.MessageAttributeValue{
 				"traceparent": stringAttribute("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
 				"tracestate":  stringAttribute("invalid"),
+				"baggage":     stringAttribute("tenant=board"),
 			},
 		},
-		func(handlerCtx context.Context, _ types.Message) error {
+		func(handlerCtx context.Context, _ types.Message, traceInfo commontracers.TraceInfo) error {
 			handlerSpanContext = oteltrace.SpanContextFromContext(handlerCtx)
+			handlerBaggage = baggage.FromContext(handlerCtx)
+			messageTraceInfo = traceInfo
 			return nil
 		},
 	)
@@ -603,6 +751,8 @@ func TestProcessMessageInvalidTraceContextContinuesProcessing(t *testing.T) {
 	assert.Equal(t, processSpan.Parent().SpanID(), workerSpan.SpanContext().SpanID())
 	assert.Equal(t, len(processSpan.Links()), 0)
 	assert.Assert(t, handlerSpanContext.Equal(processSpan.SpanContext()))
+	assert.Equal(t, handlerBaggage.Member("tenant").Value(), "board")
+	assert.Assert(t, !messageTraceInfo.IsValid())
 	assert.Equal(t, processSpan.Status().Code.String(), "Error")
 }
 
@@ -626,7 +776,7 @@ func TestProcessMessageHandlerErrorDoesNotDelete(t *testing.T) {
 		ctx,
 		awssqs.QueueURL(server.URL+"/000000000000/orders"),
 		types.Message{ReceiptHandle: aws.String("receipt")},
-		func(context.Context, types.Message) error { return handlerErr },
+		func(context.Context, types.Message, commontracers.TraceInfo) error { return handlerErr },
 	)
 	assert.ErrorIs(t, err, handlerErr)
 	assert.Equal(t, requestCount.Load(), int32(0))

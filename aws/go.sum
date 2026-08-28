@@ -1,5 +1,7 @@
 github.com/88labs/go-utils/tracers v0.1.0 h1:Ze/u6u1jBaQXhBTggkuOU7LYAs7CTEHGKyEyXD7ZAc4=
 github.com/88labs/go-utils/tracers v0.1.0/go.mod h1:5OuhGJYZJolqMlsymvfq91HvRfPuAP+ZtLS8Nt4oKKI=
+github.com/88labs/go-utils/tracers v0.2.0 h1:/63XbytpybIQ+ax/AXcz135GaOH7Gcu5Hq0/Bb1goO0=
+github.com/88labs/go-utils/tracers v0.2.0/go.mod h1:5OuhGJYZJolqMlsymvfq91HvRfPuAP+ZtLS8Nt4oKKI=
 github.com/88labs/go-utils/ulid v0.9.1 h1:fBa50UgIOG/VS80tuOthHkg2diM4n/75xPKEdryPnfY=
 github.com/88labs/go-utils/ulid v0.9.1/go.mod h1:4ssONA6u1oVzmK+GKq+cIdnJOxL5XS/cEPY8oOEpc1U=
 github.com/88labs/go-utils/utf8bom v0.6.0 h1:6Wo5peQyCMEsOfKv4rpRQNotY1JV4/W2r7C7SmsoPIY=

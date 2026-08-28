@@ -139,11 +139,14 @@ func DeleteMessage(ctx context.Context, region awsconfig.Region, queueURL QueueU
 
 // ProcessMessage processes one received message and deletes it only when the
 // handler returns nil. The worker context is the process-span parent and the
-// sender context is a span link. Invalid incoming trace attributes are
-// recorded on the process span but do not stop the handler or acknowledgement.
-// Process options apply only to this call. Package-level clients use only the
-// WithTrace configuration supplied to GetClient's first initialization; later
-// GetClient calls do not reconfigure the singleton.
+// sender context is a span link passed to the handler as a tracers.TraceInfo
+// value for log correlation. When configured, Baggage from the message is
+// available in the handler context without changing the worker span parent.
+// Invalid incoming trace attributes are recorded on the process span but do
+// not stop the handler or acknowledgement. Process options apply only to this
+// call. Package-level clients use only the WithTrace configuration supplied to
+// GetClient's first initialization; later GetClient calls do not reconfigure
+// the singleton.
 func ProcessMessage(
 	ctx context.Context,
 	region awsconfig.Region,
