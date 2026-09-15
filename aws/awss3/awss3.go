@@ -85,6 +85,20 @@ func ListObjects(
 	return packageClientFromSDK(c).ListObjects(ctx, bucketName, opts...)
 }
 
+// GetObjectReader downloads an object as a stream.
+// The caller must close the returned reader.
+//
+// Mocks: Using ctxawslocal.WithContext, you can make requests for local mocks.
+func GetObjectReader(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
+) (io.ReadCloser, error) {
+	c, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+	return packageClientFromSDK(c).GetObjectReader(ctx, bucketName, key)
+}
+
 // GetObjectWriter
 // aws-sdk-go v2 GetObject output io.Writer
 //

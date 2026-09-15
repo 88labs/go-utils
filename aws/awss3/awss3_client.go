@@ -178,6 +178,44 @@ func (c *Client) ListObjects(
 	return objects, nil
 }
 
+// GetObjectReader downloads an object as a stream.
+// The caller must close the returned reader.
+func (c *Client) GetObjectReader(
+	ctx context.Context, bucketName BucketName, key Key,
+) (body io.ReadCloser, err error) {
+	done := c.logOperation(ctx, "GetObjectReader",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
+	body, err = c.getObject(ctx, bucketName, key)
+	if err != nil {
+		var nond *types.NotFound
+		var noSuchKey *types.NoSuchKey
+		if errors.As(err, &nond) || errors.As(err, &noSuchKey) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return body, nil
+}
+
+func (c *Client) getObject(
+	ctx context.Context, bucketName BucketName, key Key,
+) (io.ReadCloser, error) {
+	resp, err := c.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
 // GetObjectWriter downloads an object and writes its content to w.
 func (c *Client) GetObjectWriter(ctx context.Context, bucketName BucketName, key Key, w io.Writer) (err error) {
 	done := c.logOperation(ctx, "GetObjectWriter",
@@ -191,10 +229,7 @@ func (c *Client) GetObjectWriter(ctx context.Context, bucketName BucketName, key
 	if _, err = c.headObject(ctx, bucketName, key); err != nil {
 		return err
 	}
-	resp, err := c.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: bucketName.AWSString(),
-		Key:    key.AWSString(),
-	})
+	body, err := c.getObject(ctx, bucketName, key)
 	if err != nil {
 		var nond *types.NotFound
 		if errors.As(err, &nond) {
@@ -203,11 +238,11 @@ func (c *Client) GetObjectWriter(ctx context.Context, bucketName BucketName, key
 		return err
 	}
 	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+		if closeErr := body.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}()
-	_, err = io.Copy(w, resp.Body)
+	_, err = io.Copy(w, body)
 	return err
 }
 
