@@ -511,6 +511,9 @@ func (c *Client) Copy(
 
 // SelectCSVAll executes a SQL expression against S3 Select and writes results to w.
 // SQL Reference: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html
+// Deprecated: AWS no longer offers S3 Select to new customers and does not
+// plan to introduce new capabilities. See
+// https://aws.amazon.com/jp/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/.
 func (c *Client) SelectCSVAll(
 	ctx context.Context, bucketName BucketName, key Key, query string, w io.Writer,
 	opts ...s3selectcsv.OptionS3SelectCSV,
@@ -588,6 +591,9 @@ func (c *Client) selectCSVAll(
 
 // SelectCSVHeaders retrieves the CSV header row.
 // Valid options: CompressionType
+// Deprecated: AWS no longer offers S3 Select to new customers and does not
+// plan to introduce new capabilities. See
+// https://aws.amazon.com/jp/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/.
 func (c *Client) SelectCSVHeaders(
 	ctx context.Context, bucketName BucketName, key Key,
 	opts ...s3selectcsv.OptionS3SelectCSV,
