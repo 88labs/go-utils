@@ -173,7 +173,7 @@ region := awsconfig.RegionOsaka   // "ap-northeast-3"
 > It is not meant to be used in production code.
 
 Injects local-mock endpoint configuration into a `context.Context`.
-All packages in this library check the context before dialling AWS, so your tests can redirect traffic to [LocalStack](https://localstack.cloud/), [MinIO](https://min.io/), or [ElasticMQ](https://github.com/softwaremill/elasticmq) without modifying any production code.
+All packages in this library check the context before dialling AWS, so your tests can redirect traffic to [LocalStack](https://localstack.cloud/), [RustFS](https://rustfs.com/), or [ElasticMQ](https://github.com/softwaremill/elasticmq) without modifying any production code.
 
 Wrap the context at the top of your test and pass it through to any function call:
 
@@ -183,7 +183,7 @@ import "github.com/88labs/go-utils/aws/ctxawslocal"
 func TestSomething(t *testing.T) {
     ctx := ctxawslocal.WithContext(
         context.Background(),
-        ctxawslocal.WithS3Endpoint("http://127.0.0.1:9000"),    // MinIO
+        ctxawslocal.WithS3Endpoint("http://127.0.0.1:9000"),    // RustFS
         ctxawslocal.WithSQSEndpoint("http://127.0.0.1:9324"),   // ElasticMQ
         ctxawslocal.WithDynamoEndpoint("http://127.0.0.1:8000"),
         ctxawslocal.WithAccessKey("test"),
@@ -679,7 +679,7 @@ raw := client.CognitoClient()
 
 - Docker Compose v2
 - [LocalStack](https://localstack.cloud/) – SQS, DynamoDB
-- [MinIO](https://min.io/) – S3-compatible object storage
+- [RustFS](https://rustfs.com/) – S3-compatible object storage
 - [ElasticMQ](https://github.com/softwaremill/elasticmq) – SQS-compatible queue
 
 ### Running tests

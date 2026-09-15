@@ -32,15 +32,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     services:
-      minio:
-        image: mosuka/minio:latest
+      rustfs:
+        image: rustfs/rustfs:1.0.0-rc.6
         ports:
           - 29000:9000
         env:
-          MINIO_ROOT_USER: DUMMYACCESSKEYEXAMPLE
-          MINIO_ROOT_PASSWORD: DUMMYSECRETKEYEXAMPLE
-          AWS_DEFAULT_REGION: ap-northeast-1
-          AWS_EC2_METADATA_DISABLED: true
+          RUSTFS_VOLUMES: /data
+          RUSTFS_REGION: ap-northeast-1
+          RUSTFS_ADDRESS: 0.0.0.0:9000
+          RUSTFS_CONSOLE_ENABLE: "false"
+          RUSTFS_ACCESS_KEY: DUMMYACCESSKEYEXAMPLE
+          RUSTFS_SECRET_KEY: DUMMYSECRETKEYEXAMPLE
+          RUSTFS_OBS_LOGGER_LEVEL: warn
       elasticmq:
         image: softwaremill/elasticmq:latest
         ports:
@@ -60,8 +63,6 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache-dependency-path: |
             ${{ env.testdir }}/go.sum
-      - id: install-minio-cli
-        uses: yakubique/setup-minio-cli@d9826c1ad14228495203415557139d4cf491bed9 # v1
       - name: Setup gotestsum
         uses: autero1/action-gotestsum@7263b9d73912eec65f46337689e59fac865c425f # v2.0.0
         with:
@@ -97,16 +98,33 @@ jobs:
             echo '...waiting...'
             sleep 1
           done
-      - name: Migrate Minio
+      - name: Migrate RustFS
         timeout-minutes: 1
         working-directory: ${{ env.testdir }}
+        env:
+          AWS_ACCESS_KEY_ID: DUMMYACCESSKEYEXAMPLE
+          AWS_SECRET_ACCESS_KEY: DUMMYSECRETKEYEXAMPLE
+          AWS_DEFAULT_REGION: ap-northeast-1
+          AWS_EC2_METADATA_DISABLED: true
+          AWS_PAGER: ""
         shell: bash
         run: |
-          mc alias set s3 http://127.0.0.1:29000 DUMMYACCESSKEYEXAMPLE DUMMYSECRETKEYEXAMPLE
-          mc --quiet mb s3/test
-          mc --quiet anonymous set upload s3/test
-          mc --quiet anonymous set download s3/test
-          mc --quiet policy set-json /policies/policy_test.json s3/test
+          echo "Waiting for RustFS to be ready..."
+          aws configure set default.s3.addressing_style path
+          until aws s3api list-buckets --endpoint-url http://127.0.0.1:29000 --output text; do
+            echo '...waiting...'
+            sleep 2
+          done
+
+          echo "RustFS is ready. Creating bucket..."
+          aws s3api create-bucket \
+            --bucket test \
+            --create-bucket-configuration LocationConstraint=ap-northeast-1 \
+            --endpoint-url http://127.0.0.1:29000
+          aws s3api put-bucket-policy \
+            --bucket test \
+            --policy file://${{ github.workspace }}/aws/docker/rustfs/policies/policy_test.json \
+            --endpoint-url http://127.0.0.1:29000
       - name: Migrate ElasticMQ
         timeout-minutes: 1
         working-directory: ${{ env.testdir }}

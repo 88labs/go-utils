@@ -1,8 +1,8 @@
 # Localstack Data
 .data/
 
-# Minio Data
-docker/minio/config
-docker/minio/data
+# RustFS Data
+docker/rustfs/data
+docker/rustfs/logs
 # DynamoDB Data
 docker/dynamodb/data
