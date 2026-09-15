@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -216,6 +217,25 @@ func TestGetObject(t *testing.T) {
 		err := awss3.GetObjectWriter(ctx, TestRegion, TestBucket, key, &buf)
 		assert.NilError(t, err)
 		assert.Equal(t, "test", buf.String())
+	})
+
+	t.Run("GetObjectReader", func(t *testing.T) {
+		t.Parallel()
+		key := createFixture()
+		reader, err := awss3.GetObjectReader(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+
+		body, err := io.ReadAll(reader)
+		assert.NilError(t, err)
+		assert.Equal(t, "test", string(body))
+		assert.NilError(t, reader.Close())
+	})
+
+	t.Run("GetObjectReader NotFound", func(t *testing.T) {
+		t.Parallel()
+		reader, err := awss3.GetObjectReader(ctx, TestRegion, TestBucket, "NOT_FOUND")
+		assert.Assert(t, reader == nil)
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
 	})
 
 	t.Run("GetObjectWriter NotFound", func(t *testing.T) {
@@ -1714,6 +1734,13 @@ func TestNewClient_returnsWorkingClient(t *testing.T) {
 	res, err := client.HeadObject(ctx, TestBucket, key)
 	assert.NilError(t, err)
 	assert.DeepEqual(t, aws.Int64(64), res.ContentLength)
+
+	reader, err := client.GetObjectReader(ctx, TestBucket, key)
+	assert.NilError(t, err)
+	body, err := io.ReadAll(reader)
+	assert.NilError(t, err)
+	assert.Equal(t, string(bytes.Repeat([]byte{1}, 64)), string(body))
+	assert.NilError(t, reader.Close())
 }
 
 // TestNewClient_S3Client_exposesUnderlyingSDKClient verifies that the underlying

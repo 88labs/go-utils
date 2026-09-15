@@ -245,6 +245,13 @@ objects, err := awss3.ListObjects(ctx, region, bucket,
 var buf bytes.Buffer
 err = awss3.GetObjectWriter(ctx, region, bucket, awss3.Key("path/to/key.txt"), &buf)
 
+// Stream an object. The caller must close the reader.
+reader, err := awss3.GetObjectReader(ctx, region, bucket, awss3.Key("path/to/key.txt"))
+if err == nil {
+    defer reader.Close()
+    // Consume reader sequentially without buffering the entire object.
+}
+
 // Download multiple objects to a directory (sequential)
 paths, err := awss3.DownloadFiles(ctx, region, bucket, keys, "/tmp/out")
 
