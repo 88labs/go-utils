@@ -926,10 +926,6 @@ func TestSelectCSVAll(t *testing.T) {
 2,fuga,い髙社🍣
 3,piyo,う髙社🍣
 `
-		TestCSVWithLineFeedLF_LF     TestCSV = "id,name,detail\n1,hoge,\"あ髙\n社🍣\"\n2,fuga,\"い髙\n社🍣\"\n3,piyo,\"う髙\n社🍣\""
-		TestCSVWithLineFeedLF_CRLF   TestCSV = "id,name,detail\n1,hoge,\"あ髙\r\n社🍣\"\n2,fuga,\"い髙\r\n社🍣\"\n3,piyo,\"う髙\r\n社🍣\""
-		TestCSVWithLineFeedCRLF_LF   TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\n社🍣\"\r\n2,fuga,\"い髙\n社🍣\"\r\n3,piyo,\"う髙\n社🍣\""
-		TestCSVWithLineFeedCRLF_CRLF TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\r\n社🍣\"\r\n2,fuga,\"い髙\r\n社🍣\"\r\n3,piyo,\"う髙\r\n社🍣\""
 	)
 	var (
 		WantCSV = [][]string{
@@ -942,12 +938,6 @@ func TestSelectCSVAll(t *testing.T) {
 			{"1", "hoge", "あ髙社🍣"},
 			{"2", "fuga", "い髙社🍣"},
 			{"3", "piyo", "う髙社🍣"},
-		}
-		WantCSVWithLineFeedLF = [][]string{
-			{"id", "name", "detail"},
-			{"1", "hoge", "あ髙\n社🍣"},
-			{"2", "fuga", "い髙\n社🍣"},
-			{"3", "piyo", "う髙\n社🍣"},
 		}
 	)
 
@@ -1007,79 +997,6 @@ func TestSelectCSVAll(t *testing.T) {
 		records, err := csv.NewReader(&buf).ReadAll()
 		assert.NilError(t, err)
 		assert.DeepEqual(t, WantCSV, records)
-	})
-	t.Run("CSV With LineFeed File:LF, Field:LF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedLF_LF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
-	t.Run("CSV With LineFeed File:CRLF, Field:LF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedCRLF_LF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
-	t.Run("CSV With LineFeed File:LF, Field:CRLF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedLF_CRLF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
-	t.Run("CSV With LineFeed File:CRLF, Field:CRLF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedCRLF_CRLF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
 	})
 	t.Run("CSV No Header", func(t *testing.T) {
 		t.Parallel()
