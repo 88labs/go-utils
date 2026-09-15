@@ -7,6 +7,20 @@ applyTo: '**/*.go,**/go.mod,**/go.sum'
 
 Follow idiomatic Go practices and community standards when writing Go code. These instructions are based on [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments), and [Google's Go Style Guide](https://google.github.io/styleguide/go/).
 
+## Test Matrix Gate
+
+For feature, observable behavior change, refactor, or coverage-improvement work, use this repository's
+Test Matrix Gate in `AGENTS.md` before production edits.
+
+For such work, link coverage obligations to executable scenarios before editing production code.
+Cover public API and downstream compatibility, module/version boundaries, normal and alternate
+outcomes, applicable zero/one/max and negative/zero inputs, malformed or duplicate values, error
+identity/wrapping, concurrency/cancellation, resource cleanup, and external I/O seams. Establish
+a focused current-behavior regression baseline before feature/refactor edits, then add the smallest
+failing test. Coverage-only work must not change behavior. Stop and ask the user when a boundary,
+failure outcome, compatibility rule, or expected oracle is ambiguous; coverage percentages,
+pairwise combinations, and test counts do not prove semantic completeness.
+
 ## General Instructions
 
 - Write simple, clear, and idiomatic Go code
