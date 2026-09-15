@@ -33,7 +33,7 @@ func TestGlobalOptionWithHeadObject(t *testing.T) {
 
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)

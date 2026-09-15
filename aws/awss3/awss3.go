@@ -179,6 +179,9 @@ const (
 
 // SelectCSVAll
 // SQL Reference : https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html
+// Deprecated: AWS no longer offers S3 Select to new customers and does not
+// plan to introduce new capabilities. See
+// https://aws.amazon.com/jp/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/.
 func SelectCSVAll(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key, query string, w io.Writer,
 	opts ...s3selectcsv.OptionS3SelectCSV,
@@ -193,6 +196,9 @@ func SelectCSVAll(
 // SelectCSVHeaders
 // Get CSV headers
 // Valid options: CompressionType
+// Deprecated: AWS no longer offers S3 Select to new customers and does not
+// plan to introduce new capabilities. See
+// https://aws.amazon.com/jp/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/.
 func SelectCSVHeaders(
 	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
 	opts ...s3selectcsv.OptionS3SelectCSV,

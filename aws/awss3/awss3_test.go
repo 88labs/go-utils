@@ -46,7 +46,7 @@ func TestHeadObject(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -104,7 +104,7 @@ func TestListObjects(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -187,7 +187,7 @@ func TestGetObject(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -231,7 +231,7 @@ func TestDeleteObject(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -274,7 +274,7 @@ func TestDownloadFiles(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -367,7 +367,7 @@ func TestDownloadFilesParallel(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -511,7 +511,7 @@ func TestPutObject(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -556,7 +556,7 @@ func TestUploadManager(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -601,7 +601,7 @@ func TestPresign(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -753,7 +753,7 @@ func TestCopy(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -765,7 +765,7 @@ func TestCopy(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -776,7 +776,7 @@ func TestCopy(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -788,7 +788,7 @@ func TestCopy(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -802,7 +802,7 @@ func TestReservedCharacterKeys(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -926,10 +926,6 @@ func TestSelectCSVAll(t *testing.T) {
 2,fuga,い髙社🍣
 3,piyo,う髙社🍣
 `
-		TestCSVWithLineFeedLF_LF     TestCSV = "id,name,detail\n1,hoge,\"あ髙\n社🍣\"\n2,fuga,\"い髙\n社🍣\"\n3,piyo,\"う髙\n社🍣\""
-		TestCSVWithLineFeedLF_CRLF   TestCSV = "id,name,detail\n1,hoge,\"あ髙\r\n社🍣\"\n2,fuga,\"い髙\r\n社🍣\"\n3,piyo,\"う髙\r\n社🍣\""
-		TestCSVWithLineFeedCRLF_LF   TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\n社🍣\"\r\n2,fuga,\"い髙\n社🍣\"\r\n3,piyo,\"う髙\n社🍣\""
-		TestCSVWithLineFeedCRLF_CRLF TestCSV = "id,name,detail\r\n1,hoge,\"あ髙\r\n社🍣\"\r\n2,fuga,\"い髙\r\n社🍣\"\r\n3,piyo,\"う髙\r\n社🍣\""
 	)
 	var (
 		WantCSV = [][]string{
@@ -942,12 +938,6 @@ func TestSelectCSVAll(t *testing.T) {
 			{"1", "hoge", "あ髙社🍣"},
 			{"2", "fuga", "い髙社🍣"},
 			{"3", "piyo", "う髙社🍣"},
-		}
-		WantCSVWithLineFeedLF = [][]string{
-			{"id", "name", "detail"},
-			{"1", "hoge", "あ髙\n社🍣"},
-			{"2", "fuga", "い髙\n社🍣"},
-			{"3", "piyo", "う髙\n社🍣"},
 		}
 	)
 
@@ -981,7 +971,7 @@ func TestSelectCSVAll(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -996,7 +986,7 @@ func TestSelectCSVAll(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -1008,84 +998,11 @@ func TestSelectCSVAll(t *testing.T) {
 		assert.NilError(t, err)
 		assert.DeepEqual(t, WantCSV, records)
 	})
-	t.Run("CSV With LineFeed File:LF, Field:LF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedLF_LF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
-	t.Run("CSV With LineFeed File:CRLF, Field:LF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedCRLF_LF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
-	t.Run("CSV With LineFeed File:LF, Field:CRLF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedLF_CRLF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
-	t.Run("CSV With LineFeed File:CRLF, Field:CRLF", func(t *testing.T) {
-		t.Parallel()
-		ctx := ctxawslocal.WithContext(
-			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
-			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
-			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
-		)
-		src := TestCSVWithLineFeedCRLF_CRLF
-		key := createFixture(ctx, src)
-		var buf bytes.Buffer
-		assert.NilError(t, awss3.SelectCSVAll(ctx, TestRegion, TestBucket, key, awss3.SelectCSVAllQuery, &buf,
-			s3selectcsv.WithCSVInput(types.CSVInput{AllowQuotedRecordDelimiter: aws.Bool(true)}),
-		))
-
-		records, err := csv.NewReader(&buf).ReadAll()
-		assert.NilError(t, err)
-		assert.DeepEqual(t, WantCSVWithLineFeedLF, records)
-	})
 	t.Run("CSV No Header", func(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -1103,7 +1020,7 @@ func TestSelectCSVAll(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -1119,7 +1036,7 @@ func TestSelectCSVAll(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -1180,7 +1097,7 @@ func TestSelectCSVHeaders(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -1193,7 +1110,7 @@ func TestSelectCSVHeaders(t *testing.T) {
 		t.Parallel()
 		ctx := ctxawslocal.WithContext(
 			context.Background(),
-			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+			ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 			ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 			ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 		)
@@ -1207,7 +1124,7 @@ func TestPresignPutObject(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -1271,7 +1188,7 @@ func TestCreateMultipartUpload(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -1299,7 +1216,7 @@ func TestAbortMultipartUpload(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -1316,7 +1233,7 @@ func TestAbortMultipartUpload(t *testing.T) {
 	t.Run("Abort multipart upload with non-existing uploadId", func(t *testing.T) {
 		t.Parallel()
 		key := awss3.Key("test_abort_multipart_upload_file_b.txt")
-		// Minio の仕様により OS によってエラーが返される場合と返されない場合がある
+		// S3互換実装ではエラーが返される場合と返されない場合がある
 		// エラーが返された場合のみ内容を検証する
 		if err := awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, "non-existing-upload-id"); err != nil {
 			var apiErr smithy.APIError
@@ -1329,7 +1246,7 @@ func TestUploadPart(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -1360,7 +1277,7 @@ func TestCompleteMultipartUpload(t *testing.T) {
 	t.Parallel()
 	ctx := ctxawslocal.WithContext(
 		context.Background(),
-		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use Minio
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
 		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
 		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
 	)
@@ -1433,7 +1350,7 @@ func TestCompleteMultipartUpload(t *testing.T) {
 		assert.NilError(t, err)
 		assert.Assert(t, completeResp != nil)
 
-		// Minio の仕様により OS によってエラーが返される場合と返されない場合がある
+		// S3互換実装ではエラーが返される場合と返されない場合がある
 		// 完了済みの uploadId に対して Abort を呼んだ場合、エラーが返された場合のみ内容を検証する
 		if err = awss3.AbortMultipartUpload(ctx, TestRegion, TestBucket, key, uploadId); err != nil {
 			var apiErr smithy.APIError

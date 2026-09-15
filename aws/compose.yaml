@@ -7,36 +7,48 @@ services:
       - "29325:29325"
     volumes:
       - ./docker/sqs_elasticmq/opt/elasticmq.conf:/opt/elasticmq.conf:ro
-  minio:
-    image: quay.io/minio/minio:latest
-    container_name: go_utils_minio_ci
+  rustfs:
+    image: rustfs/rustfs:1.0.0-rc.6
+    container_name: go_utils_rustfs_ci
     ports:
       - "29000:9000"
     environment:
-      - MINIO_ROOT_USER=DUMMYACCESSKEYEXAMPLE
-      - MINIO_ROOT_PASSWORD=DUMMYSECRETKEYEXAMPLE
+      - RUSTFS_VOLUMES=/data
+      - RUSTFS_REGION=ap-northeast-1
+      - RUSTFS_ADDRESS=0.0.0.0:9000
+      - RUSTFS_CONSOLE_ENABLE=false
+      - RUSTFS_ACCESS_KEY=DUMMYACCESSKEYEXAMPLE
+      - RUSTFS_SECRET_KEY=DUMMYSECRETKEYEXAMPLE
+      - RUSTFS_OBS_LOGGER_LEVEL=warn
+    volumes:
+      - rustfs-data:/data
+      - rustfs-logs:/logs
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9000/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+  rustfscreatebuckets:
+    image: amazon/aws-cli:2
+    container_name: go_utils_rustfs_init_ci
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=DUMMYACCESSKEYEXAMPLE
+      - AWS_SECRET_ACCESS_KEY=DUMMYSECRETKEYEXAMPLE
       - AWS_DEFAULT_REGION=ap-northeast-1
       - AWS_EC2_METADATA_DISABLED=true
-    entrypoint: sh
-    command: -c "minio server /data;"
-    volumes:
-      - ./docker/minio/data:/data
-  miniocreatebuckets:
-    image: minio/mc
-    container_name: go_utils_minio_init_ci
-    depends_on:
-      - minio
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc mc alias set s3 http://minio:29000 DUMMYACCESSKEYEXAMPLE DUMMYSECRETKEYEXAMPLE;
-      /usr/bin/mc --quiet mb s3/test;
-      /usr/bin/mc --quiet anonymous set upload s3/test;
-      /usr/bin/mc --quiet anonymous set download s3/test;
-      /usr/bin/mc --quiet policy set-json /policies/policy_test.json s3/test;
-      exit 0;
+      set -e;
+      aws configure set default.s3.addressing_style path;
+      aws s3api create-bucket --bucket test --create-bucket-configuration LocationConstraint=ap-northeast-1 --endpoint-url http://rustfs:9000;
+      aws s3api put-bucket-policy --bucket test --policy file:///policies/policy_test.json --endpoint-url http://rustfs:9000;
       "
     volumes:
-      - ./docker/minio/policies:/policies
+      - ./docker/rustfs/policies:/policies:ro
   dynamodb:
     command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data -port 28002"
     image: "amazon/dynamodb-local:latest"
@@ -63,3 +75,7 @@ services:
       '
     volumes:
       - ./docker/dynamodb:/test_tables
+
+volumes:
+  rustfs-data:
+  rustfs-logs:
