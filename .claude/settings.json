@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "PreToolUse": [{"matcher":"Edit|Write|ApplyPatch|apply_patch|Bash|Shell|Terminal|Exec|Command","hooks":[{"type":"command","command":"go run \"${CLAUDE_PROJECT_DIR}/.agent-hooks/test-matrix-guardrail/main.go\" check --client claude","timeout":30}]}]
+  }
+}
