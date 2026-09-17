@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 10
     services:
       rustfs:
-        image: rustfs/rustfs:1.0.0-rc.6
+        image: rustfs/rustfs:1.0.0
         ports:
           - 29000:9000
         env:
