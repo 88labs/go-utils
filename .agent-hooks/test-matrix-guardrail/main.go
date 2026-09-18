@@ -2,12 +2,17 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -95,14 +100,378 @@ func check(root string, payload []byte) (decision, error) {
 		if !safe(root, p) {
 			return decision{Reason: "file-edit path is outside the repository"}, nil
 		}
-		if !allowed(repoPath(root, p)) {
-			ok, err := valid(root)
-			if err != nil || !ok {
-				return decision{Reason: "production edit denied: baseline marker is absent or stale"}, nil
-			}
+		rel := repoPath(root, p)
+		if allowed(rel) || !isGoPath(rel) || isTest(rel) {
+			continue
+		}
+		needsBaseline, err := functionChangeRequiresBaseline(root, tool, in, rel)
+		if err != nil {
+			return decision{}, err
+		}
+		if !needsBaseline {
+			continue
+		}
+		ok, err := valid(root)
+		if err != nil || !ok {
+			return decision{Reason: "production edit denied: baseline marker is absent or stale"}, nil
 		}
 	}
 	return decision{Allow: true, Reason: "approved file-edit path"}, nil
+}
+
+type patchSection struct {
+	action string
+	path   string
+	lines  []string
+}
+
+func functionChangeRequiresBaseline(root, tool string, input map[string]any, path string) (bool, error) {
+	patch, ok, err := patchPayload(input)
+	if err != nil {
+		return false, err
+	}
+	if ok {
+		sections := patchHeaders(patch)
+		if len(sections) == 0 {
+			return false, errors.New("patch contains no valid file headers")
+		}
+		for _, section := range sections {
+			rel := repoPath(root, section.path)
+			if !safe(root, rel) {
+				return false, errors.New("patch path is outside the repository")
+			}
+			if allowed(rel) || !isGoPath(rel) || !patchSectionChangesContent(section) {
+				continue
+			}
+			current, err := readGoSource(root, rel, section.action == "Add")
+			if err != nil {
+				return false, err
+			}
+			candidate, err := applyPatchSection(current, section)
+			if err != nil {
+				return false, fmt.Errorf("cannot inspect Go patch for %s: %w", rel, err)
+			}
+			changed, err := functionDefinitionsChanged(current, candidate)
+			if err != nil {
+				return false, fmt.Errorf("cannot inspect Go patch for %s: %w", rel, err)
+			}
+			if changed {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
+	if strings.EqualFold(tool, "delete") {
+		current, err := readGoSource(root, path, true)
+		if err != nil {
+			return false, err
+		}
+		functions, err := functionDefinitions(current)
+		if err != nil {
+			return false, fmt.Errorf("cannot inspect Go file %s: %w", path, err)
+		}
+		return len(functions) > 0, nil
+	}
+
+	content, hasContent, err := inputString(input, "content", "new_content")
+	if err != nil {
+		return false, err
+	}
+	oldString, hasOld, err := inputString(input, "old_string", "oldString")
+	if err != nil {
+		return false, err
+	}
+	newString, hasNew, err := inputString(input, "new_string", "newString")
+	if err != nil {
+		return false, err
+	}
+	if hasOld != hasNew {
+		return false, errors.New("old and new edit strings must be provided together")
+	}
+	if !hasContent && !hasOld {
+		return false, nil
+	}
+
+	current, err := readGoSource(root, path, hasContent)
+	if err != nil {
+		return false, err
+	}
+	candidate := content
+	if hasOld {
+		if oldString == "" || strings.Count(current, oldString) != 1 {
+			return false, fmt.Errorf("old edit string is not uniquely found in %s", path)
+		}
+		candidate = strings.Replace(current, oldString, newString, 1)
+	}
+	return functionDefinitionsChanged(current, candidate)
+}
+
+func patchPayload(input map[string]any) (string, bool, error) {
+	for _, key := range []string{"patch", "apply_patch", "command"} {
+		value, ok := input[key]
+		if !ok {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return "", false, fmt.Errorf("%s is not a string", key)
+		}
+		if key == "command" && !strings.Contains(text, "*** ") {
+			continue
+		}
+		return text, true, nil
+	}
+	return "", false, nil
+}
+
+func inputString(input map[string]any, keys ...string) (string, bool, error) {
+	for _, key := range keys {
+		value, ok := input[key]
+		if !ok {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return "", false, fmt.Errorf("%s is not a string", key)
+		}
+		return text, true, nil
+	}
+	return "", false, nil
+}
+
+func patchHeaders(patch string) []patchSection {
+	lines := strings.Split(strings.ReplaceAll(patch, "\r\n", "\n"), "\n")
+	sections := make([]patchSection, 0)
+	for i := 0; i < len(lines); i++ {
+		action, path, ok := patchHeader(lines[i])
+		if !ok {
+			continue
+		}
+		section := patchSection{action: action, path: path}
+		for i++; i < len(lines); i++ {
+			if strings.TrimSpace(lines[i]) == "*** End Patch" {
+				break
+			}
+			if _, _, nextOK := patchHeader(lines[i]); nextOK {
+				i--
+				break
+			}
+			section.lines = append(section.lines, lines[i])
+		}
+		sections = append(sections, section)
+	}
+	return sections
+}
+
+func patchHeader(line string) (string, string, bool) {
+	for _, action := range []string{"Update", "Add", "Delete"} {
+		prefix := "*** " + action + " File:"
+		if strings.HasPrefix(line, prefix) {
+			path := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+			return action, path, path != ""
+		}
+	}
+	return "", "", false
+}
+
+func patchSectionChangesContent(section patchSection) bool {
+	if section.action == "Delete" || section.action == "Add" {
+		return true
+	}
+	for _, line := range section.lines {
+		if strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-") {
+			return true
+		}
+	}
+	return false
+}
+
+func isGoPath(path string) bool {
+	return strings.HasSuffix(strings.ToLower(filepath.ToSlash(path)), ".go")
+}
+
+func readGoSource(root, path string, allowMissing bool) (string, error) {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if errors.Is(err, os.ErrNotExist) && allowMissing {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	return string(b), nil
+}
+
+func applyPatchSection(current string, section patchSection) (string, error) {
+	switch section.action {
+	case "Add":
+		lines := make([]string, 0, len(section.lines))
+		for _, line := range section.lines {
+			if line == "" {
+				continue
+			}
+			if !strings.HasPrefix(line, "+") {
+				return "", errors.New("added Go patch line is missing '+' prefix")
+			}
+			lines = append(lines, line[1:])
+		}
+		return strings.Join(lines, "\n") + "\n", nil
+	case "Delete":
+		return "", nil
+	case "Update":
+		return applyUpdatePatch(current, section.lines)
+	default:
+		return "", fmt.Errorf("unsupported patch action %q", section.action)
+	}
+}
+
+func applyUpdatePatch(current string, patchLines []string) (string, error) {
+	currentLines, trailingNewline := sourceLines(current)
+	result := make([]string, 0, len(currentLines))
+	cursor := 0
+	hunk := make([]string, 0)
+	flushHunk := func() error {
+		if len(hunk) == 0 {
+			return nil
+		}
+		oldLines := make([]string, 0, len(hunk))
+		for _, line := range hunk {
+			if line[0] == ' ' || line[0] == '-' {
+				oldLines = append(oldLines, line[1:])
+			}
+		}
+		start := cursor
+		if len(oldLines) > 0 {
+			start = findLines(currentLines, oldLines, cursor)
+			if start < 0 {
+				return errors.New("patch context does not match current Go source")
+			}
+		}
+		result = append(result, currentLines[cursor:start]...)
+		for _, line := range hunk {
+			switch line[0] {
+			case ' ':
+				result = append(result, line[1:])
+			case '+':
+				result = append(result, line[1:])
+			}
+		}
+		if len(oldLines) > 0 {
+			cursor = start + len(oldLines)
+		}
+		hunk = nil
+		return nil
+	}
+
+	for _, line := range patchLines {
+		if strings.HasPrefix(line, "@@") {
+			if err := flushHunk(); err != nil {
+				return "", err
+			}
+			continue
+		}
+		if line == "" || line == `\ No newline at end of file` {
+			continue
+		}
+		if line[0] != ' ' && line[0] != '+' && line[0] != '-' {
+			return "", errors.New("updated Go patch line has an invalid prefix")
+		}
+		hunk = append(hunk, line)
+	}
+	if err := flushHunk(); err != nil {
+		return "", err
+	}
+	result = append(result, currentLines[cursor:]...)
+	return joinSourceLines(result, trailingNewline), nil
+}
+
+func sourceLines(source string) ([]string, bool) {
+	trailingNewline := strings.HasSuffix(source, "\n")
+	if trailingNewline {
+		source = strings.TrimSuffix(source, "\n")
+	}
+	if source == "" {
+		return nil, trailingNewline
+	}
+	return strings.Split(source, "\n"), trailingNewline
+}
+
+func joinSourceLines(lines []string, trailingNewline bool) string {
+	result := strings.Join(lines, "\n")
+	if trailingNewline {
+		result += "\n"
+	}
+	return result
+}
+
+func findLines(source, target []string, from int) int {
+	for start := from; start+len(target) <= len(source); start++ {
+		matched := true
+		for i := range target {
+			if source[start+i] != target[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return start
+		}
+	}
+	return -1
+}
+
+func functionDefinitionsChanged(before, after string) (bool, error) {
+	beforeFunctions, err := functionDefinitions(before)
+	if err != nil {
+		return false, err
+	}
+	afterFunctions, err := functionDefinitions(after)
+	if err != nil {
+		return false, err
+	}
+	if len(beforeFunctions) != len(afterFunctions) {
+		return true, nil
+	}
+	for name, beforeDefinition := range beforeFunctions {
+		if afterFunctions[name] != beforeDefinition {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func functionDefinitions(source string) (map[string]string, error) {
+	definitions := make(map[string]string)
+	if strings.TrimSpace(source) == "" {
+		return definitions, nil
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "edited.go", source, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		var receiver bytes.Buffer
+		if function.Recv != nil {
+			if err := format.Node(&receiver, fset, function.Recv); err != nil {
+				return nil, err
+			}
+		}
+		var definition bytes.Buffer
+		if err := format.Node(&definition, fset, function); err != nil {
+			return nil, err
+		}
+		name := function.Name.Name
+		if receiver.Len() > 0 {
+			name = receiver.String() + "." + name
+		}
+		definitions[name] = definition.String()
+	}
+	return definitions, nil
 }
 
 func output(client string, d decision) {
