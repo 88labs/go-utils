@@ -24,7 +24,7 @@ import (
 )
 
 func TestSelectCSVAllWithQuotedRecordDelimiter(t *testing.T) {
-	// RustFS 1.0.0-rc.6 does not implement AllowQuotedRecordDelimiter.
+	// RustFS 1.0.0 does not implement AllowQuotedRecordDelimiter.
 	// Keep the wrapper's request and event-stream contracts covered independently.
 	wantRecords := [][]string{
 		{"id", "name", "detail"},
