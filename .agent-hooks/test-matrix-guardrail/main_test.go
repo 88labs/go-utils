@@ -151,6 +151,28 @@ func TestCheckRejectsPatchMoveOutsideRepository(t *testing.T) {
 	}
 }
 
+func TestCheckAllowsMovedGoEditAfterBaseline(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "service.go"), []byte("package g\n\nfunc Value() int {\n\treturn 1\n}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	gitCommit(t, r, "service.go")
+	patch := "*** Begin Patch\n*** Update File: service.go\n*** Move to: moved.go\n@@\n func Value() int {\n-\treturn 1\n+\treturn 2\n }\n*** End Patch\n"
+	payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+	if d, err := check(r, payload); err != nil || d.Allow || !strings.Contains(d.Reason, "baseline marker") {
+		t.Fatalf("moved function edit without baseline: %#v %v", d, err)
+	}
+	if err := os.WriteFile(filepath.Join(r, "service_test.go"), []byte("package g\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := baseline(r, []string{"task", "-p", "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if d, err := check(r, payload); err != nil || !d.Allow {
+		t.Fatalf("moved function edit after baseline: %#v %v", d, err)
+	}
+}
+
 func TestCheckRequiresBaselineForDeleteFileToolNames(t *testing.T) {
 	r := repo(t)
 	if err := os.WriteFile(filepath.Join(r, "service.go"), []byte("package g\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
@@ -297,6 +319,12 @@ func TestBaselineCanUseTheEditedModuleTask(t *testing.T) {
 		if err != nil || d.Allow != tc.allow {
 			t.Fatalf("%s with backoff baseline: %#v %v", tc.path, d, err)
 		}
+	}
+}
+
+func TestApprovedExistingUnderscoreModuleTask(t *testing.T) {
+	if !approved("../..", []string{"task", "-p", "test-tspb_cast"}) {
+		t.Fatal("existing tspb_cast module task should be approved")
 	}
 }
 

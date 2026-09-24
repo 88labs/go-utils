@@ -258,6 +258,9 @@ func patchHeaders(patch string) []patchSection {
 				i--
 				break
 			}
+			if section.action == "Update" && strings.HasPrefix(lines[i], "*** Move to: ") {
+				continue
+			}
 			section.lines = append(section.lines, lines[i])
 		}
 		sections = append(sections, section)
@@ -789,7 +792,7 @@ func approved(root string, a []string) bool {
 		return false
 	}
 	module := strings.TrimPrefix(a[2], "test-")
-	if module == "" || strings.Trim(module, "abcdefghijklmnopqrstuvwxyz0123456789-") != "" || !fileExists(filepath.Join(root, module, "go.mod")) {
+	if module == "" || strings.Trim(module, "abcdefghijklmnopqrstuvwxyz0123456789-_") != "" || !fileExists(filepath.Join(root, module, "go.mod")) {
 		return false
 	}
 	taskfile, err := os.ReadFile(filepath.Join(root, "Taskfile.yaml"))
