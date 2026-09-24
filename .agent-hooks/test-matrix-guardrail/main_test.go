@@ -173,6 +173,84 @@ func TestCheckAllowsMovedGoEditAfterBaseline(t *testing.T) {
 	}
 }
 
+func TestCheckRequiresBaselineForGoModuleBoundaryMove(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "service.txt"), []byte("package g\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, module := range []string{"backoff", "jitter"} {
+		if err := os.MkdirAll(filepath.Join(r, module), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(r, "backoff", "service.go"), []byte("package backoff\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ source, destination string }{
+		{source: "service.txt", destination: "service.go"},
+		{source: "backoff/service.go", destination: "jitter/service.go"},
+		{source: "backoff/service.go", destination: "backoff/sub/service.go"},
+	} {
+		patch := "*** Begin Patch\n*** Update File: " + tc.source + "\n*** Move to: " + tc.destination + "\n*** End Patch\n"
+		payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+		if d, err := check(r, payload); err != nil || d.Allow || !strings.Contains(d.Reason, "baseline marker") {
+			t.Fatalf("move %s to %s: %#v %v", tc.source, tc.destination, d, err)
+		}
+	}
+}
+
+func TestCheckMoveFileGatesPackageBoundary(t *testing.T) {
+	r := repo(t)
+	if err := os.MkdirAll(filepath.Join(r, "backoff"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r, "backoff", "service.go"), []byte("package backoff\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		tool, destination string
+		allow             bool
+	}{
+		{tool: "MoveFile", destination: "backoff/renamed.go", allow: true},
+		{tool: "MoveFile", destination: "backoff/sub/service.go", allow: false},
+		{tool: "move_file", destination: "jitter/service.go", allow: false},
+	} {
+		payload := []byte(`{"tool_name":"` + tc.tool + `","tool_input":{"oldPath":"backoff/service.go","newPath":"` + tc.destination + `"}}`)
+		d, err := check(r, payload)
+		if err != nil || d.Allow != tc.allow {
+			t.Fatalf("%s to %s: %#v %v", tc.tool, tc.destination, d, err)
+		}
+	}
+	if d, err := check(r, []byte(`{"tool_name":"MoveFile","tool_input":{"sourcePath":"backoff/service.go","targetPath":"backoff/renamed.go"}}`)); err != nil || !d.Allow {
+		t.Fatalf("move with source and target path keys: %#v %v", d, err)
+	}
+}
+
+func TestCheckAppliesGoPatchAtItsContext(t *testing.T) {
+	r := repo(t)
+	source := "package g\n\nconst example = `\n\tvar n = 1\n`\n\nfunc Value() int {\n\tvar n = 1\n\treturn n\n}\n"
+	if err := os.WriteFile(filepath.Join(r, "service.go"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	patch := "*** Begin Patch\n*** Update File: service.go\n@@ func Value() int {\n-\tvar n = 1\n+\tvar n = 2\n*** End Patch\n"
+	payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+	if d, err := check(r, payload); err != nil || d.Allow || !strings.Contains(d.Reason, "baseline marker") {
+		t.Fatalf("function-context patch: %#v %v", d, err)
+	}
+}
+
+func TestCheckAcceptsEndOfFilePatchMarker(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "service.go"), []byte("package g\n\nfunc Value() int {\n\treturn 1\n}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	patch := "*** Begin Patch\n*** Update File: service.go\n@@ func Value() int {\n-\treturn 1\n+\treturn 2\n*** End of File\n*** End Patch\n"
+	payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+	if d, err := check(r, payload); err != nil || d.Allow || !strings.Contains(d.Reason, "baseline marker") {
+		t.Fatalf("end-of-file patch: %#v %v", d, err)
+	}
+}
+
 func TestCheckRequiresBaselineForDeleteFileToolNames(t *testing.T) {
 	r := repo(t)
 	if err := os.WriteFile(filepath.Join(r, "service.go"), []byte("package g\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
@@ -320,6 +398,28 @@ func TestBaselineCanUseTheEditedModuleTask(t *testing.T) {
 			t.Fatalf("%s with backoff baseline: %#v %v", tc.path, d, err)
 		}
 	}
+	if err := os.WriteFile(filepath.Join(r, "backoff", "go.mod"), []byte("module example.com/backoff\n\ngo 1.24\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := valid(r, "backoff/service.go"); err != nil || ok {
+		t.Fatalf("marker survived module manifest change: %v %v", ok, err)
+	}
+}
+
+func TestBaselineInvalidAfterTaskfileChange(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "service_test.go"), []byte("package g\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := baseline(r, []string{"task", "-p", "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r, "Taskfile.yaml"), []byte("version: '3'\n\ntasks:\n  test:\n    cmds:\n      - go test -run ^$ ./...\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := valid(r, "service.go"); err != nil || ok {
+		t.Fatalf("marker survived test task change: %v %v", ok, err)
+	}
 }
 
 func TestApprovedExistingUnderscoreModuleTask(t *testing.T) {
@@ -434,6 +534,39 @@ func TestHookConfigSchemasAndCommands(t *testing.T) {
 		}
 		if strings.Contains(path, ".codex/") && !strings.Contains(string(data), "git rev-parse --show-toplevel") {
 			t.Fatalf("%s must resolve repository root", path)
+		}
+	}
+}
+
+func TestHookMatchersCoverFileMovesAndDeletes(t *testing.T) {
+	for _, tc := range []struct{ path, event string }{
+		{path: "../../.claude/settings.json", event: "PreToolUse"},
+		{path: "../../.codex/hooks.json", event: "PreToolUse"},
+		{path: "../../.github/hooks/pre-tool-use.json", event: "PreToolUse"},
+		{path: "../../.cursor/hooks.json", event: "preToolUse"},
+	} {
+		data, err := os.ReadFile(tc.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var config struct {
+			Hooks map[string][]struct {
+				Matcher string `json:"matcher"`
+			} `json:"hooks"`
+		}
+		if err := json.Unmarshal(data, &config); err != nil {
+			t.Fatal(err)
+		}
+		matchers := map[string]bool{}
+		for _, entry := range config.Hooks[tc.event] {
+			for _, name := range strings.Split(entry.Matcher, "|") {
+				matchers[name] = true
+			}
+		}
+		for _, name := range []string{"Delete", "DeleteFile", "delete_file", "Move", "MoveFile", "move_file"} {
+			if !matchers[name] {
+				t.Errorf("%s does not match %s", tc.path, name)
+			}
 		}
 	}
 }

@@ -28,6 +28,7 @@ type decision struct {
 type marker struct {
 	Head         string `json:"head"`
 	TestDiffHash string `json:"test_diff_hash"`
+	ConfigHash   string `json:"config_hash"`
 	Command      string `json:"command"`
 }
 
@@ -122,6 +123,7 @@ func check(root string, payload []byte) (decision, error) {
 type patchSection struct {
 	action string
 	path   string
+	moveTo string
 	lines  []string
 }
 
@@ -136,24 +138,54 @@ func functionChangeRequiresBaseline(root, tool string, input map[string]any, pat
 			return false, errors.New("patch contains no valid file headers")
 		}
 		for _, section := range sections {
-			rel := repoPath(root, section.path)
-			if !safe(root, rel) {
+			source := repoPath(root, section.path)
+			destination := source
+			if section.moveTo != "" {
+				destination = repoPath(root, section.moveTo)
+			}
+			if !safe(root, source) || !safe(root, destination) {
 				return false, errors.New("patch path is outside the repository")
 			}
-			if allowed(rel) || !isGoPath(rel) || !patchSectionChangesContent(section) {
+			sourceGo := productionGoPath(source)
+			destinationGo := productionGoPath(destination)
+			boundaryMove := section.moveTo != "" && goBoundaryMove(source, destination)
+			if (!sourceGo && !destinationGo) || (!patchSectionChangesContent(section) && !boundaryMove) {
 				continue
 			}
-			current, err := readGoSource(root, rel, section.action == "Add")
+			current, err := readGoSource(root, source, section.action == "Add")
 			if err != nil {
 				return false, err
 			}
-			candidate, err := applyPatchSection(current, section)
-			if err != nil {
-				return false, fmt.Errorf("cannot inspect Go patch for %s: %w", rel, err)
+			candidate := current
+			if patchSectionChangesContent(section) {
+				candidate, err = applyPatchSection(current, section)
+				if err != nil {
+					return false, fmt.Errorf("cannot inspect Go patch for %s: %w", source, err)
+				}
+			}
+			if boundaryMove {
+				for _, text := range []struct {
+					inspect bool
+					source  string
+				}{{sourceGo, current}, {destinationGo, candidate}} {
+					if !text.inspect {
+						continue
+					}
+					functions, err := functionDefinitions(text.source)
+					if err != nil {
+						return false, fmt.Errorf("cannot inspect moved Go file %s: %w", source, err)
+					}
+					if len(functions) > 0 {
+						return true, nil
+					}
+				}
+			}
+			if !sourceGo || !destinationGo {
+				continue
 			}
 			changed, err := functionDefinitionsChanged(current, candidate)
 			if err != nil {
-				return false, fmt.Errorf("cannot inspect Go patch for %s: %w", rel, err)
+				return false, fmt.Errorf("cannot inspect Go patch for %s: %w", source, err)
 			}
 			if changed {
 				return true, nil
@@ -163,6 +195,30 @@ func functionChangeRequiresBaseline(root, tool string, input map[string]any, pat
 	}
 
 	toolName := normalizedToolName(tool)
+	if toolName == "move" || strings.Contains(toolName, "movefile") {
+		source := stringValue(input, "oldPath", "old_path", "sourcePath", "source_path")
+		destination := stringValue(input, "newPath", "new_path", "targetPath", "target_path")
+		if source == "" || destination == "" {
+			return false, errors.New("move paths are required")
+		}
+		if !safe(root, source) || !safe(root, destination) {
+			return false, errors.New("move path is outside the repository")
+		}
+		source = repoPath(root, source)
+		destination = repoPath(root, destination)
+		if !goBoundaryMove(source, destination) {
+			return false, nil
+		}
+		current, err := readGoSource(root, source, false)
+		if err != nil {
+			return false, err
+		}
+		functions, err := functionDefinitions(current)
+		if err != nil {
+			return false, fmt.Errorf("cannot inspect moved Go file %s: %w", source, err)
+		}
+		return len(functions) > 0, nil
+	}
 	if toolName == "delete" || strings.Contains(toolName, "deletefile") {
 		current, err := readGoSource(root, path, true)
 		if err != nil {
@@ -259,6 +315,7 @@ func patchHeaders(patch string) []patchSection {
 				break
 			}
 			if section.action == "Update" && strings.HasPrefix(lines[i], "*** Move to: ") {
+				section.moveTo = strings.TrimSpace(strings.TrimPrefix(lines[i], "*** Move to: "))
 				continue
 			}
 			section.lines = append(section.lines, lines[i])
@@ -293,6 +350,16 @@ func patchSectionChangesContent(section patchSection) bool {
 
 func isGoPath(path string) bool {
 	return strings.HasSuffix(strings.ToLower(filepath.ToSlash(path)), ".go")
+}
+
+func productionGoPath(path string) bool {
+	return isGoPath(path) && !allowed(path) && !isTest(path)
+}
+
+func goBoundaryMove(source, destination string) bool {
+	sourceGo := productionGoPath(source)
+	destinationGo := productionGoPath(destination)
+	return sourceGo != destinationGo || (sourceGo && destinationGo && filepath.Dir(filepath.Clean(source)) != filepath.Dir(filepath.Clean(destination)))
 }
 
 func readGoSource(root, path string, allowMissing bool) (string, error) {
@@ -333,6 +400,8 @@ func applyUpdatePatch(current string, patchLines []string) (string, error) {
 	currentLines, trailingNewline := sourceLines(current)
 	result := make([]string, 0, len(currentLines))
 	cursor := 0
+	searchFrom := 0
+	endOfFile := false
 	hunk := make([]string, 0)
 	flushHunk := func() error {
 		if len(hunk) == 0 {
@@ -346,10 +415,14 @@ func applyUpdatePatch(current string, patchLines []string) (string, error) {
 		}
 		start := cursor
 		if len(oldLines) > 0 {
-			start = findLines(currentLines, oldLines, cursor)
+			start = findLines(currentLines, oldLines, searchFrom)
 			if start < 0 {
 				return errors.New("patch context does not match current Go source")
 			}
+		} else if endOfFile {
+			start = len(currentLines)
+		} else if searchFrom > cursor {
+			start = searchFrom + 1
 		}
 		result = append(result, currentLines[cursor:start]...)
 		for _, line := range hunk {
@@ -360,9 +433,9 @@ func applyUpdatePatch(current string, patchLines []string) (string, error) {
 				result = append(result, line[1:])
 			}
 		}
-		if len(oldLines) > 0 {
-			cursor = start + len(oldLines)
-		}
+		cursor = start + len(oldLines)
+		searchFrom = cursor
+		endOfFile = false
 		hunk = nil
 		return nil
 	}
@@ -372,6 +445,17 @@ func applyUpdatePatch(current string, patchLines []string) (string, error) {
 			if err := flushHunk(); err != nil {
 				return "", err
 			}
+			searchFrom = cursor
+			if hint := strings.TrimSpace(strings.TrimPrefix(line, "@@")); hint != "" {
+				searchFrom = findContextLine(currentLines, hint, cursor)
+				if searchFrom < 0 {
+					return "", errors.New("patch section context does not match current Go source")
+				}
+			}
+			continue
+		}
+		if line == "*** End of File" {
+			endOfFile = true
 			continue
 		}
 		if line == "" || line == `\ No newline at end of file` {
@@ -387,6 +471,15 @@ func applyUpdatePatch(current string, patchLines []string) (string, error) {
 	}
 	result = append(result, currentLines[cursor:]...)
 	return joinSourceLines(result, trailingNewline), nil
+}
+
+func findContextLine(lines []string, hint string, from int) int {
+	for i := from; i < len(lines); i++ {
+		if strings.Contains(strings.TrimSpace(lines[i]), hint) {
+			return i
+		}
+	}
+	return -1
 }
 
 func sourceLines(source string) ([]string, bool) {
@@ -522,6 +615,9 @@ func mapValue(m map[string]any, keys ...string) map[string]any {
 }
 func fileEdit(tool string) bool {
 	n := normalizedToolName(tool)
+	if n == "move" {
+		return true
+	}
 	for _, s := range []string{"edit", "write", "patch", "createfile", "deletefile", "delete", "movefile", "replace"} {
 		if strings.Contains(n, s) {
 			return true
@@ -595,7 +691,7 @@ func paths(m map[string]any) []string {
 }
 func pathKey(k string) bool {
 	k = strings.ToLower(strings.ReplaceAll(k, "_", ""))
-	return k == "path" || k == "filepath" || k == "targetfile" || k == "oldpath" || k == "newpath" || k == "file" || k == "files"
+	return k == "path" || k == "filepath" || k == "targetfile" || k == "oldpath" || k == "newpath" || k == "sourcepath" || k == "targetpath" || k == "file" || k == "files"
 }
 func safe(root, p string) bool {
 	if p == "" || strings.ContainsRune(p, 0) {
@@ -707,7 +803,11 @@ func valid(root, path string) (bool, error) {
 	if e != nil {
 		return false, e
 	}
-	return m.Head == h && m.TestDiffHash == t, nil
+	c, e := configHash(root, command[2])
+	if e != nil {
+		return false, e
+	}
+	return m.Head == h && m.TestDiffHash == t && m.ConfigHash == c, nil
 }
 func baseline(root string, args []string) error {
 	markerPathValue, err := markerPath(root)
@@ -749,6 +849,10 @@ func baseline(root string, args []string) error {
 	if !changed {
 		return errors.New("focused test addition or change is required")
 	}
+	configBefore, e := configHash(root, args[2])
+	if e != nil {
+		return e
+	}
 	// Run only an approved repository Taskfile test task.
 	// Keep the executable and arguments static so untrusted hook input cannot reach exec.Command.
 	c := exec.Command("task", "-p", args[2])
@@ -757,6 +861,13 @@ func baseline(root string, args []string) error {
 	c.Stderr = os.Stderr
 	if e := c.Run(); e != nil {
 		return fmt.Errorf("baseline test failed: %w", e)
+	}
+	configAfter, e := configHash(root, args[2])
+	if e != nil {
+		return e
+	}
+	if configBefore != configAfter {
+		return errors.New("test configuration changed during baseline")
 	}
 	h, e := git(root, "rev-parse", "HEAD")
 	if e != nil {
@@ -773,9 +884,40 @@ func baseline(root string, args []string) error {
 	if e = os.MkdirAll(filepath.Dir(p), 0700); e != nil {
 		return e
 	}
-	b, _ := json.MarshalIndent(marker{Head: h, TestDiffHash: t, Command: strings.Join(args, "\x00")}, "", "  ")
+	b, _ := json.MarshalIndent(marker{Head: h, TestDiffHash: t, ConfigHash: configAfter, Command: strings.Join(args, "\x00")}, "", "  ")
 	b = append(b, '\n')
 	return os.WriteFile(p, b, 0600)
+}
+func configHash(root, task string) (string, error) {
+	paths := []string{"Taskfile.yaml"}
+	if task == "test" {
+		if fileExists(filepath.Join(root, "go.mod")) {
+			paths = append(paths, "go.mod")
+		}
+		modules, err := filepath.Glob(filepath.Join(root, "*", "go.mod"))
+		if err != nil {
+			return "", err
+		}
+		for _, path := range modules {
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return "", err
+			}
+			paths = append(paths, rel)
+		}
+	} else {
+		paths = append(paths, filepath.Join(strings.TrimPrefix(task, "test-"), "go.mod"))
+	}
+	h := sha256.New()
+	for _, path := range paths {
+		b, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			return "", fmt.Errorf("cannot read test configuration %s: %w", path, err)
+		}
+		h.Write([]byte(filepath.ToSlash(path) + "\x00"))
+		h.Write(b)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 func approved(root string, a []string) bool {
 	if len(a) != 3 || a[1] != "-p" || !fileExists(filepath.Join(root, "Taskfile.yaml")) {
