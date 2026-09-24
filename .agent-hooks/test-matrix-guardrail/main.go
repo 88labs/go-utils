@@ -162,7 +162,8 @@ func functionChangeRequiresBaseline(root, tool string, input map[string]any, pat
 		return false, nil
 	}
 
-	if strings.EqualFold(tool, "delete") {
+	toolName := normalizedToolName(tool)
+	if toolName == "delete" || strings.Contains(toolName, "deletefile") {
 		current, err := readGoSource(root, path, true)
 		if err != nil {
 			return false, err
@@ -517,13 +518,16 @@ func mapValue(m map[string]any, keys ...string) map[string]any {
 	return nil
 }
 func fileEdit(tool string) bool {
-	n := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(tool))
-	for _, s := range []string{"edit", "write", "patch", "createfile", "deletefile", "movefile", "replace"} {
+	n := normalizedToolName(tool)
+	for _, s := range []string{"edit", "write", "patch", "createfile", "deletefile", "delete", "movefile", "replace"} {
 		if strings.Contains(n, s) {
 			return true
 		}
 	}
 	return false
+}
+func normalizedToolName(tool string) string {
+	return strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(tool))
 }
 func shellWrite(tool string, m map[string]any) bool {
 	n := strings.ToLower(strings.TrimSpace(tool))
@@ -576,7 +580,7 @@ func paths(m map[string]any) []string {
 	walk(m, "")
 	for _, p := range commandStrings(m) {
 		for _, line := range strings.Split(p, "\n") {
-			for _, pre := range []string{"*** Update File: ", "*** Add File: ", "*** Delete File: "} {
+			for _, pre := range []string{"*** Update File: ", "*** Add File: ", "*** Delete File: ", "*** Move to: "} {
 				if strings.HasPrefix(line, pre) {
 					out = append(out, strings.TrimPrefix(strings.TrimSpace(strings.TrimPrefix(line, pre)), "a/"))
 				}

@@ -134,6 +134,43 @@ func TestCheckAllowsNonFunctionPatchAndGatesFunctionPatch(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsPatchMoveOutsideRepository(t *testing.T) {
+	r := repo(t)
+	for _, source := range []string{"safe.go", "README.md"} {
+		patch := "*** Begin Patch\n*** Update File: " + source + "\n*** Move to: ../outside.go\n*** End Patch\n"
+		payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+		d, err := check(r, payload)
+		if err != nil || d.Allow || !strings.Contains(d.Reason, "outside the repository") {
+			t.Fatalf("move from %s outside repository: %#v %v", source, d, err)
+		}
+	}
+	patch := "*** Begin Patch\n*** Update File: safe.go\n*** Move to: renamed.go\n*** End Patch\n"
+	payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+	if d, err := check(r, payload); err != nil || !d.Allow {
+		t.Fatalf("move within repository: %#v %v", d, err)
+	}
+}
+
+func TestCheckRequiresBaselineForDeleteFileToolNames(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "service.go"), []byte("package g\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range []string{"DeleteFile", "delete_file", "delete-file", "delete"} {
+		payload := []byte(`{"tool_name":"` + tool + `","tool_input":{"filePath":"service.go"}}`)
+		d, err := check(r, payload)
+		if err != nil || d.Allow || !strings.Contains(d.Reason, "baseline marker") {
+			t.Fatalf("%s deleted a Go function without baseline: %#v %v", tool, d, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(r, "constants.go"), []byte("package g\n\nconst Value = 1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if d, err := check(r, []byte(`{"tool_name":"DeleteFile","tool_input":{"filePath":"constants.go"}}`)); err != nil || !d.Allow {
+		t.Fatalf("deleting a Go file without functions: %#v %v", d, err)
+	}
+}
+
 func TestMalformedShellAndPatchFailClosed(t *testing.T) {
 	if _, e := check(t.TempDir(), []byte("{")); e == nil {
 		t.Fatal("malformed accepted")
