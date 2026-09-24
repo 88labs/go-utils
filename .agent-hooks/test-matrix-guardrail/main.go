@@ -111,7 +111,7 @@ func check(root string, payload []byte) (decision, error) {
 		if !needsBaseline {
 			continue
 		}
-		ok, err := valid(root)
+		ok, err := valid(root, rel)
 		if err != nil || !ok {
 			return decision{Reason: "production edit denied: baseline marker is absent or stale"}, nil
 		}
@@ -673,7 +673,7 @@ func markerPath(root string) (string, error) {
 	}
 	return filepath.Clean(p), nil
 }
-func valid(root string) (bool, error) {
+func valid(root, path string) (bool, error) {
 	p, e := markerPath(root)
 	if e != nil {
 		return false, e
@@ -686,6 +686,16 @@ func valid(root string) (bool, error) {
 	if json.Unmarshal(b, &m) != nil {
 		return false, nil
 	}
+	command := strings.Split(m.Command, "\x00")
+	if !approved(root, command) {
+		return false, nil
+	}
+	if command[2] != "test" {
+		module := strings.TrimPrefix(command[2], "test-")
+		if !strings.HasPrefix(filepath.ToSlash(filepath.Clean(path)), module+"/") {
+			return false, nil
+		}
+	}
 	h, e := git(root, "rev-parse", "HEAD")
 	if e != nil {
 		return false, e
@@ -694,7 +704,7 @@ func valid(root string) (bool, error) {
 	if e != nil {
 		return false, e
 	}
-	return m.Head == h && m.TestDiffHash == t && m.Command != "", nil
+	return m.Head == h && m.TestDiffHash == t, nil
 }
 func baseline(root string, args []string) error {
 	markerPathValue, err := markerPath(root)
@@ -710,6 +720,10 @@ func baseline(root string, args []string) error {
 	if !approved(root, args) {
 		return errors.New("baseline command is not approved")
 	}
+	module := ""
+	if args[2] != "test" {
+		module = strings.TrimPrefix(args[2], "test-")
+	}
 	st, e := git(root, "status", "--porcelain=v1", "--untracked-files=all")
 	if e != nil {
 		return errors.New("cannot inspect repository status")
@@ -724,7 +738,7 @@ func baseline(root string, args []string) error {
 			if !allowed(changedPath) {
 				return fmt.Errorf("production files are dirty: %s", changedPath)
 			}
-			if !isDeleted(l) && isTest(changedPath) {
+			if !isDeleted(l) && isTest(changedPath) && (module == "" || strings.HasPrefix(filepath.ToSlash(changedPath), module+"/")) {
 				changed = true
 			}
 		}
@@ -732,9 +746,9 @@ func baseline(root string, args []string) error {
 	if !changed {
 		return errors.New("focused test addition or change is required")
 	}
-	// approved currently permits only the repository's exact Taskfile test command.
+	// Run only an approved repository Taskfile test task.
 	// Keep the executable and arguments static so untrusted hook input cannot reach exec.Command.
-	c := exec.Command("task", "test")
+	c := exec.Command("task", "-p", args[2])
 	c.Dir = root
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
@@ -761,11 +775,28 @@ func baseline(root string, args []string) error {
 	return os.WriteFile(p, b, 0600)
 }
 func approved(root string, a []string) bool {
-	n := filepath.Base(a[0])
-	if n == "task" {
-		return fileExists(filepath.Join(root, "Taskfile.yaml")) && len(a) == 3 && a[1] == "-p" && a[2] == "test"
+	if len(a) != 3 || a[1] != "-p" || !fileExists(filepath.Join(root, "Taskfile.yaml")) {
+		return false
 	}
-	return false
+	n := filepath.Base(a[0])
+	if n != "task" {
+		return false
+	}
+	if a[2] == "test" {
+		return true
+	}
+	if !strings.HasPrefix(a[2], "test-") {
+		return false
+	}
+	module := strings.TrimPrefix(a[2], "test-")
+	if module == "" || strings.Trim(module, "abcdefghijklmnopqrstuvwxyz0123456789-") != "" || !fileExists(filepath.Join(root, module, "go.mod")) {
+		return false
+	}
+	taskfile, err := os.ReadFile(filepath.Join(root, "Taskfile.yaml"))
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(taskfile), "\n  "+a[2]+":")
 }
 func fileExists(p string) bool { _, e := os.Stat(p); return e == nil }
 func isDeleted(l string) bool  { return len(l) >= 2 && (l[0] == 'D' || l[1] == 'D') }

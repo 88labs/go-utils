@@ -246,14 +246,57 @@ func TestBaselineDirtyFailureSuccessAndStale(t *testing.T) {
 	if e := baseline(r, []string{"task", "-p", "test"}); e != nil {
 		t.Fatal(e)
 	}
-	if ok, e := valid(r); e != nil || !ok {
+	if ok, e := valid(r, "service.go"); e != nil || !ok {
 		t.Fatalf("marker invalid: %v %v", ok, e)
 	}
 	if e := os.WriteFile(filepath.Join(r, "service_test.go"), []byte("package g\n// stale\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	if ok, _ := valid(r); ok {
+	if ok, _ := valid(r, "service.go"); ok {
 		t.Fatal("stale marker valid")
+	}
+}
+
+func TestBaselineCanUseTheEditedModuleTask(t *testing.T) {
+	r := repo(t)
+	taskfile := "version: '3'\n\ntasks:\n  test:\n    cmds:\n      - go test ./...\n  test-backoff:\n    dir: backoff\n    cmds:\n      - go test ./...\n  test-aws:\n    dir: aws\n    cmds:\n      - go test ./...\n"
+	if err := os.WriteFile(filepath.Join(r, "Taskfile.yaml"), []byte(taskfile), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, module := range []string{"backoff", "aws"} {
+		if err := os.MkdirAll(filepath.Join(r, module), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(r, module, "go.mod"), []byte("module example.com/"+module+"\n\ngo 1.23\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(r, module, "service.go"), []byte("package "+module+"\n\nfunc Value() int { return 1 }\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitCommit(t, r, ".")
+	if err := os.WriteFile(filepath.Join(r, "backoff", "focus_test.go"), []byte("package backoff\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := baseline(r, []string{"task", "-p", "test-aws"}); err == nil || !strings.Contains(err.Error(), "focused test") {
+		t.Fatalf("unrelated module baseline accepted: %v", err)
+	}
+	if err := baseline(r, []string{"task", "-p", "test-backoff"}); err != nil {
+		t.Fatalf("focused module baseline failed: %v", err)
+	}
+	for _, tc := range []struct {
+		path  string
+		allow bool
+	}{
+		{path: "backoff/service.go", allow: true},
+		{path: "aws/service.go", allow: false},
+		{path: "backoff/../aws/service.go", allow: false},
+	} {
+		payload := []byte(`{"tool_name":"Edit","tool_input":{"filePath":"` + tc.path + `","old_string":"return 1","new_string":"return 2"}}`)
+		d, err := check(r, payload)
+		if err != nil || d.Allow != tc.allow {
+			t.Fatalf("%s with backoff baseline: %#v %v", tc.path, d, err)
+		}
 	}
 }
 
