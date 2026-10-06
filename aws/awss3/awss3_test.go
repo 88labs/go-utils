@@ -1827,3 +1827,115 @@ func TestNewClient_DeleteObject_notFoundReturnsErrNotFound(t *testing.T) {
 	_, err = client.DeleteObject(ctx, TestBucket, awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())))
 	assert.ErrorIs(t, err, awss3.ErrNotFound)
 }
+
+func tagSetToMap(tags []types.Tag) map[string]string {
+	m := make(map[string]string, len(tags))
+	for _, tag := range tags {
+		m[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
+	}
+	return m
+}
+
+func TestGetObjectTagging(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"), // use RustFS
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	s3Client, err := awss3.GetClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	createFixture := func(tagging *string) awss3.Key {
+		key := fmt.Sprintf("awstest/%s.txt", ulid.MustNew())
+		_, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
+			Body:    bytes.NewReader([]byte("hello")),
+			Bucket:  aws.String(TestBucket),
+			Key:     aws.String(key),
+			Tagging: tagging,
+		})
+		assert.NilError(t, err)
+		return awss3.Key(key)
+	}
+
+	t.Run("object with tags", func(t *testing.T) {
+		t.Parallel()
+		key := createFixture(aws.String("env=prod&team=backend"))
+		res, err := awss3.GetObjectTagging(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, map[string]string{"env": "prod", "team": "backend"}, tagSetToMap(res.TagSet))
+	})
+	t.Run("object with a single tag", func(t *testing.T) {
+		t.Parallel()
+		key := createFixture(aws.String("env=prod"))
+		res, err := awss3.GetObjectTagging(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, map[string]string{"env": "prod"}, tagSetToMap(res.TagSet))
+	})
+	t.Run("object with URL-encoded tag key and value", func(t *testing.T) {
+		t.Parallel()
+		key := createFixture(aws.String("my+key=%E6%97%A5%E6%9C%AC%E8%AA%9E+value"))
+		res, err := awss3.GetObjectTagging(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, map[string]string{"my key": "日本語 value"}, tagSetToMap(res.TagSet))
+	})
+	t.Run("object without tags", func(t *testing.T) {
+		t.Parallel()
+		key := createFixture(nil)
+		res, err := awss3.GetObjectTagging(ctx, TestRegion, TestBucket, key)
+		assert.NilError(t, err)
+		assert.Equal(t, 0, len(res.TagSet))
+	})
+	t.Run("not exists object", func(t *testing.T) {
+		t.Parallel()
+		_, err := awss3.GetObjectTagging(ctx, TestRegion, TestBucket, "NOT_FOUND")
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
+	})
+	t.Run("not exists bucket", func(t *testing.T) {
+		t.Parallel()
+		_, err := awss3.GetObjectTagging(ctx, TestRegion, NonExistentBucket, "NOT_FOUND")
+		assert.Assert(t, err != nil)
+	})
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+		key := createFixture(aws.String("env=prod"))
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		_, err := awss3.GetObjectTagging(canceled, TestRegion, TestBucket, key)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+}
+
+func TestNewClient_GetObjectTagging(t *testing.T) {
+	t.Parallel()
+	ctx := ctxawslocal.WithContext(
+		context.Background(),
+		ctxawslocal.WithS3Endpoint("http://127.0.0.1:29000"),
+		ctxawslocal.WithAccessKey("DUMMYACCESSKEYEXAMPLE"),
+		ctxawslocal.WithSecretAccessKey("DUMMYSECRETKEYEXAMPLE"),
+	)
+	client, err := awss3.NewClient(ctx, TestRegion)
+	assert.NilError(t, err)
+
+	t.Run("object with tags", func(t *testing.T) {
+		t.Parallel()
+		key := awss3.Key(fmt.Sprintf("awstest/%s.txt", ulid.MustNew()))
+		_, err := client.S3Client().PutObject(ctx, &s3.PutObjectInput{
+			Body:    bytes.NewReader([]byte("hello")),
+			Bucket:  aws.String(TestBucket),
+			Key:     key.AWSString(),
+			Tagging: aws.String("env=prod&team=backend"),
+		})
+		assert.NilError(t, err)
+
+		res, err := client.GetObjectTagging(ctx, TestBucket, key)
+		assert.NilError(t, err)
+		assert.DeepEqual(t, map[string]string{"env": "prod", "team": "backend"}, tagSetToMap(res.TagSet))
+	})
+	t.Run("not exists object", func(t *testing.T) {
+		t.Parallel()
+		_, err := client.GetObjectTagging(ctx, TestBucket, awss3.Key(fmt.Sprintf("awstest/missing-%s.txt", ulid.MustNew())))
+		assert.ErrorIs(t, err, awss3.ErrNotFound)
+	})
+}

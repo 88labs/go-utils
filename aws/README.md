@@ -208,7 +208,7 @@ func TestSomething(t *testing.T) {
 
 ### awss3
 
-Wrapper for Amazon S3. Supports upload, download, presigning, multipart upload, and S3 Select.
+Wrapper for Amazon S3. Supports upload, download, object tag retrieval, presigning, multipart upload, and S3 Select.
 
 #### Package-level functions (singleton client)
 
@@ -235,6 +235,9 @@ _, err = awss3.PutObject(ctx, region, bucket, awss3.Key("path/to/key.txt"), body
 
 // Check object metadata
 head, err := awss3.HeadObject(ctx, region, bucket, awss3.Key("path/to/key.txt"))
+
+// Get object tags
+tagging, err := awss3.GetObjectTagging(ctx, region, bucket, awss3.Key("path/to/key.txt"))
 
 // List objects
 objects, err := awss3.ListObjects(ctx, region, bucket,
@@ -314,6 +317,7 @@ client, err := awss3.NewClient(ctx, region)
 
 _, err = client.PutObject(ctx, bucket, awss3.Key("key.txt"), body)
 _, err = client.HeadObject(ctx, bucket, awss3.Key("key.txt"))
+_, err = client.GetObjectTagging(ctx, bucket, awss3.Key("key.txt"))
 _, err = client.DeleteObject(ctx, bucket, awss3.Key("key.txt"))
 
 // Access the underlying *s3.Client for operations not wrapped here

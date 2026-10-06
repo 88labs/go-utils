@@ -799,3 +799,33 @@ func (c *Client) AbortMultipartUpload(
 	_, err = c.client.AbortMultipartUpload(ctx, input)
 	return err
 }
+
+// GetObjectTagging returns the tag set of an object.
+// ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
+func (c *Client) GetObjectTagging(
+	ctx context.Context, bucketName BucketName, key Key,
+) (res *s3.GetObjectTaggingOutput, err error) {
+	done := c.logOperation(ctx, "GetObjectTagging",
+		slog.String("bucket", bucketName.String()),
+		slog.String("key", key.String()),
+	)
+	defer func() {
+		done(err)
+	}()
+
+	input := &s3.GetObjectTaggingInput{
+		Bucket: bucketName.AWSString(),
+		Key:    key.AWSString(),
+	}
+
+	resp, err := c.client.GetObjectTagging(ctx, input)
+	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchKey" || apiErr.ErrorCode() == "NotFound") {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return resp, err
+}
