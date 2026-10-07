@@ -281,3 +281,14 @@ func AbortMultipartUpload(
 	}
 	return packageClientFromSDK(c).AbortMultipartUpload(ctx, bucketName, key, uploadID)
 }
+
+// ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
+func GetObjectTagging(
+	ctx context.Context, region awsconfig.Region, bucketName BucketName, key Key,
+) (*s3.GetObjectTaggingOutput, error) {
+	c, err := GetClient(ctx, region) // nolint:typecheck
+	if err != nil {
+		return nil, err
+	}
+	return packageClientFromSDK(c).GetObjectTagging(ctx, bucketName, key)
+}
