@@ -374,6 +374,9 @@ func TestBaselineCanUseTheEditedModuleTask(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := os.WriteFile(filepath.Join(r, "aws", "config.go"), []byte("package aws\n\nconst region = \"old\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	gitCommit(t, r, ".")
 	if err := os.WriteFile(filepath.Join(r, "backoff", "focus_test.go"), []byte("package backoff\n"), 0600); err != nil {
 		t.Fatal(err)
@@ -383,6 +386,12 @@ func TestBaselineCanUseTheEditedModuleTask(t *testing.T) {
 	}
 	if err := baseline(r, []string{"task", "-p", "test-backoff"}); err != nil {
 		t.Fatalf("focused module baseline failed: %v", err)
+	}
+	patch := "*** Begin Patch\n*** Update File: backoff/service.go\n@@\n-func Value() int { return 1 }\n+func Value() int { return 2 }\n*** Update File: aws/config.go\n@@\n-const region = \"old\"\n+const region = \"new\"\n*** End Patch\n"
+	payload := []byte(`{"tool_name":"apply_patch","tool_input":{"command":` + mustJSON(patch) + `}}`)
+	d, err := check(r, payload)
+	if err != nil || !d.Allow {
+		t.Fatalf("multi-module function and constant patch with backoff baseline: %#v %v", d, err)
 	}
 	for _, tc := range []struct {
 		path  string

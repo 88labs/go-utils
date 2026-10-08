@@ -137,6 +137,7 @@ func functionChangeRequiresBaseline(root, tool string, input map[string]any, pat
 		if len(sections) == 0 {
 			return false, errors.New("patch contains no valid file headers")
 		}
+		targetPath := normalizedRepoPath(root, path)
 		for _, section := range sections {
 			source := repoPath(root, section.path)
 			destination := source
@@ -145,6 +146,11 @@ func functionChangeRequiresBaseline(root, tool string, input map[string]any, pat
 			}
 			if !safe(root, source) || !safe(root, destination) {
 				return false, errors.New("patch path is outside the repository")
+			}
+			source = normalizedRepoPath(root, source)
+			destination = normalizedRepoPath(root, destination)
+			if source != targetPath && destination != targetPath {
+				continue
 			}
 			sourceGo := productionGoPath(source)
 			destinationGo := productionGoPath(destination)
@@ -728,6 +734,9 @@ func repoPath(root, p string) string {
 		return relative
 	}
 	return p
+}
+func normalizedRepoPath(root, p string) string {
+	return filepath.ToSlash(filepath.Clean(repoPath(root, p)))
 }
 func allowed(p string) bool {
 	p = filepath.ToSlash(filepath.Clean(p))
