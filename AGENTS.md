@@ -23,7 +23,8 @@ user. Do not treat the current implementation as the specification.
 
 ## Test harness
 
-Use the existing per-module Taskfile tasks (`task -p test`) and package-local test conventions.
+Use the existing Taskfile tasks (`task -p test-<module>` for a focused module baseline,
+`task -p test` for the full repository) and package-local test conventions.
 Keep tests beside the module they exercise, minimize mocks to external I/O, and assert concrete
 results, stable error behavior, side effects, ordering, and cleanup. Do not claim semantic
 completeness from aggregate counts or a single package's coverage.
