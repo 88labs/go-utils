@@ -78,6 +78,36 @@ func TestCurrentGuardRejectsProductionGoFunctionEdits(t *testing.T) {
 	}
 }
 
+func TestCheckRequiresBaselineForEveryInitDeclaration(t *testing.T) {
+	const current = "package g\nvar first, second int\nfunc init() { first = 1 }\nfunc init() { second = 2 }\n"
+	for _, tc := range []struct {
+		name, before, after string
+		allow               bool
+	}{
+		{name: "edit earlier init", before: current, after: strings.Replace(current, "first = 1", "first = 9", 1)},
+		{name: "delete earlier init", before: current, after: strings.Replace(current, "func init() { first = 1 }\n", "", 1)},
+		{name: "add earlier init", before: current, after: strings.Replace(current, "func init() { first = 1 }", "func init() { first = 9 }\nfunc init() { first = 1 }", 1)},
+		{name: "reorder init", before: current, after: "package g\nvar first, second int\nfunc init() { second = 2 }\nfunc init() { first = 1 }\n"},
+		{name: "unchanged", before: current, after: current, allow: true},
+		{name: "comment only", before: current, after: strings.Replace(current, "func init() { first = 1 }", "// unchanged\nfunc init() { first = 1 }", 1), allow: true},
+		{name: "add only init", before: "package g\n", after: "package g\nfunc init() {}\n"},
+		{name: "delete only init", before: "package g\nfunc init() {}\n", after: "package g\n"},
+		{name: "change only init", before: "package g\nfunc init() {}\n", after: "package g\nfunc init() { println(1) }\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := repo(t)
+			if err := os.WriteFile(filepath.Join(r, "service.go"), []byte(tc.before), 0600); err != nil {
+				t.Fatal(err)
+			}
+			payload := `{"tool_name":"Edit","tool_input":{"filePath":"service.go","content":` + mustJSON(tc.after) + `}}`
+			d, err := check(r, []byte(payload))
+			if err != nil || d.Allow != tc.allow {
+				t.Fatalf("allow=%t, want %t: %#v %v", d.Allow, tc.allow, d, err)
+			}
+		})
+	}
+}
+
 func TestCheckAllowsNonFunctionGoAndNonGoEdits(t *testing.T) {
 	const current = `package g
 

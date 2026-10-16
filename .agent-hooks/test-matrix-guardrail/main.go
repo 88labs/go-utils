@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -536,15 +537,15 @@ func functionDefinitionsChanged(before, after string) (bool, error) {
 		return true, nil
 	}
 	for name, beforeDefinition := range beforeFunctions {
-		if afterFunctions[name] != beforeDefinition {
+		if !slices.Equal(afterFunctions[name], beforeDefinition) {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func functionDefinitions(source string) (map[string]string, error) {
-	definitions := make(map[string]string)
+func functionDefinitions(source string) (map[string][]string, error) {
+	definitions := make(map[string][]string)
 	if strings.TrimSpace(source) == "" {
 		return definitions, nil
 	}
@@ -572,7 +573,8 @@ func functionDefinitions(source string) (map[string]string, error) {
 		if receiver.Len() > 0 {
 			name = receiver.String() + "." + name
 		}
-		definitions[name] = definition.String()
+		// Multiple init declarations are valid and execute in source order.
+		definitions[name] = append(definitions[name], definition.String())
 	}
 	return definitions, nil
 }
