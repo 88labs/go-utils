@@ -6,7 +6,7 @@ require (
 	github.com/88labs/go-utils/tracers v0.2.0
 	github.com/88labs/go-utils/ulid v0.9.1
 	github.com/88labs/go-utils/utf8bom v0.6.0
-	github.com/DataDog/dd-trace-go/v2 v2.11.1
+	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.22
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
