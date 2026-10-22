@@ -1,7 +1,7 @@
 {
   "version": 1,
   "hooks": {
-    "preToolUse": [{"matcher":"Write|Delete|Edit|ApplyPatch|apply_patch","failClosed":true,"timeout":30,"command":"guard_root=$(git rev-parse --show-toplevel) && go run \"$guard_root/.agent-hooks/test-matrix-guardrail/main.go\" check --client cursor"}],
+    "preToolUse": [{"matcher":"Write|Delete|DeleteFile|delete_file|Edit|Move|MoveFile|move_file|ApplyPatch|apply_patch","failClosed":true,"timeout":30,"command":"guard_root=$(git rev-parse --show-toplevel) && go run \"$guard_root/.agent-hooks/test-matrix-guardrail/main.go\" check --client cursor"}],
     "beforeShellExecution": [{"matcher":".*","failClosed":true,"timeout":30,"command":"guard_root=$(git rev-parse --show-toplevel) && go run \"$guard_root/.agent-hooks/test-matrix-guardrail/main.go\" check --client cursor"}]
   }
 }

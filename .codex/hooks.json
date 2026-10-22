@@ -1,5 +1,5 @@
 {
   "hooks": {
-    "PreToolUse": [{"matcher":"Edit|Write|ApplyPatch|apply_patch|Bash|Shell|Terminal|Exec|Command","hooks":[{"type":"command","command":"guard_root=$(git rev-parse --show-toplevel) && go run \"$guard_root/.agent-hooks/test-matrix-guardrail/main.go\" check --client codex","timeout":30}]}]
+    "PreToolUse": [{"matcher":"Edit|Write|ApplyPatch|apply_patch|Delete|DeleteFile|delete_file|Move|MoveFile|move_file|Bash|Shell|Terminal|Exec|Command","hooks":[{"type":"command","command":"guard_root=$(git rev-parse --show-toplevel) && go run \"$guard_root/.agent-hooks/test-matrix-guardrail/main.go\" check --client codex","timeout":30}]}]
   }
 }

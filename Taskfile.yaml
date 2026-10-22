@@ -4,7 +4,7 @@ dotenv: ['.env', '{{.ENV}}/.env.', '{{.HOME}}/.env']
 
 tasks:
   test:
-    deps: [test-aws,test-backoff,test-jitter,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tracers,test-tspb_cast,test-ulid,test-utf8bom]
+    deps: [test-aws,test-backoff,test-jitter,test-cerrors,test-emailvalidator,test-envlookup,test-errgroup,test-hashutil,test-osext,test-sentryhelper,test-sql-escape,test-tracers,test-tspb_cast,test-ulid,test-utf8bom]
   test-aws:
     dir: aws
     cmds:
@@ -24,6 +24,10 @@ tasks:
     dir: cerrors
     cmds:
       - go test ./...
+  test-emailvalidator:
+    dir: emailvalidator
+    cmds:
+      - go test ./...
   test-envlookup:
     dir: envlookup
     cmds:
@@ -32,8 +36,16 @@ tasks:
     dir: errgroup
     cmds:
       - go test ./...
+  test-hashutil:
+    dir: hashutil
+    cmds:
+      - go test ./...
   test-osext:
     dir: osext
+    cmds:
+      - go test ./...
+  test-sentryhelper:
+    dir: sentryhelper
     cmds:
       - go test ./...
   test-sql-escape:
