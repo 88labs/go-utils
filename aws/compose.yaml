@@ -30,7 +30,7 @@ services:
       retries: 30
       start_period: 5s
   rustfscreatebuckets:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:2.38.6
     container_name: go_utils_rustfs_init_ci
     depends_on:
       rustfs:
