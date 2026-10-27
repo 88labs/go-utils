@@ -214,6 +214,19 @@ func TestTruncateIsNotAckedUnapplied(t *testing.T) {
 	}
 }
 
+func TestQuoteIdentifier(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{in: "orders", want: "`orders`"},
+		{in: "or`ders", want: "`or``ders`"},
+		{in: "x`; DROP TABLE orders; --", want: "`x``; DROP TABLE orders; --`"},
+	}
+	for _, tt := range tests {
+		if got := q(tt.in); got != tt.want {
+			t.Fatalf("q(%q) = %s, want %s", tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestLegacyValues(t *testing.T) {
 	sql := New(nil, WithLegacyValues()).upsertSQL("t", []column{{name: "id"}, {name: "a"}}, []string{"id"}, "")
 	if !strings.Contains(sql, "`a` = VALUES(`a`)") || strings.Contains(sql, " AS new") {

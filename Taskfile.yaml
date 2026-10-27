@@ -4,7 +4,7 @@ dotenv: ['.env', '{{.ENV}}/.env.', '{{.HOME}}/.env']
 
 tasks:
   test:
-    deps: [test-aws,test-backoff,test-jitter,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tracers,test-tspb_cast,test-ulid,test-utf8bom]
+    deps: [test-aws,test-backoff,test-cdc,test-jitter,test-cerrors,test-envlookup,test-errgroup,test-osext,test-sql-escape,test-tracers,test-tspb_cast,test-ulid,test-utf8bom]
   test-aws:
     dir: aws
     cmds:
@@ -12,6 +12,21 @@ tasks:
       - defer: docker compose down
       - sleep 5
       - go test ./...
+  test-cdc:
+    dir: cdc
+    cmds:
+      - go test ./...
+  # Needs docker: MySQL, Debezium Server and floci (SNS/SQS) from aws/compose.yaml.
+  test-cdc-integration:
+    dir: cdc
+    env:
+      CDC_IT_SOURCE_DSN: root:root@tcp(127.0.0.1:23306)/cdc_source?parseTime=true&loc=UTC
+      CDC_IT_TARGET_DSN: root:root@tcp(127.0.0.1:23306)/cdc_target?parseTime=true&loc=UTC
+      CDC_IT_AWS_ENDPOINT: http://127.0.0.1:24566
+    cmds:
+      - docker compose -f ../aws/compose.yaml --profile cdc up -d mysql floci flocisetup debezium
+      - defer: docker compose -f ../aws/compose.yaml --profile cdc down -v
+      - go test -race -count=1 -run Integration ./...
   test-backoff:
     dir: backoff
     cmds:

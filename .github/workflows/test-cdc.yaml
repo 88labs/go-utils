@@ -1,0 +1,102 @@
+name: Test CDC
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cdc/**"
+      - "aws/compose.yaml"
+      - "aws/docker/mysql/**"
+      - "aws/docker/floci/**"
+      - ".github/workflows/test-cdc.yaml"
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - "cdc/**"
+      - "aws/compose.yaml"
+      - "aws/docker/mysql/**"
+      - "aws/docker/floci/**"
+      - ".github/workflows/test-cdc.yaml"
+env:
+  testdir: ./cdc
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ${{ env.testdir }}/go.mod
+          cache-dependency-path: |
+            ${{ env.testdir }}/go.sum
+      - name: Download Go modules
+        working-directory: ${{ env.testdir }}
+        run: go mod download
+      - name: Vet
+        working-directory: ${{ env.testdir }}
+        run: go vet ./...
+      - name: Unit test
+        working-directory: ${{ env.testdir }}
+        run: go test ./... -race -coverprofile=coverage.txt -covermode=atomic
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ env.testdir }}/coverage.txt
+
+  integration:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ${{ env.testdir }}/go.mod
+          cache-dependency-path: |
+            ${{ env.testdir }}/go.sum
+      - name: Download Go modules
+        working-directory: ${{ env.testdir }}
+        run: go mod download
+      # MySQL, Debezium Server and floci (SNS/SQS); see aws/compose.yaml.
+      - name: Start the CDC stack
+        run: docker compose -f aws/compose.yaml --profile cdc up -d mysql floci flocisetup debezium
+      # The test skips itself unless these are set, so a missing one must not pass silently.
+      - name: Integration test
+        working-directory: ${{ env.testdir }}
+        env:
+          CDC_IT_SOURCE_DSN: root:root@tcp(127.0.0.1:23306)/cdc_source?parseTime=true&loc=UTC
+          CDC_IT_TARGET_DSN: root:root@tcp(127.0.0.1:23306)/cdc_target?parseTime=true&loc=UTC
+          CDC_IT_AWS_ENDPOINT: http://127.0.0.1:24566
+        run: |
+          set -o pipefail
+          go test -race -count=1 -run Integration -v ./... | tee integration.log
+          if grep -q -- '--- SKIP' integration.log; then
+            echo "::error::the integration test was skipped"
+            exit 1
+          fi
+      - name: Dump CDC stack logs
+        if: failure()
+        run: docker compose -f aws/compose.yaml --profile cdc logs --no-color
+      - name: Stop the CDC stack
+        if: always()
+        run: docker compose -f aws/compose.yaml --profile cdc down -v
