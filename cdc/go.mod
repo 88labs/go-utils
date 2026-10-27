@@ -1,6 +1,6 @@
 module github.com/88labs/go-utils/cdc
 
-go 1.22
+go 1.27
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.0

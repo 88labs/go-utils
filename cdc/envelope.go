@@ -35,14 +35,13 @@ type Source struct {
 	Row       int     `json:"row"`
 }
 
-// Payload is the Debezium envelope payload. Before/After stay raw so the
-// router can decode them into the table-specific struct later.
-type Payload struct {
-	Before json.RawMessage `json:"before"`
-	After  json.RawMessage `json:"after"`
-	Source Source          `json:"source"`
-	Op     Op              `json:"op"`
-	TsMs   int64           `json:"ts_ms"`
+// Envelope is the Debezium envelope payload.
+type Envelope[T any] struct {
+	Before *T     `json:"before"`
+	After  *T     `json:"after"`
+	Source Source `json:"source"`
+	Op     Op     `json:"op"`
+	TsMs   int64  `json:"ts_ms"`
 }
 
 // RawEvent is a parsed-but-untyped change event.
@@ -50,7 +49,8 @@ type RawEvent struct {
 	ID       string // SNS MessageId (empty with raw message delivery)
 	TopicArn string
 	Schema   json.RawMessage // Debezium schema block (nil if schemas.enable=false)
-	Payload  Payload
+	Envelope[json.RawMessage]
+	payload json.RawMessage
 }
 
 var ErrNotCDCEvent = errors.New("cdc: message is not a debezium change event")
@@ -88,10 +88,11 @@ func ParseMessage(body string) (*RawEvent, error) {
 		raw = wrapper.Payload
 		ev.Schema = wrapper.Schema
 	}
-	if err := json.Unmarshal(raw, &ev.Payload); err != nil {
+	if err := json.Unmarshal(raw, &ev.Envelope); err != nil {
 		return nil, fmt.Errorf("cdc: decode payload: %w", err)
 	}
-	if ev.Payload.Op == "" || ev.Payload.Source.Table == "" {
+	ev.payload = raw
+	if ev.Op == "" || ev.Source.Table == "" {
 		return nil, ErrNotCDCEvent
 	}
 	return ev, nil

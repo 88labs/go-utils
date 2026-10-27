@@ -146,5 +146,5 @@ func (c *Consumer) safeDispatch(ctx context.Context, body string, meta Meta) (er
 			err = fmt.Errorf("panic in handler: %v\n%s", r, debug.Stack())
 		}
 	}()
-	return c.router.Dispatch(ctx, body, meta)
+	return c.router.dispatch(ctx, body, meta)
 }

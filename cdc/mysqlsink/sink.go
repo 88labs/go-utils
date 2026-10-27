@@ -83,7 +83,7 @@ func (s *Syncer) Table(r *cdc.Router, key string, cfg TableConfig) {
 func (s *Syncer) All(r *cdc.Router, cfg TableConfig) { s.Table(r, "*", cfg) }
 
 func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) error {
-	p := ev.Payload
+	p := ev.Envelope
 	target := cfg.Target
 	if target == "" {
 		target = p.Source.Table
@@ -107,13 +107,13 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 
 	switch p.Op {
 	case cdc.OpCreate, cdc.OpUpdate, cdc.OpRead:
-		if isNull(p.After) {
+		if p.After == nil {
 			return cdc.Permanent(fmt.Errorf("mysqlsink: op=%s without after image", p.Op))
 		}
 		if !hasAll(cols, pk) {
 			return cdc.Permanent(fmt.Errorf("mysqlsink: pk %v not in synced columns of %s", pk, target))
 		}
-		args, err := decodeRow(cols, p.After)
+		args, err := decodeRow(cols, *p.After)
 		if err != nil {
 			return cdc.Permanent(err)
 		}
@@ -124,10 +124,10 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 		if cfg.SkipDelete {
 			return nil
 		}
-		if isNull(p.Before) {
+		if p.Before == nil {
 			return cdc.Permanent(errors.New("mysqlsink: op=d without before image"))
 		}
-		vals, err := decodeRow(cols, p.Before)
+		vals, err := decodeRow(cols, *p.Before)
 		if err != nil {
 			return cdc.Permanent(err)
 		}

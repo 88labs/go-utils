@@ -30,9 +30,9 @@ func TestDispatchOrderCreate(t *testing.T) {
 
 	r := NewRouter()
 	var got Event[order]
-	Handle(r, "orders", func(_ context.Context, e Event[order]) error { got = e; return nil })
+	handle(r, "orders", func(_ context.Context, e Event[order]) error { got = e; return nil })
 
-	if err := r.Dispatch(context.Background(), snsBody(t, dbz), Meta{ReceiveCount: 3}); err != nil {
+	if err := r.dispatch(context.Background(), snsBody(t, dbz), Meta{ReceiveCount: 3}); err != nil {
 		t.Fatal(err)
 	}
 	if got.Op != OpCreate || got.Before != nil || got.After == nil || got.After.ID != 208 {
@@ -49,18 +49,18 @@ func TestDispatchOrderCreate(t *testing.T) {
 func TestRawDeliveryAndUnknownTable(t *testing.T) {
 	r := NewRouter()
 	called := false
-	Handle(r, "orders", func(context.Context, Event[order]) error { called = true; return nil })
+	handle(r, "orders", func(context.Context, Event[order]) error { called = true; return nil })
 	body := `{"before":null,"after":{"id":1},"source":{"db":"d","table":"clients"},"op":"c"}`
-	if err := r.Dispatch(context.Background(), body, Meta{}); err != nil || called {
+	if err := r.dispatch(context.Background(), body, Meta{}); err != nil || called {
 		t.Fatalf("unknown table should be ignored: err=%v called=%v", err, called)
 	}
 }
 
 func TestBadPayloadIsPermanent(t *testing.T) {
 	r := NewRouter()
-	Handle(r, "orders", func(context.Context, Event[order]) error { return nil })
+	handle(r, "orders", func(context.Context, Event[order]) error { return nil })
 	body := `{"before":null,"after":{"id":"not-int"},"source":{"db":"d","table":"orders"},"op":"c"}`
-	if err := r.Dispatch(context.Background(), body, Meta{}); !IsPermanent(err) {
+	if err := r.dispatch(context.Background(), body, Meta{}); !IsPermanent(err) {
 		t.Fatalf("want permanent, got %v", err)
 	}
 }

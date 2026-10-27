@@ -16,13 +16,9 @@ type Meta struct {
 
 // Event is a typed change event for one table row.
 type Event[T any] struct {
-	ID     string // SNS message id
-	Op     Op
-	Before *T // nil for create/read
-	After  *T // nil for delete
-	Source Source
-	TsMs   int64
-	Meta   Meta
+	Envelope[T]        // Before, After, Source, Op, TsMs
+	ID          string // SNS message id
+	Meta        Meta
 }
 
 // Row returns After, or Before for deletes.
@@ -67,25 +63,24 @@ func NewRouter() *Router { return &Router{handlers: map[string]rawHandler{}} }
 // OnUnknown sets the behaviour for tables with no handler (default: ignore + ack).
 func (r *Router) OnUnknown(fn func(ctx context.Context, ev *RawEvent) error) { r.onUnknown = fn }
 
-// Handle registers a typed handler. key is "orders" or "andpad_development.orders".
+// handle registers a typed handler. key is "orders" or "andpad_development.orders".
 // (A generic function because Go methods cannot have type parameters.)
-func Handle[T any](r *Router, key string, h HandlerFunc[T]) {
+func handle[T any](r *Router, key string, h HandlerFunc[T]) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, dup := r.handlers[key]; dup {
 		panic("cdc: duplicate handler for " + key)
 	}
 	r.handlers[key] = func(ctx context.Context, raw *RawEvent, meta Meta) error {
-		p := raw.Payload
-		ev := Event[T]{ID: raw.ID, Op: p.Op, Source: p.Source, TsMs: p.TsMs, Meta: meta}
-		var err error
-		if ev.Before, err = decodeRow[T](p.Before); err != nil {
-			return Permanent(fmt.Errorf("cdc: decode %s.before: %w", key, err))
+		var env Envelope[T]
+		if err := json.Unmarshal(raw.payload, &env); err != nil {
+			return Permanent(fmt.Errorf("cdc: decode %s: %w", key, err))
 		}
-		if ev.After, err = decodeRow[T](p.After); err != nil {
-			return Permanent(fmt.Errorf("cdc: decode %s.after: %w", key, err))
-		}
-		return h(ctx, ev)
+		return h(ctx, Event[T]{
+			Envelope: env,
+			ID:       raw.ID,
+			Meta:     meta,
+		})
 	}
 }
 
@@ -100,17 +95,6 @@ func HandleRaw(r *Router, key string, h func(ctx context.Context, ev *RawEvent, 
 	r.handlers[key] = h
 }
 
-func decodeRow[T any](b json.RawMessage) (*T, error) {
-	if len(b) == 0 || string(b) == "null" {
-		return nil, nil
-	}
-	var v T
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, err
-	}
-	return &v, nil
-}
-
 func (r *Router) lookup(s Source) rawHandler {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -123,13 +107,13 @@ func (r *Router) lookup(s Source) rawHandler {
 	return r.handlers["*"]
 }
 
-// Dispatch parses an SQS body and invokes the matching handler.
-func (r *Router) Dispatch(ctx context.Context, body string, meta Meta) error {
+// dispatch parses an SQS body and invokes the matching handler.
+func (r *Router) dispatch(ctx context.Context, body string, meta Meta) error {
 	raw, err := ParseMessage(body)
 	if err != nil {
 		return Permanent(err)
 	}
-	h := r.lookup(raw.Payload.Source)
+	h := r.lookup(raw.Source)
 	if h == nil {
 		if r.onUnknown != nil {
 			return r.onUnknown(ctx, raw)
@@ -149,4 +133,3 @@ func (r *Router) Tables() []string {
 	}
 	return out
 }
-
