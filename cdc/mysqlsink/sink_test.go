@@ -95,6 +95,75 @@ func TestVersionColumn(t *testing.T) {
 	}
 }
 
+func TestTableAndAllRegisterKeys(t *testing.T) {
+	r := cdc.NewRouter()
+	s := New(nil)
+	cfg := TableConfig{Include: []string{"id", "updated_at"}}
+
+	s.Table(r, "orders", cfg)
+	s.All(r, cfg)
+
+	got := map[string]bool{}
+	for _, k := range r.Tables() {
+		got[k] = true
+	}
+	if len(got) != 2 || !got["orders"] || !got["*"] {
+		t.Fatalf("registered keys = %v, want orders and *", r.Tables())
+	}
+}
+
+func TestColumnSelectionFailsClosed(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     TableConfig
+		wantErr bool
+	}{
+		{name: "empty config selects nothing", cfg: TableConfig{}, wantErr: true},
+		{name: "exclude alone is not an allowlist", cfg: TableConfig{Exclude: []string{"billing_tel"}}, wantErr: true},
+		{name: "version column alone is not an allowlist", cfg: TableConfig{VersionColumn: "updated_at"}, wantErr: true},
+		{name: "include is an allowlist", cfg: TableConfig{Include: []string{"id"}}},
+		{name: "all columns is an explicit opt-in", cfg: TableConfig{AllColumns: true}},
+		{name: "all columns with exclude", cfg: TableConfig{AllColumns: true, Exclude: []string{"billing_tel"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkColumnSelection("orders", tt.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestTableAndAllPanicWithoutColumnSelection(t *testing.T) {
+	register := map[string]func(*Syncer, *cdc.Router){
+		"Table": func(s *Syncer, r *cdc.Router) { s.Table(r, "orders", TableConfig{VersionColumn: "updated_at"}) },
+		"All":   func(s *Syncer, r *cdc.Router) { s.All(r, TableConfig{VersionColumn: "updated_at"}) },
+	}
+	for name, fn := range register {
+		t.Run(name, func(t *testing.T) {
+			r := cdc.NewRouter()
+			defer func() {
+				if recover() == nil {
+					t.Fatal("want panic for a config with no column selection")
+				}
+				if got := r.Tables(); len(got) != 0 {
+					t.Fatalf("nothing may be registered on failure, got %v", got)
+				}
+			}()
+			fn(New(nil), r)
+		})
+	}
+}
+
+func TestAllWithExplicitOptInRegisters(t *testing.T) {
+	r := cdc.NewRouter()
+	New(nil).All(r, TableConfig{AllColumns: true, Exclude: []string{"billing_tel"}})
+	if got := r.Tables(); len(got) != 1 || got[0] != "*" {
+		t.Fatalf("registered keys = %v, want [*]", got)
+	}
+}
+
 func TestLegacyValues(t *testing.T) {
 	sql := New(nil, WithLegacyValues()).upsertSQL("t", []column{{name: "id"}, {name: "a"}}, []string{"id"}, "")
 	if !strings.Contains(sql, "`a` = VALUES(`a`)") || strings.Contains(sql, " AS new") {

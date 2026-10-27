@@ -31,7 +31,8 @@ import (
 type TableConfig struct {
 	Target        string   // target table; default = source table name
 	PK            []string // default: PRIMARY KEY columns read from the target table
-	Include       []string // only these columns (default: all)
+	Include       []string // only these columns; required unless AllColumns is set
+	AllColumns    bool     // opt in to copy every source column that exists on the target (only when Include is empty)
 	Exclude       []string // never sync these columns
 	VersionColumn string   // ignore stale/out-of-order updates (default: "updated_at")
 	SkipDelete    bool     // ignore op=d instead of DELETE
@@ -71,8 +72,23 @@ func New(db *sql.DB, opts ...Option) *Syncer {
 	return s
 }
 
+// checkColumnSelection fails closed: without an explicit allowlist or an
+// explicit AllColumns opt-in, a table would silently replicate every column
+// that happens to exist on the target, including ones nobody meant to copy.
+func checkColumnSelection(key string, cfg TableConfig) error {
+	if len(cfg.Include) == 0 && !cfg.AllColumns {
+		return fmt.Errorf("mysqlsink: %q: set Include to list the columns to copy, or AllColumns to copy every column", key)
+	}
+	return nil
+}
+
 // Table registers sync for one source table (key: "orders" or "db.orders").
+// It panics, like a duplicate registration does, if cfg selects no columns:
+// see TableConfig.Include and TableConfig.AllColumns.
 func (s *Syncer) Table(r *cdc.Router, key string, cfg TableConfig) {
+	if err := checkColumnSelection(key, cfg); err != nil {
+		panic(err)
+	}
 	cdc.HandleRaw(r, key, func(ctx context.Context, ev *cdc.RawEvent, _ cdc.Meta) error {
 		return s.apply(ctx, cfg, ev)
 	})
@@ -80,6 +96,8 @@ func (s *Syncer) Table(r *cdc.Router, key string, cfg TableConfig) {
 
 // All registers a catch-all: every table without its own handler is synced
 // into a same-named target table. Tables you register with Table() win.
+// cfg applies to every such table, so it needs AllColumns (and Exclude for
+// sensitive columns) or an Include that is valid for all of them.
 func (s *Syncer) All(r *cdc.Router, cfg TableConfig) { s.Table(r, "*", cfg) }
 
 const defaultVersionColumn = "updated_at"
