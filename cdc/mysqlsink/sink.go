@@ -33,7 +33,7 @@ type TableConfig struct {
 	PK            []string // default: PRIMARY KEY columns read from the target table
 	Include       []string // only these columns (default: all)
 	Exclude       []string // never sync these columns
-	VersionColumn string   // e.g. "updated_at": ignore stale/out-of-order updates
+	VersionColumn string   // ignore stale/out-of-order updates (default: "updated_at")
 	SkipDelete    bool     // ignore op=d instead of DELETE
 }
 
@@ -82,6 +82,21 @@ func (s *Syncer) Table(r *cdc.Router, key string, cfg TableConfig) {
 // into a same-named target table. Tables you register with Table() win.
 func (s *Syncer) All(r *cdc.Router, cfg TableConfig) { s.Table(r, "*", cfg) }
 
+const defaultVersionColumn = "updated_at"
+
+func versionColumn(cfg TableConfig, cols []column) (string, error) {
+	v := cfg.VersionColumn
+	if v == "" {
+		v = defaultVersionColumn
+	}
+	for _, c := range cols {
+		if c.name == v {
+			return v, nil
+		}
+	}
+	return "", fmt.Errorf("mysqlsink: version column %q is not among the synced columns", v)
+}
+
 func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) error {
 	p := ev.Envelope
 	target := cfg.Target
@@ -113,11 +128,15 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 		if !hasAll(cols, pk) {
 			return cdc.Permanent(fmt.Errorf("mysqlsink: pk %v not in synced columns of %s", pk, target))
 		}
+		version, err := versionColumn(cfg, cols)
+		if err != nil {
+			return err // configuration problem: retry, then DLQ
+		}
 		args, err := decodeRow(cols, *p.After)
 		if err != nil {
 			return cdc.Permanent(err)
 		}
-		_, err = s.db.ExecContext(ctx, s.upsertSQL(target, cols, pk, cfg.VersionColumn), args...)
+		_, err = s.db.ExecContext(ctx, s.upsertSQL(target, cols, pk, version), args...)
 		return err
 
 	case cdc.OpDelete:
