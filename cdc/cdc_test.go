@@ -3,6 +3,8 @@ package cdc
 import (
 	"context"
 	"encoding/json"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -53,6 +55,104 @@ func TestRawDeliveryAndUnknownTable(t *testing.T) {
 	body := `{"before":null,"after":{"id":1},"source":{"db":"d","table":"clients"},"op":"c"}`
 	if err := r.dispatch(context.Background(), body, Meta{}); err != nil || called {
 		t.Fatalf("unknown table should be ignored: err=%v called=%v", err, called)
+	}
+}
+
+func TestLookupOrder(t *testing.T) {
+	r := NewRouter()
+	var got string
+	record := func(name string) func(context.Context, *RawEvent, Meta) error {
+		return func(context.Context, *RawEvent, Meta) error { got = name; return nil }
+	}
+	HandleRaw(r, "d.orders", record("db.table"))
+	HandleRaw(r, "orders", record("table"))
+	HandleRaw(r, "*", record("catch-all"))
+
+	tests := []struct{ db, table, want string }{
+		{db: "d", table: "orders", want: "db.table"},
+		{db: "other", table: "orders", want: "table"},
+		{db: "d", table: "clients", want: "catch-all"},
+	}
+	for _, tt := range tests {
+		got = ""
+		body := `{"before":null,"after":{"id":1},"source":{"db":"` + tt.db + `","table":"` + tt.table + `"},"op":"c"}`
+		if err := r.dispatch(context.Background(), body, Meta{}); err != nil {
+			t.Fatal(err)
+		}
+		if got != tt.want {
+			t.Fatalf("%s.%s routed to %q, want %q", tt.db, tt.table, got, tt.want)
+		}
+	}
+}
+
+func noopHandler(context.Context, *RawEvent, Meta) error { return nil }
+
+func TestRegisterAfterNewConsumerPanics(t *testing.T) {
+	register := map[string]func(*Router){
+		"HandleRaw": func(r *Router) { HandleRaw(r, "orders", noopHandler) },
+		"handle":    func(r *Router) { handle(r, "orders", func(context.Context, Event[order]) error { return nil }) },
+		"OnUnknown": func(r *Router) { r.OnUnknown(func(context.Context, *RawEvent) error { return nil }) },
+	}
+	for name, fn := range register {
+		t.Run(name, func(t *testing.T) {
+			r := NewRouter()
+			NewConsumer(nil, r, Config{QueueURL: "q"})
+			defer func() {
+				if recover() == nil {
+					t.Fatal("registering after NewConsumer must panic")
+				}
+			}()
+			fn(r)
+		})
+	}
+}
+
+func TestConsumerRunsOnACopyOfTheRouter(t *testing.T) {
+	r := NewRouter()
+	var got []string
+	HandleRaw(r, "orders", func(context.Context, *RawEvent, Meta) error { got = append(got, "orders"); return nil })
+	c := NewConsumer(nil, r, Config{QueueURL: "q"})
+
+	body := `{"before":null,"after":{"id":1},"source":{"db":"d","table":"orders"},"op":"c"}`
+	if err := c.router.dispatch(context.Background(), body, Meta{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("handler registered before NewConsumer must receive events, got %v", got)
+	}
+	if c.router == r {
+		t.Fatal("consumer must not share the live router")
+	}
+	if tables := c.router.Tables(); len(tables) != 1 || tables[0] != "orders" {
+		t.Fatalf("copy tables = %v", tables)
+	}
+}
+
+func TestDispatchIsSafeForConcurrentUse(t *testing.T) {
+	r := NewRouter()
+	var calls atomic.Int64
+	HandleRaw(r, "orders", func(context.Context, *RawEvent, Meta) error { calls.Add(1); return nil })
+	HandleRaw(r, "*", noopHandler)
+	c := NewConsumer(nil, r, Config{QueueURL: "q"})
+
+	const workers, perWorker = 8, 50
+	body := `{"before":null,"after":{"id":1},"source":{"db":"d","table":"orders"},"op":"c"}`
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perWorker; j++ {
+				if err := c.router.dispatch(context.Background(), body, Meta{}); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if got := calls.Load(); got != workers*perWorker {
+		t.Fatalf("handled %d messages, want %d", got, workers*perWorker)
 	}
 }
 

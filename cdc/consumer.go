@@ -63,7 +63,8 @@ func NewConsumer(client SQSAPI, router *Router, cfg Config) *Consumer {
 			slog.Error("cdc consumer error", "err", err, "sqs_message_id", m.SQSMessageID, "receive_count", m.ReceiveCount)
 		}
 	}
-	return &Consumer{client: client, router: router, cfg: cfg}
+	// The consumer runs on a private copy; see Router.
+	return &Consumer{client: client, router: router.freeze(), cfg: cfg}
 }
 
 // Run polls until ctx is cancelled, then waits for in-flight messages to finish.
