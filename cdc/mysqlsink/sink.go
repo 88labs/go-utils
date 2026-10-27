@@ -36,6 +36,7 @@ type TableConfig struct {
 	Exclude       []string // never sync these columns
 	VersionColumn string   // ignore stale/out-of-order updates (default: "updated_at")
 	SkipDelete    bool     // ignore op=d instead of DELETE
+	SkipTruncate  bool     // ignore op=t; by default a truncate is an error so it is not acked unapplied
 }
 
 type Option func(*Syncer)
@@ -121,6 +122,14 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 	if target == "" {
 		target = p.Source.Table
 	}
+	if p.Op == cdc.OpTruncate {
+		if cfg.SkipTruncate {
+			return nil
+		}
+		// Not Permanent: acking would leave rows in the target that the source
+		// removed. The message goes to the DLQ, where an operator can decide.
+		return fmt.Errorf("mysqlsink: truncate of %s is not applied; set SkipTruncate to ignore it", target)
+	}
 	info, err := s.target(ctx, target)
 	if err != nil {
 		return err // transient: retry
@@ -184,7 +193,7 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 		_, err = s.db.ExecContext(ctx, "DELETE FROM "+q(target)+" WHERE "+strings.Join(where, " AND "), args...)
 		return err
 	}
-	return nil // truncate etc.: ignored
+	return nil // other ops are ignored
 }
 
 // upsertSQL builds INSERT ... ON DUPLICATE KEY UPDATE. With a version column,

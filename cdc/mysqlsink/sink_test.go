@@ -1,6 +1,8 @@
 package mysqlsink
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -161,6 +163,54 @@ func TestAllWithExplicitOptInRegisters(t *testing.T) {
 	New(nil).All(r, TableConfig{AllColumns: true, Exclude: []string{"billing_tel"}})
 	if got := r.Tables(); len(got) != 1 || got[0] != "*" {
 		t.Fatalf("registered keys = %v, want [*]", got)
+	}
+}
+
+func TestUpsertSQLPKOnlyTable(t *testing.T) {
+	sql := New(nil).upsertSQL("tags", []column{{name: "id"}}, []string{"id"}, "")
+	if !strings.Contains(sql, "ON DUPLICATE KEY UPDATE `id` = `id`") {
+		t.Fatalf("pk-only table needs a no-op assignment: %s", sql)
+	}
+}
+
+func truncateEvent(table string) *cdc.RawEvent {
+	return &cdc.RawEvent{Envelope: cdc.Envelope[json.RawMessage]{
+		Op:     cdc.OpTruncate,
+		Source: cdc.Source{DB: "d", Table: table},
+	}}
+}
+
+func TestTruncateIsNotAckedUnapplied(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        TableConfig
+		wantErr    bool
+		wantTarget string
+	}{
+		{name: "default is a retryable error", cfg: TableConfig{AllColumns: true}, wantErr: true, wantTarget: "orders"},
+		{name: "error names the target table", cfg: TableConfig{AllColumns: true, Target: "orders_copy"}, wantErr: true, wantTarget: "orders_copy"},
+		{name: "SkipTruncate acks", cfg: TableConfig{AllColumns: true, SkipTruncate: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// New(nil) has no database: a truncate must be decided before any query.
+			err := New(nil).apply(context.Background(), tt.cfg, truncateEvent("orders"))
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("want nil, got %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("truncate must not be acked unapplied")
+			}
+			if cdc.IsPermanent(err) {
+				t.Fatalf("truncate must be retryable (DLQ), got permanent: %v", err)
+			}
+			if !strings.Contains(err.Error(), tt.wantTarget) {
+				t.Fatalf("error should name %q: %v", tt.wantTarget, err)
+			}
+		})
 	}
 }
 
