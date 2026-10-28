@@ -173,6 +173,10 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 		if p.Before == nil {
 			return cdc.Permanent(errors.New("mysqlsink: op=d without before image"))
 		}
+		version, err := versionColumn(cfg, cols)
+		if err != nil {
+			return err // configuration problem: retry, then DLQ
+		}
 		vals, err := decodeRow(cols, *p.Before)
 		if err != nil {
 			return cdc.Permanent(err)
@@ -181,19 +185,32 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 		for i, c := range cols {
 			byName[c.name] = vals[i]
 		}
-		where, args := make([]string, 0, len(pk)), make([]any, 0, len(pk))
+		args := make([]any, 0, len(pk)+2)
 		for _, k := range pk {
 			v, ok := byName[k]
 			if !ok {
 				return cdc.Permanent(fmt.Errorf("mysqlsink: pk %q missing in before image", k))
 			}
-			where = append(where, q(k)+" = ?")
 			args = append(args, v)
 		}
-		_, err = s.db.ExecContext(ctx, "DELETE FROM "+q(target)+" WHERE "+strings.Join(where, " AND "), args...)
+		args = append(args, byName[version], byName[version])
+		_, err = s.db.ExecContext(ctx, deleteSQL(target, pk, version), args...)
 		return err
 	}
 	return nil // other ops are ignored
+}
+
+// deleteSQL builds a DELETE guarded like the upsert: a delayed delete whose
+// before-image version is older than the target row's must not remove a row
+// that was recreated or updated since. Its arguments are the primary key
+// values followed by the before-image version, twice.
+func deleteSQL(target string, pk []string, version string) string {
+	where := make([]string, 0, len(pk)+1)
+	for _, k := range pk {
+		where = append(where, q(k)+" = ?")
+	}
+	where = append(where, fmt.Sprintf("(%s IS NULL OR ? IS NULL OR %s <= ?)", q(version), q(version)))
+	return "DELETE FROM " + q(target) + " WHERE " + strings.Join(where, " AND ")
 }
 
 // upsertSQL builds INSERT ... ON DUPLICATE KEY UPDATE. With a version column,
