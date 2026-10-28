@@ -239,8 +239,10 @@ func (s *Syncer) upsertSQL(target string, cols []column, pk []string, version st
 		if version == "" {
 			return q(c) + " = " + ref(c)
 		}
-		return fmt.Sprintf("%s = IF(%s IS NULL OR %s IS NULL OR %s >= %s, %s, %s)",
-			q(c), ref(version), old(version), ref(version), old(version), ref(c), old(c))
+		// A NULL incoming version is not a freshness proof: it only applies over
+		// a NULL target version, so it cannot clear a newer row's watermark.
+		return fmt.Sprintf("%s = IF(%s IS NULL OR (%s IS NOT NULL AND %s >= %s), %s, %s)",
+			q(c), old(version), ref(version), ref(version), old(version), ref(c), old(c))
 	}
 	hasVersion := false
 	for _, c := range cols {
