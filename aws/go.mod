@@ -3,7 +3,7 @@ module github.com/88labs/go-utils/aws
 go 1.26.0
 
 require (
-	github.com/88labs/go-utils/tracers v0.2.0
+	github.com/88labs/go-utils/tracers v0.2.1
 	github.com/88labs/go-utils/ulid v0.9.1
 	github.com/88labs/go-utils/utf8bom v0.6.0
 	github.com/DataDog/dd-trace-go/v2 v2.11.2
@@ -11,11 +11,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.22
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.13
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.10.1
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.14
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.10.2
 	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.17
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.42.5
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.71.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.72.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.5
 	github.com/aws/smithy-go v1.28.5
