@@ -288,7 +288,7 @@ func allowed(p string) bool {
 func git(root string, args ...string) (string, error) {
 	c := exec.Command("git", append([]string{"-C", root}, args...)...)
 	b, e := c.Output()
-	return strings.TrimSpace(string(b)), e
+	return strings.TrimRight(string(b), "\r\n"), e
 }
 func markerPath(root string) (string, error) {
 	p, e := git(root, "rev-parse", "--git-path", "agent-test-first/baseline.json")

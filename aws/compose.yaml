@@ -30,7 +30,7 @@ services:
       retries: 30
       start_period: 5s
   rustfscreatebuckets:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:2.38.6
     container_name: go_utils_rustfs_init_ci
     depends_on:
       rustfs:
@@ -76,6 +76,87 @@ services:
     volumes:
       - ./docker/dynamodb:/test_tables
 
+  # ---- cdc integration test stack (profile "cdc") -------------------------
+  # docker compose --profile cdc up -d mysql floci flocisetup debezium
+  # Kept behind a profile so `docker compose up -d` (task test-aws) does not
+  # start it. Flow: mysql binlog -> debezium -> sns -> sqs (floci) -> cdc consumer.
+  mysql:
+    profiles: ["cdc"]
+    image: mysql:8.4
+    container_name: go_utils_cdc_mysql
+    command: ["--default-time-zone=+00:00"]
+    ports:
+      - "23306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+  floci:
+    profiles: ["cdc"]
+    image: floci/floci:latest
+    container_name: go_utils_cdc_floci
+    ports:
+      # Not 4566, so it does not clash with a floci/LocalStack already running locally.
+      - "24566:4566"
+  flocisetup:
+    profiles: ["cdc"]
+    image: amazon/aws-cli:2.38.6
+    container_name: go_utils_cdc_floci_init
+    depends_on:
+      - floci
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=ap-northeast-1
+      - AWS_EC2_METADATA_DISABLED=true
+      - AWS_PAGER=
+      - AWS_ENDPOINT_URL=http://floci:4566
+    entrypoint: ["/bin/sh", "/init/init.sh"]
+    volumes:
+      - ./docker/floci:/init:ro
+  debezium:
+    profiles: ["cdc"]
+    image: quay.io/debezium/server:nightly
+    container_name: go_utils_cdc_debezium
+    depends_on:
+      mysql:
+        condition: service_healthy
+      flocisetup:
+        condition: service_completed_successfully
+    volumes:
+      - debezium-data:/debezium/data
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: ap-northeast-1
+      DEBEZIUM_SOURCE_CONNECTOR_CLASS: io.debezium.connector.mysql.MySqlConnector
+      DEBEZIUM_SOURCE_DATABASE_HOSTNAME: mysql
+      DEBEZIUM_SOURCE_DATABASE_PORT: "3306"
+      DEBEZIUM_SOURCE_DATABASE_USER: root
+      DEBEZIUM_SOURCE_DATABASE_PASSWORD: root
+      DEBEZIUM_SOURCE_DATABASE_SERVER_ID: 184055
+      DEBEZIUM_SOURCE_TOPIC_PREFIX: cdc
+      DEBEZIUM_SOURCE_DATABASE_INCLUDE_LIST: cdc_source
+      DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST: cdc_source.orders
+      DEBEZIUM_SOURCE_INCLUDE_SCHEMA_CHANGES: "false"
+      DEBEZIUM_SOURCE_OFFSET_STORAGE_FILE_FILENAME: /debezium/data/offsets.dat
+      DEBEZIUM_SOURCE_SCHEMA_HISTORY_INTERNAL: io.debezium.storage.file.history.FileSchemaHistory
+      DEBEZIUM_SOURCE_SCHEMA_HISTORY_INTERNAL_FILE_FILENAME: /debezium/data/schema-history.dat
+      # mysqlsink needs the schema block to type columns.
+      DEBEZIUM_FORMAT_VALUE: json
+      DEBEZIUM_FORMAT_VALUE_SCHEMAS_ENABLE: "true"
+      DEBEZIUM_SINK_TYPE: sns
+      DEBEZIUM_SINK_SNS_REGION: ap-northeast-1
+      DEBEZIUM_SINK_SNS_ENDPOINT: http://floci:4566
+      DEBEZIUM_SINK_SNS_TOPIC_ARN_PREFIX: "arn:aws:sns:ap-northeast-1:000000000000:"
+
 volumes:
   rustfs-data:
   rustfs-logs:
+  debezium-data:
