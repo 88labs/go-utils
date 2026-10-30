@@ -185,7 +185,7 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 		for i, c := range cols {
 			byName[c.name] = vals[i]
 		}
-		args := make([]any, 0, len(pk)+2)
+		args := make([]any, 0, len(pk)+1)
 		for _, k := range pk {
 			v, ok := byName[k]
 			if !ok {
@@ -193,7 +193,13 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 			}
 			args = append(args, v)
 		}
-		args = append(args, byName[version], byName[version])
+		// A NULL version proves nothing about freshness, so it must not delete
+		// a row that may be newer. Not Permanent: retry, then an operator decides
+		// from the DLQ.
+		if byName[version] == nil {
+			return fmt.Errorf("mysqlsink: delete of %s has a NULL %s in the before image; not applied", target, version)
+		}
+		args = append(args, byName[version])
 		_, err = s.db.ExecContext(ctx, deleteSQL(target, pk, version), args...)
 		return err
 	}
@@ -203,13 +209,15 @@ func (s *Syncer) apply(ctx context.Context, cfg TableConfig, ev *cdc.RawEvent) e
 // deleteSQL builds a DELETE guarded like the upsert: a delayed delete whose
 // before-image version is older than the target row's must not remove a row
 // that was recreated or updated since. Its arguments are the primary key
-// values followed by the before-image version, twice.
+// values followed by the before-image version, which must not be NULL (the
+// caller rejects that). A target row with a NULL version has no watermark to
+// protect and is deleted.
 func deleteSQL(target string, pk []string, version string) string {
 	where := make([]string, 0, len(pk)+1)
 	for _, k := range pk {
 		where = append(where, q(k)+" = ?")
 	}
-	where = append(where, fmt.Sprintf("(%s IS NULL OR ? IS NULL OR %s <= ?)", q(version), q(version)))
+	where = append(where, fmt.Sprintf("(%s IS NULL OR %s <= ?)", q(version), q(version)))
 	return "DELETE FROM " + q(target) + " WHERE " + strings.Join(where, " AND ")
 }
 

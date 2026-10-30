@@ -111,7 +111,7 @@ func TestSkipDeleteNeedsNoVersionColumn(t *testing.T) {
 }
 
 func TestDeleteIsGuardedByBeforeImageVersion(t *testing.T) {
-	const guarded = "DELETE FROM `orders` WHERE `id` = ? AND (`%s` IS NULL OR ? IS NULL OR `%[1]s` <= ?)"
+	const guarded = "DELETE FROM `orders` WHERE `id` = ? AND (`%s` IS NULL OR `%[1]s` <= ?)"
 	tests := []struct {
 		name    string
 		cfg     TableConfig
@@ -130,12 +130,6 @@ func TestDeleteIsGuardedByBeforeImageVersion(t *testing.T) {
 			before:  `{"id":7,"name":"a","updated_at":1000}`,
 			wantSQL: fmt.Sprintf(guarded, "name"),
 		},
-		{
-			name:    "null before version still issues the guarded delete",
-			cfg:     TableConfig{AllColumns: true},
-			before:  `{"id":7,"name":"a","updated_at":null}`,
-			wantSQL: fmt.Sprintf(guarded, "updated_at"),
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -150,17 +144,46 @@ func TestDeleteIsGuardedByBeforeImageVersion(t *testing.T) {
 			if got.query != tt.wantSQL {
 				t.Fatalf("query =\n%s\nwant\n%s", got.query, tt.wantSQL)
 			}
-			// Arguments: the primary key, then the before-image version twice.
-			if len(got.args) != 3 {
-				t.Fatalf("args = %v, want 3", got.args)
+			// Arguments: the primary key, then the before-image version.
+			if len(got.args) != 2 {
+				t.Fatalf("args = %v, want 2", got.args)
 			}
 			if got.args[0].Value != int64(7) {
 				t.Fatalf("pk arg = %v, want 7", got.args[0].Value)
 			}
-			if got.args[1].Value != got.args[2].Value {
-				t.Fatalf("version args differ: %v vs %v", got.args[1].Value, got.args[2].Value)
+			if got.args[1].Value == nil {
+				t.Fatal("version arg must be non-NULL")
 			}
 		})
+	}
+}
+
+func TestDeleteWithNullBeforeVersionIsRejected(t *testing.T) {
+	db, rec := newRecordingDB(t, "id", "name", "updated_at")
+	err := New(db).apply(context.Background(), TableConfig{AllColumns: true}, deleteEvent(`{"id":7,"name":"a","updated_at":null}`))
+	if err == nil {
+		t.Fatal("a NULL-version delete must not be applied")
+	}
+	if cdc.IsPermanent(err) {
+		t.Fatalf("must be retryable (retry, then DLQ), got permanent: %v", err)
+	}
+	if !strings.Contains(err.Error(), "updated_at") {
+		t.Fatalf("error should name the version column: %v", err)
+	}
+	if len(rec.exec) != 0 {
+		t.Fatalf("no statement may run, got %v", rec.exec)
+	}
+}
+
+// TestDeleteSQLComparesTargetVersionToBeforeImage pins the part of the guard
+// that must survive any change to NULL handling: the target row is deleted
+// only when its version is not newer than the before image.
+func TestDeleteSQLComparesTargetVersionToBeforeImage(t *testing.T) {
+	got := deleteSQL("orders", []string{"id"}, "updated_at")
+	for _, want := range []string{"DELETE FROM `orders` WHERE `id` = ? AND (", "`updated_at` <= ?"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %s", want, got)
+		}
 	}
 }
 
@@ -245,6 +268,15 @@ func TestIntegrationDelayedDeleteDoesNotRemoveRecreatedRow(t *testing.T) {
 	apply(event(cdc.OpDelete, `{"id":9000001,"name":"v1","updated_at":1000}`, ""))
 	if count() != 1 {
 		t.Fatal("a delayed delete of version 1 removed the version 2 row")
+	}
+
+	// A delete whose before image has a NULL version proves nothing about
+	// freshness: it is rejected and the newer row survives.
+	if err := s.apply(ctx, cfg, event(cdc.OpDelete, `{"id":9000001,"name":"v1","updated_at":null}`, "")); err == nil {
+		t.Fatal("a NULL-version delete must be rejected")
+	}
+	if count() != 1 {
+		t.Fatal("a NULL-version delete removed the version 2 row")
 	}
 
 	apply(event(cdc.OpDelete, `{"id":9000001,"name":"v2","updated_at":2000}`, ""))
