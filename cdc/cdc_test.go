@@ -32,7 +32,7 @@ func TestDispatchOrderCreate(t *testing.T) {
 
 	r := NewRouter()
 	var got Event[order]
-	handle(r, "orders", func(_ context.Context, e Event[order]) error { got = e; return nil })
+	Handle(r, "orders", func(_ context.Context, e Event[order]) error { got = e; return nil })
 
 	if err := r.dispatch(context.Background(), snsBody(t, dbz), Meta{ReceiveCount: 3}); err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestDispatchOrderCreate(t *testing.T) {
 func TestRawDeliveryAndUnknownTable(t *testing.T) {
 	r := NewRouter()
 	called := false
-	handle(r, "orders", func(context.Context, Event[order]) error { called = true; return nil })
+	Handle(r, "orders", func(context.Context, Event[order]) error { called = true; return nil })
 	body := `{"before":null,"after":{"id":1},"source":{"db":"d","table":"clients"},"op":"c"}`
 	if err := r.dispatch(context.Background(), body, Meta{}); err != nil || called {
 		t.Fatalf("unknown table should be ignored: err=%v called=%v", err, called)
@@ -90,7 +90,7 @@ func noopHandler(context.Context, *RawEvent, Meta) error { return nil }
 func TestRegisterAfterNewConsumerPanics(t *testing.T) {
 	register := map[string]func(*Router){
 		"HandleRaw": func(r *Router) { HandleRaw(r, "orders", noopHandler) },
-		"handle":    func(r *Router) { handle(r, "orders", func(context.Context, Event[order]) error { return nil }) },
+		"handle":    func(r *Router) { Handle(r, "orders", func(context.Context, Event[order]) error { return nil }) },
 		"OnUnknown": func(r *Router) { r.OnUnknown(func(context.Context, *RawEvent) error { return nil }) },
 	}
 	for name, fn := range register {
@@ -158,7 +158,7 @@ func TestDispatchIsSafeForConcurrentUse(t *testing.T) {
 
 func TestBadPayloadIsPermanent(t *testing.T) {
 	r := NewRouter()
-	handle(r, "orders", func(context.Context, Event[order]) error { return nil })
+	Handle(r, "orders", func(context.Context, Event[order]) error { return nil })
 	body := `{"before":null,"after":{"id":"not-int"},"source":{"db":"d","table":"orders"},"op":"c"}`
 	if err := r.dispatch(context.Background(), body, Meta{}); !IsPermanent(err) {
 		t.Fatalf("want permanent, got %v", err)

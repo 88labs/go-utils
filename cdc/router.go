@@ -89,9 +89,9 @@ func (r *Router) OnUnknown(fn func(ctx context.Context, ev *RawEvent) error) {
 	r.onUnknown = fn
 }
 
-// handle registers a typed handler. key is "orders" or "andpad_development.orders".
+// Handle registers a typed handler. key is "orders" or "andpad_development.orders".
 // (A generic function because Go methods cannot have type parameters.)
-func handle[T any](r *Router, key string, h HandlerFunc[T]) {
+func Handle[T any](r *Router, key string, h HandlerFunc[T]) {
 	r.mustBeOpen()
 	if _, dup := r.handlers[key]; dup {
 		panic("cdc: duplicate handler for " + key)
